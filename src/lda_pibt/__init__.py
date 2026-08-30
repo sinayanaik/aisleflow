@@ -15,8 +15,24 @@ Quick start::
 
 from .aisle_manager import AisleManager
 from .assignment import TaskAssigner, update_task_state, update_waypoint
-from .config import ABLATIONS, Params, ablation
-from .experiments import LIFELONG_VARIANTS, run_ablation_table, run_density_sweep, run_once
+from .baselines import RHCRPlanner, TokenPassingPlanner
+from .config import (
+    ABLATIONS,
+    BASELINE_PARAMS_PRESET,
+    FACTORIAL_DESIGNS,
+    FactorialDesign,
+    Params,
+    ablation,
+)
+from .experiments import (
+    BASELINE_PLANNERS,
+    LIFELONG_VARIANTS,
+    run_ablation_table,
+    run_comparison_table,
+    run_density_sweep,
+    run_factorial_table,
+    run_once,
+)
 from .congestion import CongestionModel, OccupancyIndex
 from .deadlock import DeadlockMonitor
 from .graph import GridGraph
@@ -27,6 +43,7 @@ from .robot import Robot
 from .routing import Router
 from .scoring import CandidateScorer
 from .simulator import Simulator, build_simulator
+from .stats import bootstrap_ci, permutation_test
 from .task import Task, TaskGenerator, TaskQueue
 from .types import (
     AisleDirection,
@@ -52,10 +69,14 @@ __all__ = [
     "AisleDirection",
     "AisleManager",
     "AisleState",
+    "BASELINE_PARAMS_PRESET",
+    "BASELINE_PLANNERS",
     "CandidateScorer",
     "Compass",
     "CongestionModel",
     "DeadlockMonitor",
+    "FACTORIAL_DESIGNS",
+    "FactorialDesign",
     "GridGraph",
     "LIFELONG_VARIANTS",
     "MetricsCollector",
@@ -66,6 +87,7 @@ __all__ = [
     "Params",
     "PlanningError",
     "ProximityMode",
+    "RHCRPlanner",
     "Reservation",
     "Robot",
     "Router",
@@ -76,10 +98,12 @@ __all__ = [
     "TaskGenerator",
     "TaskQueue",
     "TaskStatus",
+    "TokenPassingPlanner",
     "Vertex",
     "VertexInfo",
     "Warehouse",
     "ablation",
+    "bootstrap_ci",
     "build_simulator",
     "compute_priority",
     "execute_moves",
@@ -88,8 +112,11 @@ __all__ = [
     "no_vertex_conflicts",
     "order_by_priority",
     "percentile",
+    "permutation_test",
     "run_ablation_table",
+    "run_comparison_table",
     "run_density_sweep",
+    "run_factorial_table",
     "run_once",
     "update_task_state",
     "update_waypoint",

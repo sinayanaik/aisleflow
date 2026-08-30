@@ -10,7 +10,7 @@ import random
 import sys
 import time
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol, Sequence
 
 from .aisle_manager import AisleManager
 from .assignment import TaskAssigner, update_task_state, update_waypoint
@@ -36,6 +36,27 @@ from .validate import execute_moves, validate_plan
 from .warehouse import Warehouse
 
 
+class Planner(Protocol):
+    """What `Simulator` requires of a low-level movement planner.
+
+    `PIBTPlanner` is the default; the baseline planners in `lda_pibt.baselines`
+    (Token Passing, RHCR) satisfy this same protocol so they can be swapped in
+    via `planner_factory` without touching the simulation loop.
+    """
+
+    def plan_step(self, ordered_robots: Sequence[Robot], timestep: int) -> None: ...
+
+    def stats(self) -> Dict[str, Any]: ...
+
+
+#: Builds a planner from the same five components `PIBTPlanner` takes.
+#: Baseline planners accept and ignore `scorer`/`aisle_manager` so every
+#: planner can be constructed through this one uniform call site.
+PlannerFactory = Callable[
+    [Warehouse, OccupancyIndex, CandidateScorer, AisleManager, Params], Planner
+]
+
+
 @dataclass
 class StepSnapshot:
     """Lightweight per-timestep snapshot used by the visualiser."""
@@ -58,6 +79,7 @@ class Simulator:
         params: Optional[Params] = None,
         static_goals: Optional[Dict[int, Vertex]] = None,
         record_history: bool = False,
+        planner_factory: Optional[PlannerFactory] = None,
     ):
         self.params = params or warehouse.params or Params()
         self.warehouse = warehouse
@@ -77,7 +99,7 @@ class Simulator:
         self.aisles = AisleManager(warehouse, self.index, self.params)
         self.router = Router(warehouse, self.params)
         self.assigner = TaskAssigner(warehouse, self.congestion, self.params)
-        self.planner = PIBTPlanner(
+        self.planner: Planner = (planner_factory or PIBTPlanner)(
             warehouse, self.index, self.scorer, self.aisles, self.params
         )
         self.deadlocks = DeadlockMonitor(warehouse, self.index, self.aisles, self.params)
@@ -350,6 +372,7 @@ def build_simulator(
     task_generator: Optional[TaskGenerator] = None,
     start_vertices: Optional[Sequence[Vertex]] = None,
     record_history: bool = False,
+    planner_factory: Optional[PlannerFactory] = None,
 ) -> Simulator:
     """Convenience constructor: place `n_robots` on free, distinct vertices."""
     params = params or Params()
@@ -392,7 +415,8 @@ def build_simulator(
         task_generator=task_generator,
         params=params,
         record_history=record_history,
+        planner_factory=planner_factory,
     )
 
 
-__all__ = ["Simulator", "build_simulator", "StepSnapshot"]
+__all__ = ["Simulator", "build_simulator", "StepSnapshot", "Planner", "PlannerFactory"]

@@ -106,6 +106,11 @@ class Params:
     park_when_idle: bool = True
     validate_every_step: bool = True
 
+    # ---- baseline planners (Token Passing, RHCR) --------------------------
+    #: unused by PIBT/LDA-PIBT; only consumed by baselines.rhcr.RHCRPlanner
+    baseline_window: int = 10
+    baseline_replan_period: int = 5
+
     def merged(self, **overrides: Any) -> "Params":
         unknown = set(overrides) - set(asdict(self))
         if unknown:
@@ -186,6 +191,135 @@ ABLATIONS: Dict[str, Dict[str, Any]] = {
     ),
 }
 
+#: Params flags for the external baseline planners (Token Passing, RHCR) --
+#: identical to `lifelong_pibt`'s "every PIBT/LDA-specific mechanism off"
+#: state, since neither baseline scores candidates or manages aisle
+#: direction. `recovery` is deliberately not fixed here: the baseline
+#: variant registry (`experiments.BASELINE_PLANNERS`) sets it per-variant
+#: (e.g. `token_passing` vs `token_passing_recovery`), since whether a
+#: baseline gets the same deadlock-recovery safety net as the PIBT variants
+#: is itself part of what is being compared.
+BASELINE_PARAMS_PRESET: Dict[str, Any] = dict(
+    lifelong=True,
+    direction_control="none",
+    hysteresis=False,
+    congestion_aware=False,
+    reservations=False,
+    turning_cost=False,
+)
+
+
+#: Single-flag isolation variants. The headline ladder above changes two
+#: flags at once on three of its steps (lifelong_pibt -> directional_pibt,
+#: hysteresis_pibt -> aisle_managed_pibt, aisle_managed_pibt -> full_lda_pibt),
+#: so a throughput delta on those steps cannot be attributed to either flag
+#: alone. Each variant here flips exactly one of the two flags relative to
+#: the same base, so it forms a clean 2x2 factorial with its sibling and the
+#: two ladder rungs that bracket it (see FACTORIAL_DESIGNS).
+ABLATIONS.update(
+    {
+        "turning_cost_only": dict(
+            lifelong=True,
+            direction_control="none",
+            hysteresis=False,
+            congestion_aware=False,
+            reservations=False,
+            recovery=False,
+            turning_cost=True,
+        ),
+        "direction_control_only": dict(
+            lifelong=True,
+            direction_control="robot",
+            hysteresis=False,
+            congestion_aware=False,
+            reservations=False,
+            recovery=False,
+            turning_cost=False,
+        ),
+        "aisle_direction_only": dict(
+            lifelong=True,
+            direction_control="aisle",
+            hysteresis=True,
+            congestion_aware=False,
+            reservations=False,
+            recovery=False,
+            turning_cost=True,
+        ),
+        "reservations_only": dict(
+            lifelong=True,
+            direction_control="robot",
+            hysteresis=True,
+            congestion_aware=False,
+            reservations=True,
+            recovery=False,
+            turning_cost=True,
+        ),
+        "congestion_only": dict(
+            lifelong=True,
+            direction_control="aisle",
+            hysteresis=True,
+            congestion_aware=True,
+            reservations=True,
+            recovery=False,
+            turning_cost=True,
+        ),
+        "recovery_only": dict(
+            lifelong=True,
+            direction_control="aisle",
+            hysteresis=True,
+            congestion_aware=False,
+            reservations=True,
+            recovery=True,
+            turning_cost=True,
+        ),
+    }
+)
+
+
+@dataclass(frozen=True)
+class FactorialDesign:
+    """A 2x2 factorial that de-confounds one bundled step of the ladder."""
+
+    name: str
+    base: str  #: neither flag
+    factor_a: str  #: flag A alone
+    factor_b: str  #: flag B alone
+    both: str  #: both flags (the ladder's next rung)
+    label_a: str
+    label_b: str
+
+
+#: The three factorials that resolve the ladder's confounded steps.
+FACTORIAL_DESIGNS: Dict[str, FactorialDesign] = {
+    "direction_vs_turning_cost": FactorialDesign(
+        name="direction_vs_turning_cost",
+        base="lifelong_pibt",
+        factor_a="direction_control_only",
+        factor_b="turning_cost_only",
+        both="directional_pibt",
+        label_a="direction_control=robot",
+        label_b="turning_cost",
+    ),
+    "aisle_direction_vs_reservations": FactorialDesign(
+        name="aisle_direction_vs_reservations",
+        base="hysteresis_pibt",
+        factor_a="aisle_direction_only",
+        factor_b="reservations_only",
+        both="aisle_managed_pibt",
+        label_a="direction_control=aisle",
+        label_b="reservations",
+    ),
+    "congestion_vs_recovery": FactorialDesign(
+        name="congestion_vs_recovery",
+        base="aisle_managed_pibt",
+        factor_a="congestion_only",
+        factor_b="recovery_only",
+        both="full_lda_pibt",
+        label_a="congestion_aware",
+        label_b="recovery",
+    ),
+}
+
 
 def ablation(name: str, base: Params | None = None, **overrides: Any) -> Params:
     """Return `Params` for a named ablation variant."""
@@ -195,4 +329,11 @@ def ablation(name: str, base: Params | None = None, **overrides: Any) -> Params:
     return params.merged(**overrides) if overrides else params
 
 
-__all__ = ["Params", "ABLATIONS", "ablation"]
+__all__ = [
+    "Params",
+    "ABLATIONS",
+    "BASELINE_PARAMS_PRESET",
+    "FactorialDesign",
+    "FACTORIAL_DESIGNS",
+    "ablation",
+]

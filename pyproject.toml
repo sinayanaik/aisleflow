@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lda-pibt"
+name = "aisleflow"
 version = "0.1.0"
-description = "Lifelong Aisle-Managed PIBT for directional and congestion-aware multi-agent pickup and delivery"
+description = "AisleFlow: an implementation and benchmark of Lifelong Aisle-Managed PIBT (LDA-PIBT), a directional and congestion-aware extension of PIBT for multi-agent pickup and delivery"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

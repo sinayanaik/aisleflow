@@ -138,6 +138,12 @@ def test_waiting_is_always_a_candidate():
         "hysteresis_pibt",
         "aisle_managed_pibt",
         "full_lda_pibt",
+        "turning_cost_only",
+        "direction_control_only",
+        "aisle_direction_only",
+        "reservations_only",
+        "congestion_only",
+        "recovery_only",
     ],
 )
 def test_every_variant_is_collision_free(variant):
