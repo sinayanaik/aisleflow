@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LDA-PIBT — Lifelong Aisle-Managed PIBT</title>
+<style>
+:root {
+  --bg: #14161a;
+  --panel: #1c2027;
+  --panel-2: #232833;
+  --line: #2f3643;
+  --text: #e6e9ef;
+  --dim: #98a2b3;
+  --accent: #6aa9ff;
+  --ok: #4ec9a0;
+  --warn: #f0b849;
+  --bad: #f2705f;
+  --forward: #6aa9ff;
+  --reverse: #f0955a;
+  --drain: #b78cf5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 13px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: grid; grid-template-columns: 260px 1fr 300px; height: 100vh; overflow: hidden;
+}
+aside { background: var(--panel); overflow-y: auto; padding: 14px; }
+aside.left { border-right: 1px solid var(--line); }
+aside.right { border-left: 1px solid var(--line); }
+main { display: flex; flex-direction: column; min-width: 0; }
+
+h1 { font-size: 14px; margin: 0 0 2px; letter-spacing: .3px; }
+h1 span { color: var(--accent); }
+.sub { color: var(--dim); font-size: 11px; margin-bottom: 14px; }
+h2 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .10em;
+  color: var(--dim); margin: 18px 0 8px; font-weight: 600;
+}
+h2:first-of-type { margin-top: 0; }
+
+label { display: block; margin-bottom: 9px; font-size: 12px; color: var(--dim); }
+select, input[type=number] {
+  width: 100%; margin-top: 3px; padding: 5px 7px; background: var(--panel-2);
+  color: var(--text); border: 1px solid var(--line); border-radius: 5px; font: inherit;
+}
+input[type=range] { width: 100%; margin-top: 2px; accent-color: var(--accent); }
+.row { display: flex; gap: 6px; }
+.row > * { flex: 1; }
+
+button {
+  padding: 7px 10px; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 5px; cursor: pointer; font: inherit;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 600; }
+button.active { border-color: var(--accent); color: var(--accent); }
+
+#toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap;
+}
+#toolbar .grow { flex: 1; }
+#clock { font-variant-numeric: tabular-nums; color: var(--dim); font-size: 12px; }
+#clock b { color: var(--text); font-size: 15px; }
+
+#stage { flex: 1; position: relative; overflow: hidden; background: #0f1115; }
+#canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+
+#legend {
+  display: flex; gap: 14px; padding: 7px 14px; border-top: 1px solid var(--line);
+  background: var(--panel); font-size: 11px; color: var(--dim); flex-wrap: wrap;
+}
+.key { display: flex; align-items: center; gap: 5px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.stat { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+.stat span { color: var(--dim); }
+.stat b { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.chip {
+  display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--dim);
+  margin: 1px 3px 1px 0;
+}
+.chip.bad { color: var(--bad); border-color: #5a2f2c; }
+.chip.ok { color: var(--ok); border-color: #2c5147; }
+
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 4px; }
+td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+tr.legal td:first-child { color: var(--ok); }
+tr.chosen { background: rgba(106,169,255,.10); }
+
+#spark { width: 100%; height: 70px; display: block; }
+.empty { color: var(--dim); font-size: 12px; font-style: italic; }
+.hint { color: var(--dim); font-size: 11px; margin-top: 6px; }
+#err { color: var(--bad); font-size: 11px; margin-top: 8px; }
+details summary { cursor: pointer; color: var(--dim); font-size: 11px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<aside class="left">
+  <h1>LDA-<span>PIBT</span></h1>
+  <div class="sub">Lifelong Aisle-Managed PIBT</div>
+
+  <h2>Scenario</h2>
+  <label>Map<select id="map"></select></label>
+  <label>Variant<select id="variant"></select></label>
+  <div class="row">
+    <label>Robots<input type="number" id="n_robots" min="1" max="400"></label>
+    <label>Seed<input type="number" id="seed" min="0"></label>
+  </div>
+  <div class="row">
+    <label>Arrival<select id="arrival"></select></label>
+    <label>Rate<input type="number" id="rate" min="0" step="0.1"></label>
+  </div>
+  <button class="primary" id="apply" style="width:100%">Apply &amp; restart</button>
+  <div id="err"></div>
+
+  <h2>Ablation switches</h2>
+  <div id="toggles"></div>
+
+  <h2>Parameters</h2>
+  <details><summary>Changing these restarts the run</summary></details>
+  <div id="sliders"></div>
+</aside>
+
+<main>
+  <div id="toolbar">
+    <button class="primary" id="play">▶ Play</button>
+    <button id="step1">Step</button>
+    <button id="step10">+10</button>
+    <button id="step100">+100</button>
+    <button id="reset">Reset</button>
+    <label style="margin:0;min-width:150px">Speed <span id="speedval" style="color:var(--text)"></span>
+      <input type="range" id="speed" min="1" max="60" value="12">
+    </label>
+    <span class="grow"></span>
+    <span style="font-size:11px;color:var(--dim)">Overlay</span>
+    <button class="ov active" data-ov="none">Plain</button>
+    <button class="ov" data-ov="aisles">Aisles</button>
+    <button class="ov" data-ov="congestion">Congestion</button>
+    <button class="ov" data-ov="stall">Stalled</button>
+    <button id="paths" class="active" title="Show every active robot's route and current goal">Paths &amp; goals</button>
+    <span id="clock"><b>t=0</b></span>
+  </div>
+
+  <div id="stage"><canvas id="canvas"></canvas></div>
+
+  <div id="legend">
+    <span class="key"><i class="dot" style="background:linear-gradient(135deg,#ee786d,#6aa9ff,#4ec9a0)"></i>robot, route &amp; goal share a color</span>
+    <span class="key"><i class="dot" style="border:2px solid #f2705f;background:transparent"></i>red outline = stuck</span>
+    <span class="key"><i class="dot" style="background:var(--forward)"></i>aisle FORWARD</span>
+    <span class="key"><i class="dot" style="background:var(--reverse)"></i>aisle REVERSE</span>
+    <span class="key"><i class="dot" style="background:var(--drain)"></i>DRAINING</span>
+    <span class="key"><i class="dot" style="border:2px solid #6aa9ff;background:transparent"></i>goal / waypoint</span>
+    <span class="key">click a robot or aisle to inspect</span>
+  </div>
+</main>
+
+<aside class="right">
+  <h2>Metrics</h2>
+  <div id="metrics"></div>
+  <canvas id="spark"></canvas>
+  <div class="hint">completed (blue) · moving (green) · blocked (red)</div>
+
+  <h2>Inspector</h2>
+  <div id="inspector"><div class="empty">Click a robot or an aisle.</div></div>
+
+  <h2>Warehouse</h2>
+  <div id="summary"></div>
+</aside>
+
+<script>
+"use strict";
+
+const S = {
+  layout: null, options: null, state: null,
+  playing: false, fps: 12, overlay: "none", heat: null,
+  showPaths: true,
+  sel: null,          // {type:'robot'|'aisle', id}
+  inspect: null, busy: false, lastFrame: 0,
+};
+
+const $ = (id) => document.getElementById(id);
+const canvas = $("canvas"), ctx = canvas.getContext("2d");
+
+const AISLE_COLOR = {
+  FORWARD: "rgba(106,169,255,.30)", REVERSE: "rgba(240,149,90,.30)",
+  DRAINING: "rgba(183,140,245,.34)", OPEN: "rgba(255,255,255,.03)",
+};
+
+// A golden-angle palette keeps adjacent IDs visually distinct and makes a
+// robot, its route, and its current waypoint unambiguously belong together.
+function robotColor(id, alpha = 1) {
+  const hue = (id * 137.508 + 18) % 360;
+  return `hsla(${hue}, 72%, 62%, ${alpha})`;
+}
+
+/* ------------------------------------------------------------ networking */
+async function api(path, body) {
+  const opts = body
+    ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+    : {};
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+async function boot() {
+  const data = await api("/api/init");
+  S.layout = data.layout; S.options = data.options; S.state = data.state;
+  buildControls();
+  fitCanvas();
+  renderAll();
+}
+
+/* -------------------------------------------------------------- controls */
+function buildControls() {
+  const o = S.options, c = S.state.config;
+  fill($("map"), o.maps, c.map);
+  fill($("variant"), o.variants, c.variant);
+  fill($("arrival"), o.arrivals, c.arrival);
+  $("n_robots").value = c.n_robots;
+  $("seed").value = c.seed;
+  $("rate").value = c.rate;
+
+  $("toggles").innerHTML = o.toggles.map((t) => `
+    <label style="display:flex;gap:7px;align-items:center;color:var(--text)">
+      <input type="checkbox" data-key="${t.key}" ${S.state.params[t.key] ? "checked" : ""}>
+      ${t.label}
+    </label>`).join("");
+  $("toggles").querySelectorAll("input").forEach((el) =>
+    el.addEventListener("change", () => applyConfig({ overrides: { [el.dataset.key]: el.checked } })));
+
+  $("sliders").innerHTML = o.tunable.map((p) => `
+    <label>${p.label} <b id="v_${p.key}" style="color:var(--text);float:right">${S.state.params[p.key]}</b>
+      <input type="range" data-key="${p.key}" min="${p.min}" max="${p.max}"
+             step="${p.step}" value="${S.state.params[p.key]}">
+    </label>`).join("");
+  $("sliders").querySelectorAll("input").forEach((el) => {
+    el.addEventListener("input", () => { $("v_" + el.dataset.key).textContent = el.value; });
+    el.addEventListener("change", () => {
+      const raw = parseFloat(el.value);
+      const val = parseFloat(el.step) % 1 === 0 ? Math.round(raw) : raw;
+      applyConfig({ overrides: { [el.dataset.key]: val } });
+    });
+  });
+  $("summary").innerHTML = Object.entries(S.layout.summary)
+    .map(([k, v]) => `<div class="stat"><span>${k.replace(/_/g, " ")}</span><b>${v}</b></div>`).join("");
+}
+
+function fill(sel, values, current) {
+  sel.innerHTML = values.map((v) => `<option ${v === current ? "selected" : ""}>${v}</option>`).join("");
+}
+
+async function applyConfig(extra) {
+  S.playing = false; syncPlay();
+  const body = Object.assign({
+    map: $("map").value, variant: $("variant").value, arrival: $("arrival").value,
+    n_robots: parseInt($("n_robots").value, 10), seed: parseInt($("seed").value, 10),
+    rate: parseFloat($("rate").value),
+  }, extra || {});
+  const data = await api("/api/config", body);
+  if (data.error) { $("err").textContent = data.error; return; }
+  $("err").textContent = "";
+  S.layout = data.layout; S.state = data.state; S.sel = null; S.inspect = null; S.heat = null;
+  fitCanvas(); renderAll();
+  $("summary").innerHTML = Object.entries(S.layout.summary)
+    .map(([k, v]) => `<div class="stat"><span>${k.replace(/_/g, " ")}</span><b>${v}</b></div>`).join("");
+}
+
+async function step(n) {
+  if (S.busy) return;
+  S.busy = true;
+  S.state = await api("/api/step", { n });
+  if (S.overlay === "congestion" || S.overlay === "stall") {
+    S.heat = (await api("/api/heatmap?kind=" + S.overlay)).grid;
+  }
+  if (S.sel && S.sel.type === "robot") {
+    S.inspect = await api("/api/robot?id=" + S.sel.id);
+  }
+  S.busy = false;
+  renderAll();
+}
+
+/* ------------------------------------------------------------- rendering */
+let CELL = 20, OX = 0, OY = 0;
+
+function fitCanvas() {
+  const stage = $("stage");
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = stage.clientWidth * dpr;
+  canvas.height = stage.clientHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!S.layout) return;
+  const pad = 16;
+  CELL = Math.max(6, Math.floor(Math.min(
+    (stage.clientWidth - pad * 2) / S.layout.width,
+    (stage.clientHeight - pad * 2) / S.layout.height)));
+  OX = Math.floor((stage.clientWidth - CELL * S.layout.width) / 2);
+  OY = Math.floor((stage.clientHeight - CELL * S.layout.height) / 2);
+}
+
+function renderAll() { drawGrid(); drawMetrics(); drawSpark(); drawInspector(); drawClock(); }
+
+function drawClock() {
+  const m = S.state.metrics;
+  $("clock").innerHTML = `<b>t=${S.state.timestep}</b> &nbsp; ${m.completed} done &nbsp;
+    ${m.moving} moving &nbsp; <span style="color:${m.blocked ? "var(--bad)" : "var(--dim)"}">${m.blocked} blocked</span>`;
+}
+
+function drawGrid() {
+  const L = S.layout, st = S.state;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // floor and obstacles
+  for (let r = 0; r < L.height; r++) {
+    for (let c = 0; c < L.width; c++) {
+      ctx.fillStyle = L.passable[r][c] ? "#1b1f26" : "#0a0c10";
+      ctx.fillRect(OX + c * CELL, OY + r * CELL, CELL - 1, CELL - 1);
+    }
+  }
+  // stations
+  paint(L.cells.pickup, "rgba(78,201,160,.22)");
+  paint(L.cells.delivery, "rgba(106,169,255,.22)");
+  paint(L.cells.parking, "rgba(240,184,73,.16)");
+
+  // overlays
+  if (S.overlay === "aisles") drawAisles();
+  else if (S.heat && (S.overlay === "congestion" || S.overlay === "stall")) drawHeat();
+
+  // Routes and goals are shown for active robots.  The selected robot stays
+  // prominent while the other routes use a lighter version of its state colour.
+  if (S.showPaths) {
+    st.robots.forEach((robot) => {
+      if (robot.state !== "FREE" && robot.waypoint) drawRouteAndGoal(robot, false);
+    });
+  }
+  if (S.sel && S.sel.type === "robot") {
+    const robot = st.robots.find((r) => r.id === S.sel.id);
+    if (robot && robot.waypoint) drawRouteAndGoal(robot, true);
+    if (S.inspect) drawCandidates();
+  }
+
+  // robots
+  const radius = Math.max(2.5, CELL * 0.34);
+  st.robots.forEach((robot) => {
+    const [r, c] = robot.pos;
+    const x = OX + c * CELL + CELL / 2, y = OY + r * CELL + CELL / 2;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, 6.2832);
+    ctx.fillStyle = robotColor(robot.id);
+    ctx.fill();
+    if (robot.is_stuck) {
+      ctx.strokeStyle = "#f2705f"; ctx.lineWidth = 3; ctx.stroke();
+    }
+    if (S.sel && S.sel.type === "robot" && S.sel.id === robot.id) {
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+    }
+    if (CELL >= 16) {
+      ctx.fillStyle = "#0d1117";
+      ctx.font = `600 ${Math.floor(CELL * 0.42)}px ui-monospace, monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(robot.id, x, y + 0.5);
+    }
+  });
+}
+
+function drawRouteAndGoal(robot, selected) {
+  const colour = robotColor(robot.id);
+  if (robot.route.length > 1) {
+    ctx.strokeStyle = robotColor(robot.id, selected ? 1 : 0.55);
+    ctx.lineWidth = selected ? 2.5 : 1;
+    ctx.beginPath();
+    robot.route.forEach(([r, c], i) => {
+      const x = OX + c * CELL + CELL / 2, y = OY + r * CELL + CELL / 2;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  }
+  const [r, c] = robot.waypoint;
+  const x = OX + c * CELL + CELL / 2, y = OY + r * CELL + CELL / 2;
+  ctx.strokeStyle = colour; ctx.lineWidth = selected ? 2.5 : 1.5;
+  ctx.strokeRect(OX + c * CELL + 1, OY + r * CELL + 1, CELL - 3, CELL - 3);
+  ctx.fillStyle = colour;
+  ctx.beginPath(); ctx.arc(x, y, Math.max(2, CELL * 0.11), 0, 6.2832); ctx.fill();
+}
+
+function paint(cells, colour) {
+  ctx.fillStyle = colour;
+  cells.forEach(([r, c]) => ctx.fillRect(OX + c * CELL, OY + r * CELL, CELL - 1, CELL - 1));
+}
+
+function drawAisles() {
+  const byId = {};
+  S.state.aisles.forEach((a) => (byId[a.id] = a));
+  S.layout.aisles.forEach((aisle) => {
+    const live = byId[aisle.id]; if (!live) return;
+    ctx.fillStyle = live.manageable ? AISLE_COLOR[live.state] : "rgba(255,255,255,.02)";
+    aisle.vertices.forEach(([r, c]) => ctx.fillRect(OX + c * CELL, OY + r * CELL, CELL - 1, CELL - 1));
+    if (S.sel && S.sel.type === "aisle" && S.sel.id === aisle.id) {
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+      aisle.vertices.forEach(([r, c]) => ctx.strokeRect(OX + c * CELL, OY + r * CELL, CELL - 1, CELL - 1));
+    }
+    if (live.direction !== 0 && CELL >= 10) drawArrows(aisle.vertices, live.direction);
+  });
+}
+
+function drawArrows(vertices, direction) {
+  const list = direction > 0 ? vertices : vertices.slice().reverse();
+  ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.2;
+  for (let i = 0; i + 1 < list.length; i += 2) {
+    const [r0, c0] = list[i], [r1, c1] = list[i + 1];
+    const x0 = OX + c0 * CELL + CELL / 2, y0 = OY + r0 * CELL + CELL / 2;
+    const dx = (c1 - c0), dy = (r1 - r0), len = CELL * 0.30;
+    ctx.beginPath();
+    ctx.moveTo(x0 - dx * len, y0 - dy * len);
+    ctx.lineTo(x0 + dx * len, y0 + dy * len);
+    ctx.lineTo(x0 + dx * len - dx * len * 0.5 - dy * len * 0.4,
+               y0 + dy * len - dy * len * 0.5 + dx * len * 0.4);
+    ctx.stroke();
+  }
+}
+
+function drawHeat() {
+  let max = 0;
+  S.heat.forEach((row) => row.forEach((v) => { if (v > max) max = v; }));
+  if (max <= 0) return;
+  S.heat.forEach((row, r) => row.forEach((v, c) => {
+    if (v <= 0) return;
+    const t = v / max;
+    ctx.fillStyle = `rgba(${Math.round(80 + 175 * t)},${Math.round(150 - 110 * t)},80,${0.16 + 0.55 * t})`;
+    ctx.fillRect(OX + c * CELL, OY + r * CELL, CELL - 1, CELL - 1);
+  }));
+}
+
+function drawCandidates() {
+  S.inspect.candidates.forEach((cand) => {
+    const [r, c] = cand.vertex;
+    ctx.strokeStyle = cand.legal ? "rgba(78,201,160,.9)" : "rgba(242,112,95,.85)";
+    ctx.lineWidth = cand.chosen ? 3 : 1.5;
+    ctx.strokeRect(OX + c * CELL + 2, OY + r * CELL + 2, CELL - 5, CELL - 5);
+  });
+}
+
+/* ------------------------------------------------------------ side panel */
+function drawMetrics() {
+  const m = S.state.metrics;
+  const rows = [
+    ["completed", m.completed], ["pending", m.pending],
+    ["throughput", m.throughput], ["mean service", m.mean_service],
+    ["p95 service", m.p95_service], ["max wait", m.max_wait],
+    ["travel", m.travel], ["dir. switches", m.switches],
+    ["deadlocks", `${m.deadlocks} / ${m.recovered} rec`],
+    ["backtracks", m.backtracks], ["Jain fairness", m.fairness],
+    ["ms / step", m.ms],
+    ["collision free", m.collision_free ? "yes" : "NO"],
+  ];
+  $("metrics").innerHTML = rows.map(([k, v]) =>
+    `<div class="stat"><span>${k}</span><b style="color:${
+      k === "collision free" && v === "NO" ? "var(--bad)" : "inherit"}">${v}</b></div>`).join("");
+}
+
+function drawSpark() {
+  const cv = $("spark"), c2 = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = cv.clientWidth * dpr; cv.height = 70 * dpr;
+  c2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c2.clearRect(0, 0, cv.clientWidth, 70);
+  const s = S.state.series;
+  if (!s.t.length) return;
+  const W = cv.clientWidth, H = 70;
+  const line = (values, colour, maxOverride) => {
+    const max = maxOverride || Math.max(1, ...values);
+    c2.strokeStyle = colour; c2.lineWidth = 1.5; c2.beginPath();
+    values.forEach((v, i) => {
+      const x = (i / Math.max(1, values.length - 1)) * W;
+      const y = H - 4 - (v / max) * (H - 8);
+      i ? c2.lineTo(x, y) : c2.moveTo(x, y);
+    });
+    c2.stroke();
+  };
+  const robots = S.state.robots.length;
+  line(s.completed, "#6aa9ff");
+  line(s.moving, "#4ec9a0", robots);
+  line(s.blocked, "#f2705f", robots);
+}
+
+function drawInspector() {
+  const box = $("inspector");
+  if (!S.sel) { box.innerHTML = '<div class="empty">Click a robot or an aisle.</div>'; return; }
+
+  if (S.sel.type === "aisle") {
+    const live = S.state.aisles.find((a) => a.id === S.sel.id);
+    const stat = S.layout.aisles.find((a) => a.id === S.sel.id);
+    if (!live) { box.innerHTML = '<div class="empty">gone</div>'; return; }
+    const dir = live.direction > 0 ? "FORWARD" : live.direction < 0 ? "REVERSE" : "none";
+    box.innerHTML = `
+      <div class="stat"><span>aisle</span><b>#${live.id}</b></div>
+      <div class="stat"><span>state</span><b>${live.state}</b></div>
+      <div class="stat"><span>direction</span><b>${dir}</b></div>
+      <div class="stat"><span>occupancy</span><b>${live.occupancy} / ${live.capacity}</b></div>
+      <div class="stat"><span>length</span><b>${stat.vertices.length}</b></div>
+      <div class="stat"><span>managed</span><b>${live.manageable ? "yes" : "no (short or cut edge)"}</b></div>
+      <div class="stat"><span>lock until</span><b>t=${live.lock_until}</b></div>
+      <div class="stat"><span>switches</span><b>${live.switches}</b></div>
+      <div class="stat"><span>reservations</span><b>${live.reservations.join(", ") || "—"}</b></div>`;
+    return;
+  }
+
+  const robot = S.state.robots.find((r) => r.id === S.sel.id);
+  if (!robot) { box.innerHTML = '<div class="empty">gone</div>'; return; }
+  const rows = (S.inspect ? S.inspect.candidates : []).map((cand) => `
+    <tr class="${cand.legal ? "legal" : ""} ${cand.chosen ? "chosen" : ""}">
+      <td>${cand.vertex.join(",")}${cand.chosen ? " ←" : ""}</td>
+      <td>${cand.score}</td>
+      <td>${cand.legal
+        ? '<span class="chip ok">legal</span>'
+        : cand.reasons.map((x) => `<span class="chip bad">${x}</span>`).join("")}
+        ${cand.occupied_by !== null ? `<span class="chip">on R${cand.occupied_by}</span>` : ""}</td>
+    </tr>`).join("");
+
+  box.innerHTML = `
+    <div class="stat"><span>robot</span><b>#${robot.id}</b></div>
+    <div class="stat"><span>state</span><b>${robot.state}</b></div>
+    <div class="stat"><span>position</span><b>${robot.pos.join(",")}</b></div>
+    <div class="stat"><span>waypoint</span><b>${robot.waypoint ? robot.waypoint.join(",") : "—"}</b></div>
+    <div class="stat"><span>route distance</span><b>${S.inspect && S.inspect.route_distance !== null ? S.inspect.route_distance : "—"}</b></div>
+    <div class="stat"><span>proximity mode</span><b>${robot.mode}</b></div>
+    <div class="stat"><span>aisle / next</span><b>${robot.aisle ?? "—"} / ${robot.next_aisle ?? "—"}</b></div>
+    <div class="stat"><span>priority</span><b>${robot.priority}</b></div>
+    <div class="stat"><span>waiting / stalled</span><b>${robot.waiting} / ${robot.stalled}</b></div>
+    <div class="stat"><span>waiting for</span><b>${robot.waiting_for !== null ? "R" + robot.waiting_for : "—"}</b></div>
+    <div class="stat"><span>β / γ weight</span><b>${S.inspect ? S.inspect.direction_weight + " / " + S.inspect.aisle_weight : "—"}</b></div>
+    <div class="stat"><span>tasks done</span><b>${robot.completed}</b></div>
+    <h2 style="margin-top:14px">Why it moved there</h2>
+    <table><tr><th>cell</th><th>score</th><th>verdict</th></tr>${rows}</table>
+    <div class="hint">State after timestep ${S.state.timestep - 1}. Rejection rules
+    run in spec §22.1 order; a stalled robot usually shows the same reason on
+    every candidate.</div>`;
+}
+
+/* --------------------------------------------------------------- events */
+canvas.addEventListener("click", async (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const c = Math.floor((event.clientX - rect.left - OX) / CELL);
+  const r = Math.floor((event.clientY - rect.top - OY) / CELL);
+  const robot = S.state.robots.find((x) => x.pos[0] === r && x.pos[1] === c);
+  if (robot) {
+    S.sel = { type: "robot", id: robot.id };
+    S.inspect = await api("/api/robot?id=" + robot.id);
+  } else {
+    const aisle = S.layout.aisles.find((a) => a.vertices.some(([ar, ac]) => ar === r && ac === c));
+    S.sel = aisle ? { type: "aisle", id: aisle.id } : null;
+    S.inspect = null;
+    if (aisle && S.overlay === "none") setOverlay("aisles");
+  }
+  renderAll();
+});
+
+$("play").onclick = () => { S.playing = !S.playing; syncPlay(); };
+$("step1").onclick = () => { S.playing = false; syncPlay(); step(1); };
+$("step10").onclick = () => { S.playing = false; syncPlay(); step(10); };
+$("step100").onclick = () => { S.playing = false; syncPlay(); step(100); };
+$("reset").onclick = async () => {
+  S.playing = false; syncPlay();
+  const data = await api("/api/reset", {});
+  S.layout = data.layout; S.state = data.state; S.sel = null; S.inspect = null;
+  renderAll();
+};
+$("paths").onclick = () => {
+  S.showPaths = !S.showPaths;
+  $("paths").classList.toggle("active", S.showPaths);
+  drawGrid();
+};
+$("apply").onclick = () => applyConfig();
+$("speed").oninput = (e) => { S.fps = +e.target.value; $("speedval").textContent = S.fps + "/s"; };
+
+document.querySelectorAll(".ov").forEach((btn) =>
+  btn.onclick = () => setOverlay(btn.dataset.ov));
+
+async function setOverlay(kind) {
+  S.overlay = kind;
+  document.querySelectorAll(".ov").forEach((b) => b.classList.toggle("active", b.dataset.ov === kind));
+  S.heat = (kind === "congestion" || kind === "stall")
+    ? (await api("/api/heatmap?kind=" + kind)).grid : null;
+  drawGrid();
+}
+
+function syncPlay() {
+  $("play").textContent = S.playing ? "❚❚ Pause" : "▶ Play";
+  $("play").classList.toggle("primary", !S.playing);
+}
+
+window.addEventListener("resize", () => { fitCanvas(); drawGrid(); drawSpark(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); S.playing = !S.playing; syncPlay(); }
+  if (e.key === "." || e.key === "ArrowRight") step(1);
+  if (e.key === "r") $("reset").click();
+});
+
+function loop(now) {
+  if (S.playing && now - S.lastFrame > 1000 / S.fps && !S.busy) {
+    S.lastFrame = now; step(1);
+  }
+  requestAnimationFrame(loop);
+}
+
+$("speedval").textContent = S.fps + "/s";
+syncPlay();
+boot().then(() => requestAnimationFrame(loop));
+</script>
+</body>
+</html>
