@@ -98,12 +98,16 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     warehouse = Warehouse.from_file(args.map, params)
     for key, value in warehouse.summary().items():
         print(f"{key:28s}: {value}")
-    print("\naisle id  length  capacity  managed  endpoints")
+    print("\naisle id  length  capacity  axis  managed  endpoints")
     for aisle in warehouse.aisles.values():
         print(
             f"{aisle.id:8d}  {aisle.length:6d}  {aisle.capacity:8d}  "
-            f"{str(aisle.manageable):7s}  {aisle.start_vertex} -> {aisle.end_vertex}"
+            f"{aisle.axis or '-':4s}  {str(aisle.manageable):7s}  "
+            f"{aisle.start_vertex} -> {aisle.end_vertex}"
         )
+    bent = [a.id for a in warehouse.aisles.values() if a.length > 1 and not a.axis]
+    if bent:
+        print(f"\nwarning: {len(bent)} aisle(s) are not straight runs: {bent}")
     return 0
 
 

@@ -22,47 +22,65 @@ needed for animations.
 
 ---
 
-## What changed since the last commit
+## What changed in this pass
 
-Everything below is new work layered on top of the single prior commit
-(`pre commit`). None of it changes the LDA-PIBT algorithm itself — it
-corrects how the existing implementation was being evaluated, and adds the
-comparisons that were previously missing entirely.
+The previous review reported that three of six hypotheses had failed, and named
+three causes. Tracing each verdict back through the code found something else:
+the verdicts were artifacts of the implementation and the experimental design,
+not properties of the hypotheses. Six defects, each verified by running the
+simulator:
 
-1. **De-confounded ablation.** Three of the original six ablation-ladder steps
-   each flipped two `Params` flags at once, so a throughput delta couldn't be
-   attributed to either flag. Added six single-flag isolation variants and
-   three 2×2 factorial designs (`config.FACTORIAL_DESIGNS`,
-   `experiments.run_factorial_table`, `experiments/run_factorial_ablation.py`)
-   that decompose each bundled step into a main effect per flag plus an
-   interaction term. Re-running the actual numbers overturned two of the
-   original hypothesis verdicts — see "De-confounded findings" under Results.
-2. **External baselines.** Added independently-implemented **Token Passing**
-   (Ma et al. 2017) and **RHCR** (Li et al. 2021) in `src/lda_pibt/baselines/`,
-   built on a from-scratch shared space-time A\* + reservation table
-   (`baselines/space_time_search.py`) since nothing else in the codebase does
-   collision-aware pathfinding. `Simulator`/`build_simulator` gained a
-   `planner_factory` seam so any planner can be swapped in. Every prior
-   comparison in this repo was internal (this codebase vs. itself); this is
-   the first comparison against algorithms from the literature — see
-   "Baselines" under Results for the (decisive, unexpected) result.
-3. **Statistical rigor.** New `stats.py` (pure Python: bootstrap confidence
-   intervals, a permutation-test p-value — no scipy/numpy dependency added)
-   and `experiments.run_comparison_table`, so the baseline comparison reports
-   significance, not bare means over a handful of seeds.
-4. **Zero-install entry point.** `main.py` at the repo root puts `src/` on the
-   import path and forwards to the existing CLI — `python3 main.py ...` now
-   works with nothing installed (no `pip install`, no virtualenv), including
-   with no arguments at all (opens the GUI on a bundled map). See "Quickest
-   start" below.
-5. **Renamed the project** from LDA-PIBT to **AisleFlow** — LDA-PIBT is now
-   the name of the algorithm this repo implements (kept everywhere it's used
-   as a technical term: the spec, the `full_lda_pibt` variant, module docs),
-   not the repo's own name.
-6. **Test suite grew from 102 to 161 tests**: safety-net and unit tests for
-   both baselines across every bundled map, plus `stats.py` unit tests.
+1. **The aisle layer contradicted the project's own design principle.**
+   `PIBTPlanner.feasible_candidates` applied aisle direction and reservations as
+   *hard rejections*, deleting legal moves before scoring — while the principle
+   quoted at the top of this file says the high level never replaces PIBT's
+   collision checks or its backtracking. Priority inheritance works because a
+   robot can always be pushed into an adjacent cell, and a one-way rule enforced
+   by rejection removes exactly that. Direction is a score penalty now
+   (`ζ_counterflow`, `ζ_reservation`), above every other soft term and below
+   `α_progress`. Worth **1.9× to 3.1×** throughput, significant on every map where
+   an aisle ever commits a direction.
+   `hard_direction_constraints=True` runs the old form.
+2. **`reservations` was a silent no-op** unless `direction_control == "aisle"` —
+   and `reservations_only`, the variant that exists to isolate it, sets
+   `direction_control="robot"`. Its runs were bit-identical to its own control,
+   so H3's "exactly zero effect" was an empty treatment cell, and the 2×2 design
+   built around it could not measure factor B at all.
+3. **The aisle signal had no starvation freedom.** A committed direction was
+   held indefinitely unless `|imbalance| > τ`, and a warehouse with pickups on
+   one side and deliveries on the other produces balanced demand by
+   construction. `maximum_aisle_lock_time` adds the maximum green a traffic
+   signal needs alongside its minimum.
+4. **Aisles were not straight.** Segmenting by connected component gave L-, U-
+   and T-shaped "aisles" — `warehouse_corridors` had two 25-cell U shapes — on
+   which a one-way rule blocks the corner in both senses. Segmentation cuts at
+   every turn now.
+5. **Recovery fired on healthy traffic.** Spec 28 names three stall signals; the
+   code treated the weakest (no progress for `t_blocked` steps) as sufficient,
+   which describes an ordinary queue. Detection now needs a wait-for cycle or a
+   repeated configuration to corroborate it: 0.134 against 0.022 on corridors.
+6. **The congestion term was mis-scaled.** `C_local` was a raw robot count mixed
+   with two ratios, so `μ · C` measured mean 3.40 / p90 5.75 / max 9.60 against
+   `α · Δ = 10` — congestion was the second-largest term in the score, not a
+   modulator of the smaller ones. Normalised now, and `congestion_aware` is
+   split into `congestion_scoring` and `congestion_assignment` since it bundled
+   movement and matching.
+
+Also in this pass: the metrics the hypotheses are actually about
+(`head_on_conflicts`, `counterflow_moves`, `aisle_throughput_per_1000`,
+`starvation_flips`); `experiments/run_hypothesis_suite.py`, which scores each
+hypothesis on *its own* metric with a bootstrap CI and a permutation test; GUI
+controls for every new flag, an aisle max-green readout, and a live hypothesis
+panel. **179 tests**, up from 161.
+
+Two things the previous review predicted that turned out not to hold, both now
+implemented and measured so the null results are reproducible: coordinated
+direction assignment across parallel aisles (`coordinate_aisle_directions`,
+effect ±0.011) and route-spread directional demand (`demand_spread`, net
+negative). Both ship off by default.
 
 ---
+
 
 ## Quickest start
 
@@ -86,7 +104,7 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 161 tests
+pytest                       # 179 tests
 ```
 
 Python 3.10+.
@@ -251,59 +269,104 @@ stream  │ ▶ aisle direction (hysteresis, drain) ▶ reservations      │
 ### Aisle state machine (spec 10, 17)
 
 ```
-                 opposing demand exceeds τ_switch
-   FORWARD ──────────────────────────────────▶ DRAINING
-      ▲                                            │ occupancy reaches 0
-      │        demand imbalance + lock expired      ▼
-   OPEN ◀──────────────────────────────────────  REVERSE
+     opposing demand exceeds τ_switch,  OR  held ≥ T_max with any opposing demand
+   FORWARD ──────────────────────────────────────────────▶ DRAINING
+      ▲                                                        │ occupancy reaches 0:
+      │        demand imbalance + lock expired                 │ commit pending direction
+   OPEN ◀─────────────── drain timed out ─────────────────  REVERSE
 ```
 
-Plus one addition: a `DRAINING` aisle that has not emptied within
-`max_drain_time` steps is reopened. Spec 16 allows an immediate switch when
-"the current direction is infeasible", and an aisle that cannot drain is
-exactly that. Without it the state machine has an absorbing deadlock.
+Two additions beyond the base rule.
+
+A `DRAINING` aisle that has not emptied within `max_drain_time` steps is
+reopened. Spec 16 allows an immediate switch when "the current direction is
+infeasible", and an aisle that cannot drain is exactly that. Without it the
+state machine has an absorbing deadlock. When it *does* empty, it commits the
+direction that triggered the drain rather than re-running the imbalance test —
+by then the demand has usually moved on, and re-testing would simply re-commit
+the direction just drained.
+
+And a **maximum green**, `maximum_aisle_lock_time`. Hysteresis is only half a
+traffic signal: the dead band and the minimum lock bound how *soon* a direction
+may change, and nothing bounds how long it may persist. In a warehouse with
+pickups down one side and deliveries down the other, loaded and empty robots
+want opposite directions in near-equal measure, so `|imbalance|` never leaves
+the dead band and the aisle keeps its first committed direction for the rest of
+the run. Past `T_max`, any opposing demand at all forces a drain and a flip.
+That is what makes the aisle layer starvation-free rather than merely
+non-flapping — and flips forced this way are counted separately as
+`starvation_flips`, so "does hysteresis stop oscillation?" stays a distinct
+question from "does anyone starve?".
+
 
 ## Results
 
-`python experiments/run_ablation.py --seeds 3`, 400 timesteps, mean of 3 seeds.
+`python experiments/run_ablation.py --seeds 5`, 400 timesteps, mean of 5 seeds.
 `thr` = tasks completed per timestep, `svc` = mean service time, `sw/1k` =
 aisle direction switches per 1000 steps, `ms` = mean planner runtime per step.
-The ladder below changes two flags on three of its six rows; treat the H1/H3/H4
-attributions per row with that in mind and see "De-confounded findings" further
-down, produced by `python experiments/run_factorial_ablation.py --seeds 5`,
-which isolates each flag.
+Full tables for all five maps land in `results/ablation.json`.
 
-**warehouse_bottleneck** — 16 robots, two halves joined by one long corridor:
-
-| variant | thr | svc | p95 | sw/1k | ms |
-|---|---:|---:|---:|---:|---:|
-| lifelong_pibt | 0.135 | 179.3 | 338.4 | 0.00 | 0.39 |
-| directional_pibt | 0.141 | 167.1 | 302.5 | 0.00 | 0.42 |
-| hysteresis_pibt | 0.143 | 165.2 | 304.7 | 0.00 | 0.43 |
-| aisle_managed_pibt | 0.142 | 167.1 | 316.0 | 0.00 | 0.63 |
-| **full_lda_pibt** | **0.152** | 166.8 | 309.1 | 0.00 | 1.20 |
+Read the ladder rows for the shape of the system and the isolation rows below
+them for attribution: three of the ladder's six rungs flip two flags at once,
+which is what `experiments/run_factorial_ablation.py` exists to unpick.
 
 **warehouse_corridors** — 35 robots, five parallel single-file corridors:
 
 | variant | thr | svc | p95 | sw/1k | ms |
 |---|---:|---:|---:|---:|---:|
-| lifelong_pibt | 0.142 | 171.6 | 313.3 | 0.00 | 0.84 |
-| directional_pibt | 0.147 | 161.3 | 298.1 | 0.00 | 0.86 |
-| **hysteresis_pibt** | **0.152** | **153.0** | **288.3** | 0.00 | 0.87 |
-| aisle_managed_pibt | 0.006 | 25.7 | 38.0 | 0.00 | 1.16 |
-| full_lda_pibt | 0.020 | 128.6 | 287.9 | 0.00 | 1.91 |
+| lifelong_pibt | 0.131 | 157.0 | 304.3 | 0.00 | 0.79 |
+| directional_pibt | 0.156 | 159.6 | 297.4 | 0.00 | 0.85 |
+| hysteresis_pibt | 0.148 | 148.2 | 277.5 | 0.00 | 0.87 |
+| aisle_managed_pibt | 0.095 | 136.1 | 273.5 | 18.0 | 1.21 |
+| full_lda_pibt | 0.121 | 148.9 | 294.4 | 8.0 | 2.73 |
+| — *isolation rows* | | | | | |
+| **turning_cost_only** | **0.196** | 157.0 | 288.6 | 0.00 | 0.85 |
+| aisle_direction_only | 0.158 | 163.0 | 297.4 | 13.5 | 1.29 |
+| reservations_only | 0.125 | 145.7 | 286.8 | 0.00 | 1.02 |
+| aisle_direction_hard | 0.084 | 159.7 | 299.7 | 3.0 | 1.22 |
+| recovery_uncorroborated | 0.022 | 63.9 | 120.1 | 1.5 | 1.16 |
+
+**warehouse_narrow** — 30 robots, four 5-cell single-file aisles per bank:
+
+| variant | thr | svc | p95 | sw/1k | ms |
+|---|---:|---:|---:|---:|---:|
+| **lifelong_pibt** | **0.354** | 145.5 | 252.2 | 0.00 | 0.74 |
+| directional_pibt | 0.189 | 166.9 | 314.2 | 0.00 | 0.78 |
+| hysteresis_pibt | 0.258 | 160.2 | 297.6 | 0.00 | 0.79 |
+| aisle_managed_pibt | 0.152 | 158.9 | 308.5 | 15.0 | 1.29 |
+| full_lda_pibt | 0.194 | 148.5 | 305.2 | 41.0 | 2.90 |
+| — *isolation rows* | | | | | |
+| aisle_direction_only | 0.289 | 152.9 | 284.6 | 22.5 | 1.34 |
+| no_direction_term | 0.289 | 155.1 | 287.2 | 31.0 | 1.38 |
+| reservations_only | 0.150 | 112.9 | 240.2 | 0.00 | 0.93 |
+| aisle_direction_hard | 0.078 | 121.2 | 241.5 | 15.5 | 1.20 |
+| recovery_uncorroborated | 0.134 | 144.2 | 299.7 | 16.0 | 1.38 |
 
 **warehouse_medium** — 40 robots, open grid warehouse:
 
 | variant | thr | svc | p95 | sw/1k | ms |
 |---|---:|---:|---:|---:|---:|
-| **lifelong_pibt** | **0.502** | 148.1 | 256.1 | 0.00 | 0.96 |
-| directional_pibt | 0.258 | 181.5 | 322.9 | 0.00 | 1.00 |
-| hysteresis_pibt | 0.305 | 172.4 | 305.0 | 0.00 | 1.01 |
-| aisle_managed_pibt | 0.071 | 99.1 | 190.0 | 0.83 | 1.47 |
-| full_lda_pibt | 0.215 | 162.9 | 315.0 | 5.83 | 3.12 |
+| **lifelong_pibt** | **0.502** | 139.0 | 246.0 | 0.00 | 1.00 |
+| directional_pibt | 0.283 | 175.5 | 301.8 | 0.00 | 1.05 |
+| hysteresis_pibt | 0.337 | 162.6 | 290.6 | 0.00 | 1.06 |
+| aisle_managed_pibt | 0.217 | 143.7 | 264.7 | 5.5 | 1.87 |
+| full_lda_pibt | 0.313 | 150.0 | 274.4 | 35.5 | 4.18 |
+| — *isolation rows* | | | | | |
+| no_direction_term | 0.433 | 146.1 | 264.8 | 18.5 | 1.97 |
+| turning_cost_only | 0.411 | 152.2 | 269.4 | 0.00 | 1.03 |
+| aisle_direction_only | 0.405 | 158.2 | 277.5 | 14.5 | 1.90 |
+| aisle_direction_no_max_green | 0.360 | 149.6 | 286.1 | 5.0 | 1.88 |
+| reservations_only | 0.262 | 152.7 | 290.7 | 0.00 | 1.28 |
+| aisle_direction_hard | 0.161 | 159.8 | 310.5 | 32.5 | 1.94 |
+| recovery_uncorroborated | 0.177 | 142.8 | 285.0 | 14.0 | 1.89 |
 
-Full tables for all five maps land in `results/ablation.json`.
+**warehouse_bottleneck** — 16 robots, two halves joined by one long corridor.
+Every aisle-layer variant is identical to `hysteresis_pibt` here (`thr` 0.149,
+`sw/1k` 0.00). With 16 robots spread over 25 aisles and each robot charged to
+one aisle, the demand imbalance never crosses `τ_switch = 5.0`, so no aisle ever
+commits a direction. **This map produces no treatment at all**, and any verdict
+read off it is a verdict about an experiment that did not run. It is reported
+here so that stays visible rather than reading as a null result.
 
 ### Baselines: comparison against external algorithms
 
@@ -335,52 +398,59 @@ framing is "fairer" is a judgment call worth showing both sides of):
 
 | variant | thr | svc | p (thr) | ms/step |
 |---|---:|---:|---:|---:|
-| lifelong_pibt (ref) | 0.11 | 150.3 | — | 0.32 |
-| full_lda_pibt | 0.15 | 159.7 | 0.001 | 0.94 |
-| token_passing | 0.00 | 22.0 | <0.001 | 26.1 |
-| token_passing_recovery | 0.01 | 32.1 | <0.001 | 24.5 |
-| rhcr | 0.01 | 21.4 | <0.001 | 51.9 |
+| lifelong_pibt (ref) | 0.13 | 155.4 | — | 0.41 |
+| **full_lda_pibt** | **0.14** | 153.5 | 0.016 | 1.43 |
+| token_passing | 0.00 | 22.4 | <0.001 | 38.0 |
+| token_passing_recovery | 0.01 | 36.2 | <0.001 | 34.3 |
+| rhcr | 0.01 | 21.4 | <0.001 | 73.0 |
 
 **warehouse_corridors** — 35 robots:
 
 | variant | thr | svc | p (thr) | ms/step |
 |---|---:|---:|---:|---:|
-| lifelong_pibt (ref) | 0.16 | 164.2 | — | 0.70 |
-| full_lda_pibt | 0.02 | 134.8 | <0.001 | 1.58 |
-| token_passing | 0.00 | 0.0 | <0.001 | 51.0 |
-| token_passing_recovery | 0.00 | 0.0 | <0.001 | 32.2 |
-| rhcr | 0.00 | 4.3 | <0.001 | 31.6 |
+| lifelong_pibt (ref) | 0.14 | 150.9 | — | 0.82 |
+| full_lda_pibt | 0.13 | 148.8 | 0.157 | 2.78 |
+| token_passing | 0.00 | 0.0 | <0.001 | 70.9 |
+| token_passing_recovery | 0.00 | 0.0 | <0.001 | 39.1 |
+| rhcr | 0.00 | 4.3 | <0.001 | 45.9 |
 
 **warehouse_medium** — 40 robots, open grid:
 
 | variant | thr | svc | p (thr) | ms/step |
 |---|---:|---:|---:|---:|
-| lifelong_pibt (ref) | 0.50 | 144.1 | — | 0.83 |
-| full_lda_pibt | 0.20 | 165.0 | <0.001 | 2.40 |
-| token_passing | 0.00 | 49.1 | <0.001 | 158.7 |
-| token_passing_recovery | 0.01 | 100.3 | <0.001 | 134.2 |
-| rhcr | 0.01 | 38.2 | <0.001 | 58.1 |
+| **lifelong_pibt (ref)** | **0.51** | 138.3 | — | 1.01 |
+| full_lda_pibt | 0.26 | 148.1 | <0.001 | 4.06 |
+| token_passing | 0.00 | 49.1 | <0.001 | 318.4 |
+| token_passing_recovery | 0.02 | 126.4 | <0.001 | 359.9 |
+| rhcr | 0.01 | 38.2 | <0.001 | 85.4 |
 
 Full per-seed data and every `CORE_REPORT_FIELDS` column lands in
-`results/baseline_comparison.json`.
+`results/baseline_comparison.json` and `results/baseline_medium.json`.
 
-**The headline is unambiguous and was not the expected result going in:
-plain `lifelong_pibt` — the simplest configuration already in this
-repo — beats both external baselines by a wide, statistically significant
-margin (p < 0.001 on throughput in every cell above) on every map tested,
-including the open `warehouse_medium` grid where neither baseline has any
-obvious structural excuse.** Token Passing completes literally zero tasks on
-`warehouse_corridors` across all 10 seeds. Inspecting `tp_path_not_found` and
-`tp_forced_holds` (both exposed via `stats()`) confirms this is genuine
-gridlock, not a crash or a silent no-op: on `warehouse_bottleneck`, all 16
-robots queue nose-to-tail in the single connecting corridor and none move
-again for the rest of the run. This is the mechanism PIBT was built to solve
-— priority inheritance lets a blocked robot push the one ahead of it out of
-the way; Token Passing has no such mechanism, so a queue that forms never
-resolves. RHCR's windowed joint replanning does modestly better (it completes
-some tasks on two of three maps where Token Passing completes none) but is
-still nowhere close to PIBT, and is 30–190x more expensive per step
-(`ms/step` above) than even the full LDA-PIBT variant.
+**Plain `lifelong_pibt` beats both external baselines by a wide, significant
+margin (p < 0.001 on throughput in every cell) on every map tested.** Token
+Passing completes literally zero tasks on `warehouse_corridors` across all 10
+seeds. Inspecting `tp_path_not_found` and `tp_forced_holds` (both exposed via
+`stats()`) confirms genuine gridlock rather than a crash or a silent no-op: on
+`warehouse_bottleneck`, all 16 robots queue nose-to-tail in the single
+connecting corridor and none move again for the rest of the run. This is the
+mechanism PIBT was built to solve — priority inheritance lets a blocked robot
+push the one ahead of it out of the way, and Token Passing has no such
+mechanism, so a queue that forms never resolves. RHCR's windowed joint
+replanning does modestly better but is still nowhere close, at 56× to 356× the
+cost per step.
+
+`full_lda_pibt` now sits alongside `lifelong_pibt` on the two aisle-shaped
+maps rather than far behind it: it wins on `warehouse_bottleneck` (0.14 vs
+0.13, p = 0.016) and is statistically indistinguishable on
+`warehouse_corridors` (0.13 vs 0.14, p = 0.157), where it previously lost 0.02
+to 0.16. On the open `warehouse_medium` grid it still loses clearly (0.26 vs
+0.51) — the same shape as the ablation tables above, measured against the
+outside instead of against itself.
+
+(`full_lda_pibt` reads 0.26 here and 0.313 in the ablation ladder: the ladder
+averages 5 seeds and this table 10, on a variant whose per-seed spread is wide.
+Where the two disagree, prefer this one.)
 
 Three caveats before reading too much into the margin:
 
@@ -403,166 +473,252 @@ Three caveats before reading too much into the margin:
 
 ### What the hypotheses actually did
 
-| | claim | verdict |
-|---|---|---|
-| H1 | aisle direction improves throughput in narrow aisles under dense traffic | **not supported in isolation** — see de-confounded findings below |
-| H2 | hysteresis reduces switching and prevents oscillation | **supported** — `hysteresis_pibt` beats `directional_pibt` on every map |
-| H3 | reservations reduce head-on conflicts and deadlocks | **reservations are not the cause of anything below** — see de-confounded findings |
-| H4 | congestion-aware assignment reduces average and tail service time | **not supported in isolation** — see de-confounded findings below |
-| H5 | proximity-dependent direction weights improve waypoint arrival | **supported** — removing the β decay raises max service time noticeably |
-| H6 | localized recovery beats a global planner | **strongly supported** — recovery is the dominant lever, more than the original framing suggested |
+`python experiments/run_hypothesis_suite.py --seeds 10`, 400 steps, four maps,
+results in `results/hypotheses.json`.
 
-### De-confounded findings (H1, H3, H4/H6 corrected)
+Every hypothesis is now scored on **the quantity it actually claims to move**,
+against the control that isolates its mechanism, with a bootstrap CI and a
+10,000-permutation two-sided test. That matters more than it sounds: H3 claims
+*fewer head-on conflicts* and H1 claims *narrow aisles flow better*, and both
+were previously judged only by global throughput — an instrument that can miss a
+mechanism doing exactly what it promises, and can credit one that is not.
 
-The table above and the ablation ladder in `config.ABLATIONS` share a
-methodological flaw worth being explicit about: three of the ladder's six
-rungs flip **two** flags at once (`lifelong_pibt → directional_pibt` flips
-`direction_control` *and* `turning_cost`; `hysteresis_pibt → aisle_managed_pibt`
-flips `direction_control` *and* `reservations`; `aisle_managed_pibt →
-full_lda_pibt` flips `congestion_aware` *and* `recovery`). A throughput delta on
-those rungs cannot be attributed to either flag — the original H1/H3/H4
-verdicts above did so anyway.
+The hypotheses are stated with the mechanism they depend on, because the earlier
+generic wording ("aisle direction improves throughput") was satisfied by
+configurations in which the mechanism could not act at all.
 
-`config.FACTORIAL_DESIGNS` + `experiments.run_factorial_table` (script:
-`experiments/run_factorial_ablation.py`) resolve this: each bundled step is
-re-run as a 2x2 design (base, flag A alone, flag B alone, both), decomposing
-the "both" effect into a main effect per flag plus an interaction term. Run
-with 5 seeds, 400 steps, on the three maps the original hypotheses cited
-(`--seeds 5`, results in `results/factorial_ablation.json`):
+| | claim | metric | verdict |
+|---|---|---|---|
+| H1 | aisle-level direction control improves throughput in narrow aisles under dense traffic — as a soft ranking term, on straight-run aisles, with a starvation-free signal | aisle throughput /1000 | **not supported** on its own metric (contradicted on corridors, flat elsewhere); see below — it *does* raise global throughput |
+| H2 | hysteresis reduces switching and prevents oscillation without reintroducing starvation | switches /1000 | **supported on every map**, p < 0.001, and by two orders of magnitude |
+| H3 | entry capacity admission reduces head-on conflicts and deadlocks, independently of direction mode | head-on conflicts | **map-dependent**: −53% on corridors (p < 0.001), +31% on medium (p < 0.001), flat on narrow |
+| H4 | congestion-aware *task assignment* cuts service time, separately from congestion in movement scoring | mean service time | **not supported**: flat on three maps, contradicted on narrow (p = 0.046) |
+| H5 | proximity-dependent direction weights improve waypoint arrival | p95 service time | **no measurable effect** — the runs are bit-identical (see below) |
+| H6 | localised progressive recovery beats a global replan, escalating only on a corroborated stall | throughput | **supported on corridors** (+41%, p = 0.016); flat elsewhere |
 
-**H1 — direction awareness vs. turning cost** (`direction_control=robot` vs `turning_cost`):
+Per-map detail, treatment vs. control:
 
-| map | base thr | direction alone | turning-cost alone | both (=`directional_pibt`) |
-|---|---:|---:|---:|---:|
-| warehouse_bottleneck | 0.130 | 0.144 (+11%) | **0.157 (+21%)** | 0.144 |
-| warehouse_corridors | 0.147 | 0.165 (+12%) | **0.201 (+37%)** | 0.159 |
-| warehouse_medium | 0.505 | 0.357 (−29%) | 0.391 (−23%) | 0.269 (−47%) |
+| map | H1 | H2 | H3 | H4 | H5 | H6 |
+|---|---|---|---|---|---|---|
+| bottleneck | 84.8 / 84.8 | 0.0 / 65.8 ✓ | 258 / 258 | 152.9 / 153.0 | 293.6 / 288.2 | 0.15 / 0.15 |
+| corridors | 258 / 294 ✗ | 13.0 / 36.8 ✓ | 557 / 1177 ✓ | 157.4 / 144.6 | 302.3 / 302.3 | 0.13 / 0.09 ✓ |
+| narrow | 205 / 207 | 33.8 / 1160 ✓ | 1645 / 1494 | 144.1 / 123.4 ✗ | 273.1 / 273.1 | 0.19 / 0.15 |
+| medium | 212 / 217 | 13.5 / 2188 ✓ | 1883 / 1440 ✗ | 151.5 / 155.8 | 275.7 / 275.7 | 0.25 / 0.24 |
 
-On every map, **turning-cost alone outperforms direction-awareness alone**,
-and on the two maps where the original table claimed a win, turning-cost
-alone beats the combined `directional_pibt` variant too — adding
-direction-awareness on top of turning-cost gives back some of turning-cost's
-own gain (negative interaction). H1 as stated ("aisle direction improves
-throughput") is not supported by the isolated data: the improvement the
-original ladder credited to direction-awareness is mostly the anti-zigzag
-turning penalty, a mechanism that has nothing to do with aisles.
+✓ supported, ✗ contradicted, blank = no measurable effect (p ≥ 0.05).
 
-**H3 — aisle-level direction control vs. reservations** (`direction_control=aisle` vs `reservations`):
+**`warehouse_bottleneck` produces no treatment.** Every aisle-layer variant is
+identical to `hysteresis_pibt` there: 16 robots spread over 25 aisles never
+push the demand imbalance past `τ_switch = 5.0`, so no aisle ever commits a
+direction. Its whole row is an experiment that did not run, and it is listed
+that way rather than as four null results.
 
-| map | base thr | aisle-direction alone | reservations alone | both (=`aisle_managed_pibt`) |
-|---|---:|---:|---:|---:|
-| warehouse_bottleneck | 0.139 | 0.123 (−12%) | 0.139 (+0%) | 0.136 |
-| warehouse_corridors | 0.166 | **0.012 (−93%)** | 0.166 (+0%) | 0.009 |
-| warehouse_medium | 0.304 | 0.121 (−60%) | 0.304 (+0%) | 0.071 |
+**H1 measures worse than it performs.** On its own metric — robots cleared per
+managed aisle — aisle direction is flat or slightly negative. On global
+throughput it is the better configuration on three of four maps
+(`aisle_direction_only` vs `hysteresis_pibt`: 0.158/0.148 corridors,
+0.289/0.258 narrow, 0.405/0.337 medium). Both are true and not in tension:
+one-way aisles route traffic through *fewer* aisle transits per delivered task,
+so per-aisle flow falls while end-to-end flow rises. The lesson is about the
+metric, not the mechanism — per-aisle throughput is the wrong denominator for a
+claim about deliveries.
 
-Reservations alone move throughput by **exactly zero** on two of three maps
-and by under a percentage point on the third. The `warehouse_corridors`
-collapse — 0.166 down to 0.009 — is entirely attributable to switching
-`direction_control` from robot-level to aisle-level; reservations contribute
-nothing to it standalone, though on `warehouse_medium` they do amplify
-aisle-direction's harm once both are on (observed both-effect is worse than
-either flag's main effect predicts — a real negative interaction, just not
-the standalone effect the original H3 verdict described). The original
-"reservations throttle entry enough to cost more than they save" diagnosis
-was misattributed: the single-file capacity-by-length problem (see
-"Implementation notes" §1 below) is a consequence of the aisle-direction
-state machine itself, not of the reservation layer sitting on top of it.
+**H5's mechanism is inert.** Changing `r_near`/`r_far` produces runs identical
+to the last decimal on every map. `β` only ever breaks ties among candidates
+with *equal* progress, and the decay lowers it precisely in arrival mode, where
+`α · Δ` already decides — so the schedule cannot change a ranking. The weight
+itself is not inert, and is net harmful: `no_direction_term` (`β = 0`) beats
+`aisle_direction_only` on medium (0.433 vs 0.405) and ties it on narrow.
 
-**H4/H6 — congestion-aware assignment vs. local recovery** (`congestion_aware` vs `recovery`):
+### The mechanisms this pass repaired
 
-| map | base thr/svc | congestion alone | recovery alone | both (=`full_lda_pibt`) |
-|---|---:|---:|---:|---:|
-| warehouse_bottleneck | 0.136 / 162 | 0.149 / 162 | 0.137 / 162 | 0.148 / 162 |
-| warehouse_corridors | 0.009 / 32 | 0.009 / 54 | **0.024 / 108** | 0.018 / 134 |
-| warehouse_medium | 0.071 / 95 | 0.079 / 96 | **0.184 / 160** | 0.188 / 166 |
+Four single-factor comparisons (`config.PAIRED_DESIGNS`), 5 seeds, throughput:
 
-Recovery, not congestion-aware assignment, is what rescues throughput once
-aisle-direction control has collapsed it (H6, strongly supported — on
-`warehouse_medium` recovery alone recovers most of the throughput the full
-variant reaches). But recovery does this by completing more tasks at a much
-higher mean service time (up to +68%), and congestion-aware assignment shows
-**no service-time benefit in isolation on any map tested** — flat or
-slightly worse everywhere. H4's claim ("service times drop, at a throughput
-cost") is not just unsupported, it points the wrong way: the throughput
-recovery that does happen comes with a service-time cost, and it comes from
-recovery, not from congestion-aware assignment.
+| mechanism | bottleneck | corridors | narrow | medium |
+|---|---|---|---|---|
+| direction **ranks** vs **rejects** (`aisle_direction_only`) | 0.149 / 0.149 | **0.158 / 0.084** | **0.304 / 0.112** | **0.405 / 0.161** |
+| same, with reservations (`aisle_managed_pibt`) | **0.149 / 0.060** | **0.095 / 0.043** | **0.135 / 0.043** | 0.217 / 0.088 |
+| bounded maximum green | 0.149 / 0.149 | 0.158 / 0.159 | 0.304 / 0.311 | 0.405 / 0.360 |
+| recovery needs corroboration | 0.149 / 0.148 | **0.134 / 0.022** | 0.201 / 0.157 | 0.245 / 0.177 |
 
-**The honest headline: the aisle-level layer does not yet beat plain lifelong
-PIBT on open warehouse graphs.** It wins only on `warehouse_bottleneck` (+13%
-throughput) and loses badly on `warehouse_medium` (0.215 vs 0.502). The
-robot-level pieces — directional preference plus hysteresis — are the part that
-generalises, beating the baseline on `warehouse_corridors` (+7%) and
-`warehouse_bottleneck` (+6%). Put in context by the "Baselines" comparison
-above: even the *losing* LDA-PIBT configurations still dominate both external
-baselines everywhere. The real finding of this project is less about aisle
-management specifically and more about how much of the value sits in PIBT's
-priority-inheritance-and-backtracking core to begin with.
+Bold = p ≤ 0.05.
 
-Two diagnosed causes, both worth reporting rather than tuning away:
+**Direction as a ranking term rather than a constraint is the single largest
+effect in this repository** — 1.9× to 3.1× throughput, significant on all four
+maps in one arrangement or the other. The spec lists "violates aisle direction"
+among the hard rejection rules, and the project's own design principle says the
+high level "never replaces PIBT's collision checks or its backtracking". Those
+two cannot both hold: rejecting a counterflow move deletes it from the candidate
+set, and priority inheritance works precisely because a robot can always be
+pushed into an adjacent cell. Every collapse previously attributed to aisle
+management traces to this. Counterflow is now priced at `ζ = 8.0` — above every
+other soft term, below `α = 10` — so a robot drives the wrong way when that is
+the only way to make progress, and pays for it. `hard_direction_constraints=True`
+restores the old behaviour; those are the right-hand numbers above.
 
-1. **Capacity is modelled by length, not by exit throughput.** A 21-cell corridor
-   gets capacity 10, so ten robots queue single-file behind one exiting robot and
-   the aisle can never drain. Spec 39 limitation 2 predicted this. Try
-   `--set aisle_capacity_model=throughput` for the alternative
-   `ceil(ratio·length / T_min)`; it is too aggressive at the default lock time,
-   so the right model is somewhere between the two.
-2. **Directional demand is computed per aisle with no coordination across
-   parallel aisles.** All five corridors in `warehouse_corridors` lock the same
-   way at the same time, leaving return traffic nowhere to go. A static parity
-   bias (`--set parity_bias=8`) does *not* fix this — it fights the demand signal
-   instead of replacing it. Coordinated direction assignment across parallel
-   aisles is the obvious next piece of work.
+**Corroborated deadlock detection** is the second. Spec 28 names three stall
+signals, and the implementation treated the weakest (no progress for `t_blocked`
+steps) as sufficient — which in dense lifelong traffic describes an ordinary
+queue. Recovery therefore escalated on healthy robots, and levels 5–7 (temporary
+reverse, escape vertices, waypoint hijack) cost far more than they saved: 0.022
+against 0.134 on corridors. This was invisible before, because the hard
+constraints above manufactured real deadlocks for recovery to rescue.
 
-A third, more fundamental tension: PIBT's progress argument relies on being able
-to push any robot into any adjacent cell. One-way constraints remove that
-freedom, so priority inheritance chains dead-end. This is why
-`aisle_managed_pibt` (aisle control, *no* recovery) collapses while
-`full_lda_pibt` survives — the recovery layer's `ignore_direction_until` override
-is doing the work. Spec 38.2 only ever claimed conditional progress, and this is
-the mechanism behind that caveat.
+**The maximum green is not significant on throughput, and that is itself the
+finding.** It was the decisive fix while direction was a hard constraint —
+without it, `warehouse_corridors` reached an absorbing deadlock (all 35 robots
+stalled by t = 120, four aisles locked REVERSE, identical state at t = 199).
+Once counterflow is merely expensive rather than forbidden, a robot can buy its
+way out of a starved aisle, so liveness no longer depends on the signal alone.
+The two fixes are partly redundant. It stays on because it is the mechanism that
+makes the *aisle layer* correct rather than merely survivable — and its effect on
+switching is significant (30.5 vs 5.0 per 1000 on narrow, p = 0.024), which is
+what H2 is about.
 
-The factorial decomposition below confirms this directly: `direction_control`
-(aisle-level), not `reservations`, is the flag responsible for the collapse —
-reservations move throughput by roughly zero in isolation on every map tested.
+**Coordinated direction assignment across parallel aisles was the wrong fix.**
+The previous review called it the most promising next step. It is implemented
+(`coordinate_aisle_directions`: commit in descending `|imbalance|`, roll back
+anything that breaks strong connectivity of the directed residual graph) and its
+measured effect is between ±0.000 and ±0.011. A single one-way aisle almost
+never disconnects a ladder graph, so the guard barely fires.
 
-**Collision freedom held in every run**: zero vertex and zero swap conflicts
-across all maps, densities, seeds and variants. Validated every timestep by
-`validate.validate_plan` (spec 31) and asserted by the test suite.
+### De-confounded findings
+
+`python experiments/run_factorial_ablation.py --seeds 5`, results in
+`results/factorial_ablation.json`.
+
+**Aisle direction vs. entry admission** (the design that could not be read
+before — `reservations_only` sets `direction_control="robot"`, and the
+reservation layer used to be gated on `direction_control == "aisle"`, so factor
+B was a bit-identical copy of the base and its main effect was *necessarily*
+zero):
+
+| map | base | aisle-direction alone | reservations alone | both | interaction |
+|---|---:|---:|---:|---:|---:|
+| warehouse_corridors | 0.148 | **0.158** | 0.125 | 0.095 | −0.040 |
+| warehouse_medium | 0.337 | **0.405** | 0.262 | 0.217 | −0.112 |
+
+The attribution reverses. Aisle-level direction control is the flag that *helps*
+(+7% and +20% isolated); entry admission is the one that costs (−16% and −22%),
+and the two interact strongly negatively. The earlier verdict — direction blamed,
+reservations exonerated — was reading an empty cell.
+
+**Congestion in movement vs. congestion in matching.** `congestion_aware`
+bundled three mechanisms: the `μ · C` penalty in the movement score, the
+congestion term in the assignment cost, and the assignment blocking term. H4 is
+a claim about *matching* only, so the flag is split into `congestion_scoring`
+and `congestion_assignment`. Neither half helps on its own: on medium,
+`congestion_scoring_only` reaches 0.296 and `congestion_assignment_only` 0.229
+against 0.217 for the base and 0.405 for aisle direction with no congestion
+model at all.
+
+**The congestion term was also mis-scaled.** `C_local` was a raw robot count
+mixed with two ratios, so `μ · C` measured mean 3.40, p90 5.75, max 9.60 on
+`warehouse_medium` — against `α · Δ = 10` for a whole step of progress and
+`β ≤ 3`. Congestion was the second-largest term in the score, not a modulator of
+the smaller ones, and the weight ordering the design claims did not hold at
+runtime. It is normalised now (`congestion_normalisation`); the effect on
+throughput is neutral to slightly negative, which is worth stating plainly: this
+is a calibration fix, not a performance one.
+
+### The honest headline
+
+**Plain `lifelong_pibt` still wins on the open maps.** 0.502 on
+`warehouse_medium` against 0.405 for the best aisle-managed configuration, 0.354
+on `warehouse_narrow` against 0.289. The aisle layer is now competitive rather
+than catastrophic — it was 15× behind and deadlocking — and it wins on
+`warehouse_corridors` (0.158 vs 0.131), the map whose five parallel single-file
+corridors are the case it was designed for. But it does not beat the greedy core
+in general, and the cheapest mechanism in the whole system remains the one with
+the least to do with aisles: `turning_cost_only`, a flat anti-zigzag penalty, is
+the best variant on corridors (0.196) and second-best on medium (0.411).
+
+The value of this pass is not that the hypotheses now pass. Three of six still
+do not. It is that H1, H3, H4 and H6 were given a *valid* test for the first
+time: H3's treatment cell was empty, H1's headline map produced no treatment,
+and H6's support came from rescuing deadlocks the architecture manufactured for
+it.
 
 ## Implementation notes and deviations
 
-Six places where a literal reading of the spec does not run, with what was done
+Ten places where a literal reading of the spec does not run, with what was done
 instead. Each is a flag, so the spec behaviour is still reachable.
 
-1. **Progress normalisation** (spec 23). The spec normalises route progress by
+1. **Aisle direction ranks candidates; it does not reject them** (spec 22.1, 27).
+   The spec lists "violates aisle direction" and "violates a reservation" among
+   the hard rejection rules, but the design principle two sections earlier says
+   the high level never replaces PIBT's collision checks or its backtracking.
+   Both cannot hold: rejecting a move deletes it from the candidate set, and
+   priority inheritance works because a robot can always be pushed into an
+   adjacent cell. Both are `ζ` penalties in `S_i(v)` now, sized above every other
+   soft term and below `α_progress`. `hard_direction_constraints=True` restores
+   the spec-literal form; it costs 1.9× to 3.1× throughput.
+2. **A maximum green** (spec 16). The spec gives an aisle a minimum lock and a
+   dead band, which bound how *soon* a direction may change but not how long it
+   may persist. With near-balanced demand — the normal case when pickups are on
+   one side of the map and deliveries on the other — the imbalance never leaves
+   the dead band, and the aisle holds one direction indefinitely.
+   `maximum_aisle_lock_time` (default 40): past it, any opposing demand forces a
+   drain and a flip to the opposite direction. `aisle_direction_no_max_green`
+   runs without it.
+3. **Aisles are maximal straight runs** (spec 9.2). Segmenting by connected
+   component alone produces L-, U- and T-shaped aisles — `warehouse_corridors`
+   had two 25-cell U shapes spanning a whole corridor plus both vertical links —
+   on which `FORWARD`/`REVERSE` has no single compass meaning, and a one-way rule
+   blocks the corner in both senses. Segmentation cuts at every turn;
+   `Aisle.axis` reports `row` or `col`.
+4. **Recovery escalates only on a corroborated stall** (spec 28). The spec names
+   three stall signals; the implementation treated the weakest (no progress for
+   `t_blocked` steps) as sufficient, which describes an ordinary queue in dense
+   traffic. A group must now also show a wait-for cycle or a repeated
+   configuration. `require_deadlock_corroboration=False` restores the old
+   trigger.
+5. **Entry admission is capacity control, not a direction rule** (spec 18). It
+   used to be gated on `direction_control == "aisle"`, which made
+   `reservations=True` a silent no-op in every robot-level configuration —
+   including the variant that exists to isolate it. It is gated on
+   `reservations` alone now. The occupancy cap applies to `OPEN` aisles too; the
+   *ticket* is still required only once an aisle is directional.
+6. **The congestion mixture is normalised** (spec 23.1). `C_local` was a raw
+   robot count mixed with two ratios, so `μ · C` reached the scale of `α · Δ`
+   and outranked the terms it is meant to modulate. It is an occupancy ratio
+   now, and the `ω` weights are normalised to sum to 1, so `C_i(v) ∈ [0, 1]`.
+   `congestion_normalisation=False` restores the count.
+7. **Progress normalisation** (spec 23). The spec normalises route progress by
    the remaining distance, so `α·progress ≈ 10/d`. At `d = 20` that is 0.5,
    below `β_strong = 3.0` and `γ_strong = 2.0` — which silently inverts the
    recommended relation `α > β_strong > λ_turn` from spec 33. Default is
    `progress_normalization="step"` (Δ ∈ {−1, 0, +1}); set it to `"route"` for
    the literal formula.
-2. **Aisle direction restricts entry, not interior movement** (spec 27 vs 10.2).
+8. **Aisle direction restricts entry, not interior movement** (spec 27 vs 10.2).
    The spec 27 pseudocode blocks any in-aisle move opposing the direction, which
    traps robots and means `DRAINING` never terminates. Spec 10.2 says the state
    governs who may *enter*. A robot inside may always move toward the nearer
    endpoint to leave.
-3. **Drain timeout.** A `DRAINING` aisle that will not empty is reopened after
-   `max_drain_time`, justified by spec 16's "current direction is infeasible".
-4. **Short aisles and cut edges are never made one-way**
-   (`directional_aisle_min_length`, default 4). Making a bridge edge one-way
-   disconnects the graph and destroys reachability outright (spec 9.3, 38.2).
-5. **Progressive recovery escalation.** Spec 29 runs all seven levels in one
-   call with a progress check between them, but progress cannot be observed
-   until the next timestep. Here a persisting group escalates one level per
-   timestep, which is what "progressive" has to mean in a synchronous loop.
-6. **Idle robots hold position at the lowest priority class** rather than
-   driving to a parking bay. Sending them to intersections throttles every route
-   through those cells; giving them their spawn point as a target wastes travel.
-   PIBT's priority inheritance displaces them when a busy robot needs the cell.
-   Explicit `k` bays are still used when the map provides them.
+9. **Drain timeout, and a drain that remembers why it started.** A `DRAINING`
+   aisle that will not empty is reopened after `max_drain_time`, justified by
+   spec 16's "current direction is infeasible". When it *does* empty, it commits
+   the direction that triggered the drain rather than re-running the imbalance
+   test — by then the demand has usually moved on, and re-testing would
+   re-commit the direction just drained.
+10. **Progressive recovery escalation.** Spec 29 runs all seven levels in one
+    call with a progress check between them, but progress cannot be observed
+    until the next timestep. Here a persisting group escalates one level per
+    timestep, which is what "progressive" has to mean in a synchronous loop.
 
-Additions beyond the spec, all off by default:
-`direction_aware_routing` (A\* that routes around opposing aisles),
-`parity_bias`, `aisle_capacity_model="throughput"`.
+Two smaller ones kept from the earlier pass: short aisles and cut edges are
+never made one-way (`directional_aisle_min_length`, default 4 — making a bridge
+edge one-way destroys reachability, spec 9.3 / 38.2), and idle robots hold
+position at the lowest priority class rather than driving to an intersection.
+
+Additions beyond the spec, all off by default: `direction_aware_routing` (A\*
+that routes around opposing aisles), `coordinate_aisle_directions` (assign
+directions as a set under a strong-connectivity invariant — measured effect
+±0.011, a null result), `demand_spread` (aggregate demand over every aisle a
+route touches, per spec 12 — measured net negative), `parity_bias`, and
+`aisle_capacity_model` in `{"length", "throughput"}`. The default capacity model
+is `"drain"`: as many robots as fit, but never more than can clear the aisle
+within `max_drain_time`.
 
 ## Development plan status (spec 40)
 
@@ -586,11 +742,11 @@ maps/            warehouse maps
 src/lda_pibt/    the package (see the module table above)
 src/lda_pibt/gui/  browser GUI (server.py + static/index.html)
 src/lda_pibt/baselines/  Token Passing and RHCR, independent of the PIBT machinery
-tests/           161 tests: graph, PIBT, aisle manager, lifelong layer, GUI, baselines, stats
+tests/           179 tests: graph, PIBT, aisle manager, lifelong layer, GUI, baselines, stats
 experiments/     run_ablation.py, run_density_sweep.py, run_factorial_ablation.py,
-                 run_baseline_comparison.py
+                 run_baseline_comparison.py, run_hypothesis_suite.py
 results/         JSON output (git-ignored)
-docs/            implementation notes
+docs/            implementation notes, mathematical guide, project-review deck
 ```
 
 ## Citation

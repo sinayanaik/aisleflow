@@ -8,11 +8,19 @@ several seeds because a single lifelong run is noisy.
 from __future__ import annotations
 
 import statistics
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .baselines import RHCRPlanner, TokenPassingPlanner
-from .config import ABLATIONS, BASELINE_PARAMS_PRESET, FACTORIAL_DESIGNS, Params, ablation
+from .config import (
+    ABLATIONS,
+    BASELINE_PARAMS_PRESET,
+    FACTORIAL_DESIGNS,
+    PAIRED_DESIGNS,
+    Params,
+    ablation,
+)
 from .simulator import PlannerFactory, build_simulator
 from .stats import bootstrap_ci, permutation_test
 from .task import TaskGenerator
@@ -46,6 +54,10 @@ REPORT_FIELDS = (
     "max_waiting_time",
     "direction_switches",
     "direction_switches_per_1000",
+    "starvation_flips",
+    "head_on_conflicts",
+    "counterflow_moves",
+    "aisle_throughput_per_1000",
     "deadlocks_detected",
     "deadlocks_recovered",
     "deadlocks_unrecovered",
@@ -321,15 +333,263 @@ def run_comparison_table(
     return rows
 
 
+@dataclass(frozen=True)
+class Hypothesis:
+    """One hypothesis, the pair that isolates it, and the metric it names.
+
+    Each hypothesis is judged on the quantity it actually claims to move, not
+    on global throughput: H3 says "fewer head-on conflicts", so it is scored on
+    `head_on_conflicts`, and H1 says "narrow aisles flow better", so it is
+    scored on per-aisle throughput.  `better` records which direction counts as
+    support, so a verdict never depends on remembering the sign.
+    """
+
+    key: str
+    claim: str
+    treatment: str
+    control: str
+    metric: str
+    better: str  #: "higher" or "lower"
+    secondary: Tuple[str, ...] = ()
+    #: Parameter overrides applied to the *control* run. Some mechanisms are
+    #: parameters rather than flags (the beta decay, the hysteresis dead band),
+    #: so their control is the same variant with the mechanism disabled.
+    control_overrides: Optional[Tuple[Tuple[str, Any], ...]] = None
+    control_label: str = ""
+
+
+#: The sharpened hypotheses. Each names the mechanism it depends on, because
+#: the earlier generic wording ("aisle direction improves throughput") was
+#: compatible with configurations in which the mechanism could not act at all.
+HYPOTHESES: Tuple[Hypothesis, ...] = (
+    Hypothesis(
+        key="H1",
+        claim=(
+            "Aisle-level direction control improves throughput in narrow aisles "
+            "under dense traffic, when direction is a soft ranking term on "
+            "straight-run aisles with a starvation-free signal."
+        ),
+        treatment="aisle_direction_only",
+        control="hysteresis_pibt",
+        metric="aisle_throughput_per_1000",
+        better="higher",
+        secondary=("throughput", "mean_service_time"),
+    ),
+    Hypothesis(
+        key="H2",
+        claim=(
+            "Hysteresis reduces direction switching and prevents oscillation, "
+            "without reintroducing starvation."
+        ),
+        treatment="aisle_direction_only",
+        control="aisle_direction_only",
+        control_overrides=(("hysteresis", False),),
+        control_label="no dead band, no minimum lock",
+        metric="direction_switches_per_1000",
+        better="lower",
+        secondary=("throughput", "starvation_flips"),
+    ),
+    Hypothesis(
+        key="H3",
+        claim=(
+            "Entry capacity admission reduces head-on conflicts and deadlocks "
+            "in single-file aisles, independently of the direction mode."
+        ),
+        treatment="reservations_only",
+        control="hysteresis_pibt",
+        metric="head_on_conflicts",
+        better="lower",
+        secondary=("deadlocks_detected", "throughput"),
+    ),
+    Hypothesis(
+        key="H4",
+        claim=(
+            "Congestion-aware task assignment cuts mean and tail service time, "
+            "separately from the congestion penalty in movement scoring."
+        ),
+        treatment="congestion_assignment_only",
+        control="aisle_managed_pibt",
+        metric="mean_service_time",
+        better="lower",
+        secondary=("p95_service_time", "throughput"),
+    ),
+    Hypothesis(
+        key="H5",
+        claim=(
+            "Proximity-dependent direction weights improve waypoint arrival: "
+            "decaying beta as a robot nears its waypoint lets preference yield "
+            "to arrival."
+        ),
+        treatment="aisle_direction_only",
+        control="aisle_direction_only",
+        control_overrides=(("r_near", 8), ("r_far", 8)),
+        control_label="no decay, beta at its ceiling throughout",
+        # `max_service_time` saturates against the run horizon, so it reports
+        # the same number for almost any configuration; p95 does not.
+        metric="p95_service_time",
+        better="lower",
+        secondary=("mean_service_time", "max_service_time", "throughput"),
+    ),
+    Hypothesis(
+        key="H6",
+        claim=(
+            "Localised progressive recovery beats a global replan, when it "
+            "escalates only on a corroborated stall signal."
+        ),
+        treatment="recovery_only",
+        control="aisle_managed_pibt",
+        metric="throughput",
+        better="higher",
+        secondary=("deadlocks_recovered", "mean_service_time"),
+    ),
+)
+
+def run_hypothesis_table(
+    map_path: str | Path,
+    n_robots: int,
+    timesteps: int,
+    seeds: int = 10,
+    rate: float = 1.0,
+    arrival: str = "poisson",
+    hypotheses: Optional[Sequence[Hypothesis]] = None,
+) -> List[Dict[str, Any]]:
+    """Score every hypothesis on the metric it names, with a p-value.
+
+    Returns one row per hypothesis: the treatment and control means for its own
+    metric, a 95% bootstrap CI on each, a two-sided permutation-test p-value,
+    and a verdict that reads `better` rather than assuming higher is good.
+    """
+    cache: Dict[Tuple[str, Any], List[Dict[str, Any]]] = {}
+
+    def runs(
+        variant: str, overrides: Optional[Tuple[Tuple[str, Any], ...]]
+    ) -> List[Dict[str, Any]]:
+        key = (variant, overrides)
+        if key not in cache:
+            cache[key] = [
+                run_once(
+                    map_path, variant, n_robots, timesteps, seed,
+                    rate=rate, arrival=arrival,
+                    overrides=dict(overrides) if overrides else None,
+                )
+                for seed in range(seeds)
+            ]
+        return cache[key]
+
+    rows: List[Dict[str, Any]] = []
+    for hypothesis in hypotheses or HYPOTHESES:
+        treatment_runs = runs(hypothesis.treatment, None)
+        control_runs = runs(hypothesis.control, hypothesis.control_overrides)
+
+        fields: Dict[str, Any] = {}
+        for field in (hypothesis.metric,) + tuple(hypothesis.secondary):
+            treated = [float(r[field]) for r in treatment_runs]
+            control = [float(r[field]) for r in control_runs]
+            t_mean, t_lo, t_hi = bootstrap_ci(treated)
+            c_mean, c_lo, c_hi = bootstrap_ci(control)
+            _, p_value = permutation_test(treated, control)
+            fields[field] = {
+                "treatment_mean": t_mean, "treatment_ci": [t_lo, t_hi],
+                "control_mean": c_mean, "control_ci": [c_lo, c_hi],
+                "delta": t_mean - c_mean, "p_value": p_value,
+            }
+
+        primary = fields[hypothesis.metric]
+        improved = (
+            primary["delta"] > 0
+            if hypothesis.better == "higher"
+            else primary["delta"] < 0
+        )
+        significant = primary["p_value"] is not None and primary["p_value"] < 0.05
+        if not significant:
+            verdict = "no measurable effect"
+        else:
+            verdict = "supported" if improved else "contradicted"
+
+        rows.append({
+            "hypothesis": hypothesis.key,
+            "claim": hypothesis.claim,
+            "treatment": hypothesis.treatment,
+            "control": hypothesis.control
+            + (f" ({hypothesis.control_label})" if hypothesis.control_label else ""),
+            "metric": hypothesis.metric,
+            "better": hypothesis.better,
+            "verdict": verdict,
+            "seeds": seeds,
+            "n_robots": n_robots,
+            "collision_free": all(
+                bool(r["collision_free"]) for r in treatment_runs + control_runs
+            ),
+            "fields": fields,
+        })
+    return rows
+
+
+def run_paired_table(
+    map_path: str | Path,
+    n_robots: int,
+    timesteps: int,
+    seeds: int = 5,
+    rate: float = 1.0,
+    arrival: str = "poisson",
+    fields: Sequence[str] = FACTORIAL_FIELDS,
+) -> List[Dict[str, Any]]:
+    """Run the single-factor comparisons in `config.PAIRED_DESIGNS`.
+
+    These isolate the mechanisms repaired in this pass -- ranking direction
+    versus rejecting it, bounded maximum green, corroborated recovery -- where a
+    2x2 is impossible because the second factor is undefined when the first is
+    off.
+    """
+    rows: List[Dict[str, Any]] = []
+    for name, design in PAIRED_DESIGNS.items():
+        treated = [
+            run_once(map_path, design["treatment"], n_robots, timesteps, seed,
+                     rate=rate, arrival=arrival)
+            for seed in range(seeds)
+        ]
+        control = [
+            run_once(map_path, design["control"], n_robots, timesteps, seed,
+                     rate=rate, arrival=arrival)
+            for seed in range(seeds)
+        ]
+        measured: Dict[str, Any] = {}
+        for field in fields:
+            t = [float(r[field]) for r in treated]
+            c = [float(r[field]) for r in control]
+            t_mean, t_lo, t_hi = bootstrap_ci(t)
+            c_mean, c_lo, c_hi = bootstrap_ci(c)
+            _, p_value = permutation_test(t, c)
+            measured[field] = {
+                "treatment_mean": t_mean, "treatment_ci": [t_lo, t_hi],
+                "control_mean": c_mean, "control_ci": [c_lo, c_hi],
+                "delta": t_mean - c_mean, "p_value": p_value,
+            }
+        rows.append({
+            "design": name,
+            "label": design["label"],
+            "treatment": design["treatment"],
+            "control": design["control"],
+            "seeds": seeds,
+            "n_robots": n_robots,
+            "fields": measured,
+        })
+    return rows
+
+
 __all__ = [
     "LIFELONG_VARIANTS",
     "BASELINE_PLANNERS",
     "REPORT_FIELDS",
     "CORE_REPORT_FIELDS",
     "FACTORIAL_FIELDS",
+    "Hypothesis",
+    "HYPOTHESES",
     "run_once",
     "run_ablation_table",
     "run_density_sweep",
     "run_factorial_table",
     "run_comparison_table",
+    "run_hypothesis_table",
+    "run_paired_table",
 ]

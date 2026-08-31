@@ -378,18 +378,37 @@ S_i(v) =  α · progress
         − μ · C_i(v)                (congestion, §5)
         − ν · P_wait
         − ξ · 1[candidate is a bottleneck vertex]
+        − ζ_counterflow · 1[move opposes the aisle's committed direction]     (§6.6)
+        − ζ_reservation · 1[entering a directional aisle without a ticket]    (§6.5)
 ```
 
 Defaults: `α = alpha_progress = 10.0`, `λ_turn = 0.5`, `μ = mu_congestion =
-1.0`, `ν = nu_wait = 0.2`, `ξ = xi_bottleneck = 1.0`. `P_wait = 1` unless
-the candidate is "stay in place while already at the waypoint" (free) —
-otherwise waiting is always mildly discouraged so a robot with any legal
-forward move prefers it.
+1.0`, `ν = nu_wait = 0.2`, `ξ = xi_bottleneck = 1.0`, `ζ_counterflow =
+ζ_reservation = 8.0`. `P_wait = 1` unless the candidate is "stay in place
+while already at the waypoint" (free) — otherwise waiting is always mildly
+discouraged so a robot with any legal forward move prefers it.
 
-The README documents the intended weight ordering `α > β_strong > λ_turn`
-(10 > 3 > 0.5): progress dominates direction preference, which in turn
-dominates the cost of a single turn — this is exactly what breaks under
-`"route"` normalization at long range (§4.5).
+The intended weight ordering is `α > ζ > β_strong > γ_strong > λ_turn`
+(10 > 8 > 3 > 2 > 0.5): a whole step of progress beats everything, driving the
+wrong way down an aisle beats every other preference, and a single turn is the
+cheapest term. Two things have to hold for that ordering to be real:
+
+- **`ζ < α`.** The two ζ terms are where the aisle layer acts, and they are
+  *penalties*, not rejections. Until this pass they were hard rejections in
+  `feasible_candidates`, which deletes legal moves from the candidate set —
+  and PIBT's progress argument rests on being able to push any robot into an
+  adjacent cell (§7.4). Pricing counterflow instead keeps that freedom: a robot
+  drives the wrong way when that is the only way to make progress, or when
+  nothing else is left, and pays for it. `hard_direction_constraints` restores
+  the old behaviour for comparison.
+- **`μ · C_i(v) ≤ μ`.** `C_i(v)` has to be normalised (§5.3) or the mixture is
+  a robot *count*, and `μ · C` then reaches the scale of `α · Δ` — measured at
+  mean 3.40, p90 5.75, max 9.60 on `warehouse_medium` with 40 robots — which
+  makes congestion the second-largest term in the score rather than a modulator
+  of the smaller ones.
+
+The `"route"` progress normalization (§4.5) breaks the ordering at long range
+for a third reason, which is why `"step"` is the default.
 
 `CandidateScorer.sort_key(robot, v) = (-score(robot, v), v)` — descending
 score, ties broken by vertex coordinates for determinism.
@@ -447,11 +466,24 @@ same downstream segment.
 ### 5.3 Congestion mixture
 
 ```
-C_i(v) = ω_local · local_density(v)  +  ω_aisle · aisle_load(aisle(v))  +  ω_downstream · downstream(v, w_i)
+C_i(v) = ( ω_local · local_occupancy_ratio(v)
+         + ω_aisle · aisle_load(aisle(v))
+         + ω_downstream · downstream(v, w_i) ) / (ω_local + ω_aisle + ω_downstream)
 ```
 
-All three weights default to `1.0`. Returns `0` unconditionally if
-`congestion_aware` is off.
+All three weights default to `1.0`, so `C_i(v)` is the mean of three ratios and
+lies in `[0, 1]`. Returns `0` unconditionally if `congestion_scoring` is off.
+
+`local_occupancy_ratio(v) = local_density(v) / |{u ∈ V : d_1(u, v) ≤ R_local}|`
+— the fraction of reachable cells within the radius that hold a robot, not the
+robot count. `C_aisle` and `C_downstream` were already ratios, so mixing a count
+with them made `C_local` effectively the whole mixture and let `μ · C` outrank
+the terms it is meant to modulate (§4.6). `congestion_normalisation=False`
+restores the raw-count form.
+
+Normalising is a *calibration* fix, not a performance one: measured on the
+bundled maps it is neutral to slightly negative on throughput. What it buys is
+that the weight ordering the score claims is the ordering it has.
 
 ### 5.4 Route-level congestion (for task assignment)
 
@@ -498,18 +530,29 @@ Default weights: `w_u = 1.0, w_w = 0.5, w_p = 2.0, w_l = 0.05, w_c = 0.5`.
 ### 6.3 Aggregate demand and the decision rule
 
 ```
-S_a^+  = Σ_{i requesting FORWARD in aisle a} demand_i(a)
-S_a^-  = Σ_{i requesting REVERSE in aisle a} demand_i(a)
+S_a^+  = Σ_{i requesting FORWARD in aisle a} ρ_i(a) · demand_i(a)
+S_a^-  = Σ_{i requesting REVERSE in aisle a} ρ_i(a) · demand_i(a)
 imbalance = S_a^+ − S_a^-  [+ parity_bias · (+1 if a even else −1), if parity_bias ≠ 0 and either sum is nonzero]
 ```
 
+`ρ_i(a)` is the attribution weight. By default each robot is charged to exactly
+one aisle (`ρ = 1` for `next_aisle`, else `current_aisle`; `0` elsewhere). With
+`demand_spread` on, `update_aisle_queues` charges the robot to *every* aisle its
+route touches, with `ρ_i(a) = 1 / (1 + steps to the entry)` — the spec-12
+reading, and the only one that lets an aisle see both the robots already inside
+it and traffic more than one aisle away. Measured on the bundled maps it engages
+direction control considerably more often and costs throughput, so it ships off
+by default; the flag exists so the measurement stays reproducible.
+
 `update_aisle_direction` then applies **hysteresis with a dead band**
 `[-τ_switch, τ_switch]`, `τ_switch = direction_switch_threshold` (default
-5.0, applied only if `hysteresis` is on, else `0`):
+5.0, applied only if `hysteresis` is on, else `0`), **and a maximum green**:
 
 ```
-occupied, holding FORWARD:  switch to DRAINING only if imbalance < −τ_switch
-occupied, holding REVERSE:  switch to DRAINING only if imbalance > +τ_switch
+occupied, holding FORWARD:  DRAINING if imbalance < −τ_switch
+                            or  (t − direction_since ≥ T_max and S_a^- > 0)
+occupied, holding REVERSE:  DRAINING if imbalance > +τ_switch
+                            or  (t − direction_since ≥ T_max and S_a^+ > 0)
 empty, within lock_until:   hold current direction (minimum-lock enforcement)
 empty, past lock:
     imbalance >  τ_switch  (and forward demand > 0, or τ = 0):  commit FORWARD
@@ -517,26 +560,70 @@ empty, past lock:
     else:                                                        OPEN / NONE
 ```
 
+`T_max = maximum_aisle_lock_time` (default 40), floored at the aisle's own
+minimum lock so the two clocks cannot contradict each other.
+
+**Why a maximum green is necessary.** Hysteresis is only half a traffic signal.
+It bounds how *soon* a committed direction may change and says nothing about how
+long it may persist. Consider a warehouse with pickups down one side and
+deliveries down the other — the standard layout, and three of the four bundled
+maps: loaded robots want one direction and empty ones want the other, in
+near-equal measure, so `|imbalance|` sits inside the dead band indefinitely.
+Under the dead band alone an aisle therefore holds its first committed direction
+for the rest of the run and half its traffic never gets through. Instrumented on
+`warehouse_corridors`: all 35 robots stalled by t = 120, four aisles locked
+REVERSE with `lock_until` long expired, and the identical state still present at
+t = 199.
+
+The maximum green makes the aisle *starvation-free*: a direction held for
+`T_max` steps with any opposing demand at all must drain and flip. Flips forced
+this way are counted separately as `starvation_flips`, which keeps the H2
+question ("does hysteresis stop oscillation?") distinct from the liveness one.
+
 `_commit` bumps `direction_switches` (both aisle-level and manager-level)
 only on an *actual* change from a non-`NONE` previous direction, and sets
-`lock_until = t + minimum_lock_time` so a freshly committed direction can't
-be reversed again for `minimum_lock_time` steps — this is exactly what
-`test_aisle_manager.py::test_minimum_lock_time_blocks_an_immediate_flip`
-checks.
+`lock_until = t + minimum_lock_time` and `direction_since = t`, so a freshly
+committed direction can neither be reversed for `minimum_lock_time` steps nor
+held past `maximum_lock_time` against opposing demand — checked by
+`test_minimum_lock_time_blocks_an_immediate_flip` and
+`test_maximum_green_forces_a_flip_under_balanced_demand`.
 
 ### 6.4 Aisle state machine
 
 ```
-FORWARD ──(imbalance < −τ_switch)──▶ DRAINING ──(occupancy → 0)──▶ OPEN
-   ▲                                                                  │
-   └──────────────(imbalance + lock expired)────────────────────────REVERSE
+              imbalance past ±τ_switch,  or  held ≥ T_max with opposing demand
+   FORWARD ──────────────────────────────────────────▶ DRAINING
+      ▲                                                              │  occupancy → 0:
+      │     demand imbalance + lock expired                          │  commit pending
+   OPEN ◀──────────────── drain timed out ─────────────── REVERSE
 ```
+
+Entering `DRAINING` records `pending_direction` = the opposite of the current
+one. When the aisle empties, that direction is committed **directly**, without
+re-running the imbalance test: the demand that triggered the drain has usually
+moved on by the time the aisle is clear, so re-testing would re-commit the
+direction just drained and the flip would never happen.
 
 Plus one addition beyond the base rule: a `DRAINING` aisle that has not
 reached zero occupancy within `max_drain_time` (default 30) steps is
 force-reopened to `OPEN` — justified as "the current direction is
 infeasible" (an absorbing deadlock otherwise: an aisle that can never
 empty would never leave `DRAINING`).
+
+### 6.4.1 Coordinated direction assignment
+
+`coordinate_aisle_directions` (default off) decides the directions as a *set*
+rather than one aisle at a time: aisles commit in descending `|imbalance|`, and
+any commit that would break strong connectivity of the directed residual graph
+is rolled back, leaving that aisle bidirectional. The check is a two-way BFS
+over the passable cells under the current assignment, `O(|V| + |E|)` per commit.
+
+This was the fix the earlier review expected to matter most. It does not: on the
+bundled maps its measured effect on throughput is between ±0.000 and ±0.011,
+because a single one-way aisle almost never disconnects a ladder graph, so the
+guard hardly ever fires. The collapse it was meant to cure was a liveness
+failure (§6.3), not a connectivity failure. It ships as a flag so the null
+result is reproducible.
 
 ### 6.5 Reservations
 
@@ -553,10 +640,33 @@ expected_exit_time = t + floor(length) + 1
 expiry_time         = t + reservation_ttl     (default 15)
 ```
 
-`can_enter_aisle` (the read-side check used by `feasible_candidates`, §7.2)
-combines all of this: `False` if `DRAINING`; `True` if `OPEN`; `False` on a
-direction mismatch; `False` if at capacity; `True` if the `reservations`
-flag is off; otherwise requires `has_valid_reservation`.
+`can_enter_aisle` (the read side, consumed by the ζ_reservation term of §4.6)
+combines all of this into two separate gates, because they answer different
+questions:
+
+- the **occupancy cap** applies to every managed aisle, `OPEN` included.
+  Over-filling a single-file corridor is what builds a queue that cannot drain,
+  and that is true whether or not the corridor currently has a direction. This
+  is the mechanism H3 is about.
+- the **ticket** is required only once the aisle is directional, per spec 18.
+  Demanding one to enter an `OPEN` aisle throttles every crossing on a map
+  whose aisles are mostly short and mostly open.
+
+```
+DRAINING                              → False
+state ≠ OPEN and direction mismatch   → False
+occupancy ≥ capacity                  → False
+reservations off, or state is OPEN    → True
+otherwise                             → has_valid_reservation
+```
+
+**Gating.** `update_aisle_reservations` and `violates_aisle_reservation` are
+gated on `params.reservations` alone. They used to be gated on
+`AisleManager.enabled` (`direction_control == "aisle"`), which made the flag a
+silent no-op in every robot-level configuration — including `reservations_only`,
+the variant that exists specifically to isolate it, whose runs were bit-identical
+to its own control. `AisleManager.active` (`enabled or reservations`) is what
+`Simulator.step` now uses to decide whether to run the layer at all.
 
 ### 6.6 Movement legality (spec 27, `violates_aisle_direction`)
 
@@ -599,15 +709,27 @@ move (possibly `INVALID`, meaning "stay put", never "no answer").
 2. **Kinematics**: `violates_kinematics` — currently a stub, always
    `False`. A hook for future footprint/turning-radius constraints
    (`Robot.orientation` exists but is unused for this).
-3. **Aisle-direction violation** (§6.6).
-4. **Aisle-reservation violation** (§6.5).
-5. **Vertex conflict** (§7.3.1).
-6. **Swap conflict with the calling parent** (§7.3.2), only checked when
+3. **Vertex conflict** (§7.3.1).
+4. **Swap conflict with the calling parent** (§7.3.2), only checked when
    this call is a recursive priority-inheritance request (`parent ≠ None`).
 
 Surviving candidates are then **sorted by score** (§4.6, descending) —
 legality and preference are fully decoupled: scoring never overrides a
 rejection, and rejection never depends on score.
+
+**Aisle direction and reservations are deliberately not on this list.** Every
+rule here concerns safety or physical possibility; the aisle layer concerns
+*preference*, and it acts through the two ζ terms of §4.6 instead. The
+distinction is load-bearing rather than stylistic: §7.4's progress argument
+assumes a robot can always be pushed into an adjacent cell, and a one-way rule
+enforced by rejection removes exactly that. With aisle direction as a hard
+rejection, inheritance chains dead-end against the constraint and the aisle
+layer collapses — measured at 0.010 tasks/step against 0.153 for the same
+configuration with the same direction decisions priced instead of enforced.
+
+`hard_direction_constraints=True` reinstates rules 3 and 4 of the old order
+(aisle direction, then reservation, before the conflict checks) and suppresses
+the ζ terms so the penalty is not counted twice.
 
 ### 7.3 Conflict checks (`validate.py` companions, spec 26)
 
@@ -1144,23 +1266,29 @@ Every tunable constant, grouped by the section above that uses it.
 `compute_direction_weight` only reads `beta_strong`)*, `gamma_strong=2.0`,
 `gamma_weak=0.5`, `lambda_turn=0.5`, `lambda_reverse=2.0`,
 `mu_congestion=1.0`, `nu_wait=0.2`, `xi_bottleneck=1.0`,
-`progress_normalization="step"`.
+`zeta_counterflow=8.0`, `zeta_reservation=8.0`,
+`progress_normalization="step"`, `hard_direction_constraints=False`.
 
 **Congestion (§5)**: `omega_local=1.0`, `omega_aisle=1.0`,
 `omega_downstream=1.0`, `local_congestion_radius=3`,
-`downstream_horizon=5`.
+`downstream_horizon=5`, `congestion_normalisation=True`.
 
 **Proximity (§4.1)**: `r_near=2`, `r_far=8`.
 
 **Aisle management (§6)**: `minimum_aisle_lock_time=20`,
-`direction_switch_threshold=5.0`, `aisle_capacity=10`,
-`aisle_capacity_model="length"`, `aisle_capacity_ratio=1.0`,
-`reservation_ttl=15`, `max_drain_time=30`,
+`maximum_aisle_lock_time=40`, `direction_switch_threshold=5.0`,
+`aisle_capacity=10`, `aisle_capacity_model="drain"`
+(`"length"` = spec 9.2, `"throughput"` = exit-gated),
+`aisle_capacity_ratio=1.0`, `reservation_ttl=15`, `max_drain_time=30`,
 `directional_aisle_min_length=4`, `direction_aware_routing=False`,
-`route_direction_penalty=6.0`, `parity_bias=0.0` (extension beyond the
-spec — a per-aisle-parity bias meant to make neighboring aisles prefer
-opposite directions; the README notes it does not, in practice, fix the
-parallel-corridor lockstep problem it targets).
+`route_direction_penalty=6.0`.
+
+Three extensions beyond the spec, all off by default and all kept because
+their measured effect is worth being able to reproduce: `parity_bias=0.0`
+(a per-aisle-parity bias meant to make neighbouring aisles prefer opposite
+directions — it does not fix the parallel-corridor lockstep it targets),
+`coordinate_aisle_directions=False` (§6.4.1 — a null result), and
+`demand_spread=False` (§6.3 — net negative).
 
 **Directional demand (§6.2)**: `w_urgency=1.0`, `w_waiting=0.5`,
 `w_proximity=2.0`, `w_route_length=0.05`, `w_congestion=0.5`.
@@ -1171,18 +1299,30 @@ parallel-corridor lockstep problem it targets).
 `blocked_weight=10.0`, `urgency_weight=1.0`.
 
 **Deadlock (§10)**: `t_blocked=10`, `t_deadlock=20`,
-`config_history_length=8` *(reserved field; not read by any formula
-above)*.
+`require_deadlock_corroboration=True`, `config_history_length=8`
+*(reserved field; not read by any formula above)*.
 
 **Task assignment (§9)**: `assign_alpha_to_pickup=1.0`,
-`assign_beta_pickup_to_delivery=0.5`, `assign_gamma_congestion=2.0`,
-`assign_delta_waiting=-0.5`, `assign_eta_direction=1.0`,
-`assign_zeta_blocking=1.0`, `assignment_candidate_limit=32`.
+`assign_beta_pickup_to_delivery=0.5`, `assign_gamma_congestion=12.0`,
+`assign_delta_waiting=-0.5`, `assign_waiting_cap=60.0`,
+`assign_eta_direction=1.0`, `assign_zeta_blocking=1.0`,
+`assignment_candidate_limit=32`.
+
+`assign_gamma_congestion` was 2.0 against distances of 10-40, so the whole
+congestion term was worth about four cost units and could not influence a
+match; `assign_waiting_cap` bounds a term that otherwise grows without limit
+in a lifelong run and degenerates the match to oldest-task-first.
 
 **Ablation switches (§16)**: `lifelong=True`,
 `direction_control="aisle"` (`"none"|"robot"|"aisle"`), `hysteresis=True`,
-`congestion_aware=True`, `reservations=True`, `recovery=True`,
-`turning_cost=True`.
+`congestion_scoring=True`, `congestion_assignment=True`, `reservations=True`,
+`recovery=True`, `turning_cost=True`.
+
+`congestion_aware` survives as a read/write alias that sets and reads both
+congestion flags, so saved configs and CLI overrides keep working. It was one
+flag switching three mechanisms — the movement penalty, the assignment
+congestion term and the assignment blocking term — which made H4, a claim about
+matching alone, unmeasurable.
 
 **Simulation**: `max_timesteps=500`, `seed=0`, `park_when_idle=True`,
 `validate_every_step=True`.
@@ -1213,10 +1353,32 @@ observed_both_effect   = value(both) − value(base)
 interaction            = observed_both_effect − main_effect_a − main_effect_b
 ```
 
-A large `interaction` term means the two flags are strongly non-additive —
-e.g. the README's finding that `direction_control="aisle"` alone accounts
-for nearly all of `aisle_managed_pibt`'s throughput collapse on
-`warehouse_corridors`, with `reservations` alone contributing exactly zero.
+A large `interaction` term means the two flags are strongly non-additive — e.g.
+the finding that on `warehouse_medium` aisle-level direction alone *raises*
+throughput (0.337 → 0.405) while entry admission alone lowers it (→ 0.262), and
+the two together land at 0.217, well below what either main effect predicts.
+
+Two cautions the earlier version of this table did not carry, both learned the
+hard way:
+
+- **A factorial is only readable if all four corners are distinct runs.** The
+  `aisle_direction_vs_reservations` design was unreadable for exactly one
+  reason: `reservations_only` sets `direction_control="robot"`, and the
+  reservation layer was gated on `direction_control == "aisle"`, so factor B
+  was a bit-identical copy of the base and its main effect was *necessarily*
+  zero. "Exactly zero effect" was a property of the wiring, not of
+  reservations. Before reading any decomposition, check that the isolated cell
+  actually differs from the base.
+- **A flag that switches more than one mechanism cannot be a factor.**
+  `congestion_aware` moved the movement score, the assignment cost and the
+  assignment blocking term together — the same confound the factorials exist to
+  remove, one level down. `congestion_scoring_vs_assignment` splits it.
+
+`config.PAIRED_DESIGNS` covers the cases where a 2×2 is impossible because the
+second factor is undefined when the first is off — there is no "hard constraint"
+cell without aisle direction, and no "corroboration" cell without recovery.
+`experiments.run_paired_table` reports those as single-factor comparisons with
+the same bootstrap CI and permutation test.
 
 ---
 

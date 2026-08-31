@@ -140,6 +140,18 @@ class DeadlockMonitor:
         groups: List[List[Robot]] = []
         claimed: Set[int] = set()
 
+        # Spec 28 lists three stall signals. No progress alone is the weakest:
+        # in dense lifelong traffic a robot queues for `t_blocked` steps as a
+        # matter of course, so treating that as a deadlock escalates recovery
+        # on healthy traffic -- and levels 5-7 (temporary reverse, escape
+        # vertices, waypoint hijack) then cost far more than they save. Require
+        # one of the two positive signals to corroborate it.
+        corroborated: Set[int] = set()
+        if self.params.require_deadlock_corroboration:
+            corroborated = {
+                robot.id for robot in robots if self.repeated_configuration(robot)
+            }
+
         # 1. Directed cycles in the wait-for graph are a strong signal.
         dependency = self.build_dependency_graph(robots)
         for cycle in self.find_cycles(dependency):
@@ -149,6 +161,7 @@ class DeadlockMonitor:
                 if ids & claimed:
                     continue
                 claimed |= ids
+                corroborated |= ids  # a cycle is corroboration in itself
                 groups.append(members)
 
         # 2. Spatially clustered blocked robots (localized, not global).
@@ -171,6 +184,10 @@ class DeadlockMonitor:
                         seen.add(other.id)
                         component.append(other)
                         frontier.append(other)
+            if self.params.require_deadlock_corroboration and not any(
+                member.id in corroborated for member in component
+            ):
+                continue  # slow, but nothing says it is stuck
             groups.append(component)
 
         current_keys = {frozenset(r.id for r in g) for g in groups}

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from lda_pibt import GridGraph, Params, Warehouse
 from lda_pibt.types import INF, AisleDirection
+
+MAPS = Path(__file__).resolve().parents[1] / "maps"
 
 OPEN_GRID = """
 .....
@@ -154,3 +158,44 @@ def test_capacity_models():
 def test_summary_keys():
     wh = make(OPEN_GRID)
     assert wh.summary()["vertices"] == 15
+
+
+# --------------------------------------------------- straight-run segmentation
+def test_no_bundled_map_produces_a_bent_aisle():
+    """An aisle direction only means something on a single compass axis.
+
+    Segmenting by connected component alone produced L, U and T shaped
+    "aisles" -- `warehouse_corridors` had two 25-cell U shapes spanning a whole
+    corridor plus both vertical links. Giving a bend a direction makes the
+    corner one-way in both senses and cuts the map in half.
+    """
+    for name in sorted(p.stem for p in MAPS.glob("*.map")):
+        warehouse = Warehouse.from_file(MAPS / f"{name}.map", Params())
+        bent = [a.id for a in warehouse.aisles.values() if a.length > 1 and not a.axis]
+        assert not bent, f"{name} has bent aisles {bent}"
+
+
+def test_every_aisle_is_a_contiguous_path():
+    warehouse = Warehouse.from_file(MAPS / "warehouse_medium.map", Params())
+    for aisle in warehouse.aisles.values():
+        for u, v in zip(aisle.vertices, aisle.vertices[1:]):
+            assert abs(u[0] - v[0]) + abs(u[1] - v[1]) == 1
+
+
+def test_aisles_partition_the_non_intersection_cells():
+    warehouse = Warehouse.from_file(MAPS / "warehouse_corridors.map", Params())
+    owned = [v for aisle in warehouse.aisles.values() for v in aisle.vertices]
+    assert len(owned) == len(set(owned)), "a cell belongs to two aisles"
+    expected = {
+        v for v in warehouse.graph.vertices if v not in warehouse.graph.intersections
+    }
+    assert set(owned) == expected
+
+
+def test_drain_capacity_keeps_an_aisle_emptiable():
+    """Capacity must not exceed what can clear the aisle inside max_drain_time."""
+    params = Params(aisle_capacity_model="drain", max_drain_time=30, aisle_capacity=99)
+    warehouse = Warehouse.from_file(MAPS / "warehouse_corridors.map", params)
+    for aisle in warehouse.aisles.values():
+        if aisle.manageable:
+            assert aisle.length + aisle.capacity <= params.max_drain_time + 1
