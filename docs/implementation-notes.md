@@ -103,8 +103,10 @@ The high-level layer adds, per timestep: `O(|aisles|)` for direction decisions,
 `O(|A|)` for queues and reservations, and `O(free robots × candidate tasks)` for
 greedy assignment — capped by `assignment_candidate_limit`.
 
-Measured on `warehouse_medium` with 40 robots: 0.96 ms/step for
-`lifelong_pibt`, 3.12 ms/step for `full_lda_pibt`.
+Measured on `warehouse_medium` with 40 robots: 1.01 ms/step for
+`lifelong_pibt`, 1.90 for `aisle_direction_only`, 4.06 for `full_lda_pibt`.
+For scale, the external baselines on the same map cost 85 ms/step (RHCR) and
+318 ms/step (Token Passing).
 
 ## Known gaps
 

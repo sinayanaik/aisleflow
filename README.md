@@ -414,8 +414,18 @@ framing is "fairer" is a judgment call worth showing both sides of):
 | token_passing_recovery | 0.00 | 0.0 | <0.001 | 39.1 |
 | rhcr | 0.00 | 4.3 | <0.001 | 45.9 |
 
+**warehouse_medium** — 40 robots, open grid:
+
+| variant | thr | svc | p (thr) | ms/step |
+|---|---:|---:|---:|---:|
+| **lifelong_pibt (ref)** | **0.51** | 138.3 | — | 1.01 |
+| full_lda_pibt | 0.26 | 148.1 | <0.001 | 4.06 |
+| token_passing | 0.00 | 49.1 | <0.001 | 318.4 |
+| token_passing_recovery | 0.02 | 126.4 | <0.001 | 359.9 |
+| rhcr | 0.01 | 38.2 | <0.001 | 85.4 |
+
 Full per-seed data and every `CORE_REPORT_FIELDS` column lands in
-`results/baseline_comparison.json`.
+`results/baseline_comparison.json` and `results/baseline_medium.json`.
 
 **Plain `lifelong_pibt` beats both external baselines by a wide, significant
 margin (p < 0.001 on throughput in every cell) on every map tested.** Token
@@ -427,15 +437,20 @@ connecting corridor and none move again for the rest of the run. This is the
 mechanism PIBT was built to solve — priority inheritance lets a blocked robot
 push the one ahead of it out of the way, and Token Passing has no such
 mechanism, so a queue that forms never resolves. RHCR's windowed joint
-replanning does modestly better but is still nowhere close, at 30–90× the cost
-per step.
+replanning does modestly better but is still nowhere close, at 56× to 356× the
+cost per step.
 
-`full_lda_pibt` now sits alongside `lifelong_pibt` rather than far behind it:
-it wins on `warehouse_bottleneck` (0.14 vs 0.13, p = 0.016) and is
-statistically indistinguishable on `warehouse_corridors` (0.13 vs 0.14,
-p = 0.157), where it previously lost 0.02 to 0.16. That is the same repair
-story as the ablation tables above, measured against the outside instead of
-against itself.
+`full_lda_pibt` now sits alongside `lifelong_pibt` on the two aisle-shaped
+maps rather than far behind it: it wins on `warehouse_bottleneck` (0.14 vs
+0.13, p = 0.016) and is statistically indistinguishable on
+`warehouse_corridors` (0.13 vs 0.14, p = 0.157), where it previously lost 0.02
+to 0.16. On the open `warehouse_medium` grid it still loses clearly (0.26 vs
+0.51) — the same shape as the ablation tables above, measured against the
+outside instead of against itself.
+
+(`full_lda_pibt` reads 0.26 here and 0.313 in the ablation ladder: the ladder
+averages 5 seeds and this table 10, on a variant whose per-seed spread is wide.
+Where the two disagree, prefer this one.)
 
 Three caveats before reading too much into the margin:
 
