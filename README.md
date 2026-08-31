@@ -38,7 +38,8 @@ simulator:
    robot can always be pushed into an adjacent cell, and a one-way rule enforced
    by rejection removes exactly that. Direction is a score penalty now
    (`ζ_counterflow`, `ζ_reservation`), above every other soft term and below
-   `α_progress`. Worth **1.9× to 3.5×** throughput, significant on all four maps.
+   `α_progress`. Worth **1.9× to 3.1×** throughput, significant on every map where
+   an aisle ever commits a direction.
    `hard_direction_constraints=True` runs the old form.
 2. **`reservations` was a silent no-op** unless `direction_control == "aisle"` —
    and `reservations_only`, the variant that exists to isolate it, sets
@@ -536,7 +537,7 @@ Four single-factor comparisons (`config.PAIRED_DESIGNS`), 5 seeds, throughput:
 Bold = p ≤ 0.05.
 
 **Direction as a ranking term rather than a constraint is the single largest
-effect in this repository** — 1.9× to 3.5× throughput, significant on all four
+effect in this repository** — 1.9× to 3.1× throughput, significant on all four
 maps in one arrangement or the other. The spec lists "violates aisle direction"
 among the hard rejection rules, and the project's own design principle says the
 high level "never replaces PIBT's collision checks or its backtracking". Those
@@ -644,7 +645,7 @@ instead. Each is a flag, so the spec behaviour is still reachable.
    priority inheritance works because a robot can always be pushed into an
    adjacent cell. Both are `ζ` penalties in `S_i(v)` now, sized above every other
    soft term and below `α_progress`. `hard_direction_constraints=True` restores
-   the spec-literal form; it costs 1.9× to 3.5× throughput.
+   the spec-literal form; it costs 1.9× to 3.1× throughput.
 2. **A maximum green** (spec 16). The spec gives an aisle a minimum lock and a
    dead band, which bound how *soon* a direction may change but not how long it
    may persist. With near-balanced demand — the normal case when pickups are on
