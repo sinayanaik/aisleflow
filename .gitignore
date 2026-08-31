@@ -14,3 +14,7 @@ results/
 *.mp4
 *.png
 !docs/*.png
+# the comparison animations and generated figures are deliverables:
+# they are committed so the documents render without running anything
+!docs/gifs/*.gif
+!docs/figures/*.png
