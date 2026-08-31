@@ -102,7 +102,9 @@ class AisleManager:
             index = self.warehouse.aisles[aisle_id].position_index(vertex)
             if index is None:
                 continue
-            first, last, entry_step = spans.get(aisle_id, (index, index, step))
+            # Keep the first index the route touches and the last, so a route
+            # that leaves and re-enters the aisle is still one span.
+            first, _last, entry_step = spans.get(aisle_id, (index, index, step))
             spans[aisle_id] = (first, index, entry_step)
 
         requests: List[Tuple[int, AisleDirection, float]] = []
@@ -117,7 +119,6 @@ class AisleManager:
             if direction is AisleDirection.NONE:
                 continue
             requests.append((aisle_id, direction, 1.0 / (1.0 + entry_step)))
-        requests.sort(key=lambda entry: (-entry[2], entry[0]))
         return requests
 
     def update_aisle_queues(self, robots: Iterable[Robot], timestep: int) -> None:
