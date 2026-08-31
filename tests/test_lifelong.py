@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from lda_pibt import (
@@ -29,7 +31,13 @@ from lda_pibt.scoring import (
     compute_proximity_mode,
     turning_cost,
 )
-from lda_pibt.types import Compass, ProximityMode, RobotState, TaskStatus
+from lda_pibt.types import (
+    AisleDirection,
+    Compass,
+    ProximityMode,
+    RobotState,
+    TaskStatus,
+)
 
 GRID = "\n".join(["p......d"] + ["........"] * 5 + ["p......d"])
 
@@ -323,3 +331,99 @@ def test_history_recording():
     sim.run(max_timesteps=20)
     assert len(sim.history) == 20
     assert set(sim.history[0].positions) == {r.id for r in sim.robots}
+
+
+# --------------------------------------------- corroborated deadlock detection
+def test_recovery_needs_more_than_slow_progress():
+    """Queueing is not a deadlock.
+
+    `t_blocked` no-progress steps happen constantly in dense lifelong traffic.
+    Treating that alone as a deadlock escalates recovery on healthy robots, and
+    levels 5-7 (temporary reverse, escape vertices, waypoint hijack) then cost
+    far more than they save.
+    """
+    from lda_pibt.deadlock import DeadlockMonitor
+
+    params = Params(recovery=True, require_deadlock_corroboration=True, t_blocked=2)
+    warehouse = Warehouse.from_string("\n".join(["." * 9 for _ in range(3)]), params)
+    sim = build_simulator(warehouse, 3, params, task_generator=None)
+    monitor: DeadlockMonitor = sim.deadlocks
+
+    for robot in sim.robots:
+        robot.state = RobotState.TO_PICKUP
+        robot.no_progress_steps = 50
+        robot.waypoint = (2, 8)
+        assert monitor.is_blocked(robot)
+        # No repeated configuration and no wait-for cycle: nothing corroborates.
+        robot.position_history.clear()
+        robot.waiting_for_robot = None
+
+    assert monitor.detect_deadlocked_groups(sim.robots, 100) == []
+
+    # A robot cycling between two cells *is* corroboration.
+    stuck = sim.robots[0]
+    for _ in range(4):
+        stuck.position_history.append((0, 0))
+        stuck.position_history.append((0, 1))
+    assert monitor.repeated_configuration(stuck)
+    assert monitor.detect_deadlocked_groups(sim.robots, 101)
+
+
+def test_uncorroborated_mode_restores_the_old_trigger():
+    from lda_pibt.deadlock import DeadlockMonitor
+
+    params = Params(recovery=True, require_deadlock_corroboration=False, t_blocked=2)
+    warehouse = Warehouse.from_string("\n".join(["." * 9 for _ in range(3)]), params)
+    sim = build_simulator(warehouse, 3, params, task_generator=None)
+    monitor: DeadlockMonitor = sim.deadlocks
+    for robot in sim.robots:
+        robot.state = RobotState.TO_PICKUP
+        robot.no_progress_steps = 50
+        robot.waypoint = (2, 8)
+    assert monitor.detect_deadlocked_groups(sim.robots, 100)
+
+
+def test_no_aisle_starves_a_direction_indefinitely():
+    """The liveness property the aisle layer lacked.
+
+    On `warehouse_corridors` every aisle carries traffic both ways by
+    construction, so before the maximum-green rule the corridors locked one way
+    and never changed again: 35 of 35 robots stalled by t=120 and the state was
+    still identical at t=199.
+    """
+    root = Path(__file__).resolve().parents[1]
+    params = ablation(
+        "aisle_direction_only",
+        Params(seed=0, max_timesteps=300, maximum_aisle_lock_time=40),
+    )
+    warehouse = Warehouse.from_file(root / "maps" / "warehouse_corridors.map", params)
+    generator = TaskGenerator(
+        warehouse.pickup_vertices, warehouse.delivery_vertices,
+        mode="poisson", rate=1.0, seed=0,
+    )
+    sim = build_simulator(warehouse, 35, params, task_generator=generator)
+
+    # Only a *committed* direction can starve anyone: an OPEN aisle lets both
+    # directions through, so holding OPEN forever is not a liveness failure.
+    held = {a.id: 0 for a in warehouse.aisles.values()}
+    worst = {a.id: 0 for a in warehouse.aisles.values()}
+    last = {a.id: None for a in warehouse.aisles.values()}
+    for _ in range(300):
+        sim.step()
+        for aisle in warehouse.aisles.values():
+            if not aisle.manageable:
+                continue
+            direction = aisle.current_direction
+            if direction is AisleDirection.NONE:
+                held[aisle.id] = 0
+            else:
+                held[aisle.id] = held[aisle.id] + 1 if direction == last[aisle.id] else 0
+            worst[aisle.id] = max(worst[aisle.id], held[aisle.id])
+            last[aisle.id] = direction
+
+    # Max green plus the drain gives some slack, but nothing may hold forever.
+    ceiling = params.maximum_aisle_lock_time + params.max_drain_time + 20
+    longest = max(worst.values())
+    assert longest < ceiling, f"an aisle held one direction for {longest} steps"
+    assert sim.aisles.direction_switches > 0, "the aisle layer never acted"
+    assert sim.collision_free

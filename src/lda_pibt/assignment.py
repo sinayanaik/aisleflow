@@ -71,16 +71,22 @@ class TaskAssigner:
 
         congestion = (
             self.congestion.route_congestion(robot.position, task.pickup)
-            if p.congestion_aware
+            if p.congestion_assignment
             else 0.0
         )
-        waiting = float(task.waiting_time(timestep))
+        # `waiting_time` grows without bound in a lifelong run. Uncapped it
+        # dwarfs distance and congestion within ~100 steps and the match
+        # degenerates to oldest-task-first, which is why congestion-aware
+        # assignment could never show an effect.
+        waiting = min(float(task.waiting_time(timestep)), p.assign_waiting_cap)
         directional = (
             self.directional_delay(robot.position, task.pickup)
-            if p.congestion_aware or p.direction_control == "aisle"
+            if p.congestion_assignment or p.direction_control == "aisle"
             else 0.0
         )
-        blocking = self.blocking_estimate(robot, task) if p.congestion_aware else 0.0
+        blocking = (
+            self.blocking_estimate(robot, task) if p.congestion_assignment else 0.0
+        )
 
         return (
             p.assign_alpha_to_pickup * d_to_pickup

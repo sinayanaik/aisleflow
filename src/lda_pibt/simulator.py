@@ -107,6 +107,7 @@ class Simulator:
 
         self.timestep = 0
         self.collision_free = True
+        self.head_on_conflicts = 0
         self._assign_parking_slots()
         self._raise_recursion_limit()
 
@@ -175,7 +176,7 @@ class Simulator:
             )
 
         # 6-8. aisle queues, direction decisions, reservations ------------------
-        if self.aisles.enabled:
+        if self.aisles.active:
             self.aisles.update_aisle_queues(self.robots, t)
             self.aisles.step_directions(self.robots_by_id, t)
             self.aisles.consume_reservations(self.robots)
@@ -190,11 +191,21 @@ class Simulator:
             robot.priority = compute_priority(robot, t, self.params)
         ordered = order_by_priority(self.robots)
 
-        if self.aisles.enabled:
+        if self.aisles.active:
             self.aisles.update_aisle_reservations(ordered, t)
 
         # 11-12. clear step state and run PIBT ---------------------------------
         self.planner.plan_step(ordered, t)
+
+        # 12b. hypothesis-level counters, read before execution clears the plan.
+        # Counted for every variant, not only when the aisle layer is running:
+        # head-on encounters and aisle flow are properties of the map and the
+        # routes, so the variants with no aisle layer are the controls the
+        # hypotheses are measured against.
+        self.head_on_conflicts += self.aisles.count_head_on_conflicts(self.robots)
+        record = getattr(self.planner, "record_counterflow", None)
+        if record is not None:
+            record(self.robots, t)
 
         # 13. validate the joint plan ------------------------------------------
         if self.params.validate_every_step:
@@ -221,6 +232,8 @@ class Simulator:
             self.deadlocks.update_progress(robot, t)
             if robot.current_aisle is None:
                 self.aisles.release_reservations(robot)
+
+        self.aisles.record_aisle_exits(self.robots)
 
         self.index.rebuild(self.robots)
 
@@ -344,7 +357,8 @@ class Simulator:
         extra: Dict[str, object] = {}
         extra.update(self.planner.stats())
         extra.update(self.deadlocks.stats())
-        extra["direction_switches"] = self.aisles.direction_switches
+        extra.update(self.aisles.stats())
+        extra["head_on_conflicts"] = self.head_on_conflicts
         extra["collision_free"] = self.collision_free
         return self.metrics.build(
             self.robots, self.task_queue, self.timestep, extra

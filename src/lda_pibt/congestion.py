@@ -81,6 +81,28 @@ class OccupancyIndex:
                     count += 1
         return count
 
+    def local_occupancy_ratio(
+        self, v: Vertex, exclude: Optional[Robot] = None
+    ) -> float:
+        """`local_density` as a fraction of the passable cells in range.
+
+        `C_aisle` and `C_downstream` are already ratios in [0, 1]; mixing a raw
+        count with them makes `C_local` the whole mixture and lets `mu * C`
+        reach the scale of `alpha * Delta`, which inverts the intended ordering
+        of the score terms.  Dividing by the reachable cell count puts all
+        three terms on one scale.
+        """
+        radius = self.params.local_congestion_radius
+        cells = 0
+        for dr in range(-radius, radius + 1):
+            span = radius - abs(dr)
+            for dc in range(-span, span + 1):
+                if self.warehouse.graph.contains((v[0] + dr, v[1] + dc)):
+                    cells += 1
+        if cells == 0:
+            return 0.0
+        return self.local_density(v, exclude=exclude) / cells
+
 
 class CongestionModel:
     """Computes C_i(v) = w1*C_local + w2*C_aisle + w3*C_downstream (spec 23.1)."""
@@ -113,16 +135,41 @@ class CongestionModel:
         return value
 
     def congestion(self, robot: Robot, candidate: Vertex) -> float:
-        if not self.params.congestion_aware:
+        r"""C_i(v) = w1 C_local + w2 C_aisle + w3 C_downstream (spec 23.1).
+
+        With `congestion_normalisation` on, `C_local` is an occupancy ratio and
+        the weights are normalised to sum to 1, so `C_i(v)` lies in [0, 1] and
+        `mu * C` cannot outrank `alpha * Delta`.
+        """
+        if not self.params.congestion_scoring:
             return 0.0
         p = self.params
-        local = self.index.local_density(candidate, exclude=robot)
         aisle = self.index.aisle_load(self.warehouse.aisle_id(candidate))
         down = self.downstream(candidate, robot.waypoint)
-        return p.omega_local * local + p.omega_aisle * aisle + p.omega_downstream * down
+        if not p.congestion_normalisation:
+            local = float(self.index.local_density(candidate, exclude=robot))
+            return (
+                p.omega_local * local
+                + p.omega_aisle * aisle
+                + p.omega_downstream * down
+            )
+        local = self.index.local_occupancy_ratio(candidate, exclude=robot)
+        weight = p.omega_local + p.omega_aisle + p.omega_downstream
+        if weight <= 0.0:
+            return 0.0
+        return (
+            p.omega_local * local
+            + p.omega_aisle * aisle
+            + p.omega_downstream * down
+        ) / weight
 
     def route_congestion(self, source: Vertex, goal: Vertex) -> float:
-        """Congestion estimate along a whole route, for task assignment (19)."""
+        """Congestion estimate along a whole route, for task assignment (19).
+
+        Both halves are per-cell / per-aisle means, so the result stays in
+        roughly [0, 2] whatever the route length -- a long route through empty
+        aisles must not look more congested than a short jammed one.
+        """
         route = self.warehouse.graph.shortest_route(source, goal)
         if len(route) <= 1:
             return 0.0

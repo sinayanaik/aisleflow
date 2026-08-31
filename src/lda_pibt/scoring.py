@@ -6,13 +6,16 @@ Implements spec sections 13 (proximity), 14 (preferred route direction),
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from .config import Params
 from .congestion import CongestionModel
 from .robot import Robot
 from .types import INF, Compass, ProximityMode, Vertex, movement_direction
 from .warehouse import Warehouse
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle only matters to type checkers
+    from .aisle_manager import AisleManager
 
 
 def compute_proximity_mode(route_distance: float, params: Params) -> ProximityMode:
@@ -88,11 +91,46 @@ class CandidateScorer:
         warehouse: Warehouse,
         congestion: CongestionModel,
         params: Params,
+        aisles: Optional["AisleManager"] = None,
     ):
         self.warehouse = warehouse
         self.congestion = congestion
         self.params = params
+        #: Set by the planner so the score can price counterflow moves.  The
+        #: aisle layer used to *reject* them instead; see `aisle_penalty`.
+        self.aisles = aisles
+        self.timestep = 0
         self.evaluations = 0
+
+    def bind(self, aisles: "AisleManager") -> None:
+        self.aisles = aisles
+
+    def aisle_penalty(self, robot: Robot, candidate: Vertex) -> float:
+        r"""zeta terms: the cost of a move the aisle layer would rather not see.
+
+        The high level ranks candidates and never decides safety, so opposing
+        the aisle direction, or entering a directional aisle without a ticket,
+        is *expensive* rather than impossible.  Deleting those moves outright
+        is what breaks PIBT's progress argument: priority inheritance works
+        because a robot can always be pushed into an adjacent cell, and a
+        one-way rule takes exactly that freedom away.
+
+        Returns 0 when direction control is off, when the move is with the
+        flow, or when `hard_direction_constraints` is set (the planner rejects
+        those moves itself in that mode, so pricing them again would
+        double-count).
+        """
+        aisles = self.aisles
+        p = self.params
+        if aisles is None or p.hard_direction_constraints:
+            return 0.0
+        penalty = 0.0
+        t = self.timestep
+        if aisles.violates_aisle_direction(robot, robot.position, candidate, t):
+            penalty += p.zeta_counterflow
+        if aisles.violates_aisle_reservation(robot, robot.position, candidate, t):
+            penalty += p.zeta_reservation
+        return penalty
 
     def progress(self, robot: Robot, candidate: Vertex) -> float:
         r"""Normalised route progress (spec 23)."""
@@ -152,6 +190,7 @@ class CandidateScorer:
             - p.mu_congestion * congestion
             - p.nu_wait * wait
             - p.xi_bottleneck * bottleneck
+            - self.aisle_penalty(robot, candidate)
         )
 
     def sort_key(self, robot: Robot, candidate: Vertex):

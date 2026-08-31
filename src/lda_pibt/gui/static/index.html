@@ -85,6 +85,8 @@ button.active { border-color: var(--accent); color: var(--accent); }
 }
 .chip.bad { color: var(--bad); border-color: #5a2f2c; }
 .chip.ok { color: var(--ok); border-color: #2c5147; }
+/* a scored penalty, not a rejection: the move is still available */
+.chip.warn { color: #e0a94b; border-color: #5c4726; }
 
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
 th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 4px; }
@@ -142,6 +144,7 @@ details summary { cursor: pointer; color: var(--dim); font-size: 11px; margin-bo
     <button class="ov active" data-ov="none">Plain</button>
     <button class="ov" data-ov="aisles">Aisles</button>
     <button class="ov" data-ov="congestion">Congestion</button>
+    <button class="ov" data-ov="counterflow" title="Cells whose aisle direction opposes a robot that wants them">Counterflow</button>
     <button class="ov" data-ov="stall">Stalled</button>
     <button id="paths" class="active" title="Show every active robot's route and current goal">Paths &amp; goals</button>
     <span id="clock"><b>t=0</b></span>
@@ -165,6 +168,13 @@ details summary { cursor: pointer; color: var(--dim); font-size: 11px; margin-bo
   <div id="metrics"></div>
   <canvas id="spark"></canvas>
   <div class="hint">completed (blue) · moving (green) · blocked (red)</div>
+
+  <h2>Hypotheses</h2>
+  <div id="hypotheses"></div>
+  <div class="hint">Each row shows the quantity that hypothesis is judged on,
+  for the configuration currently running. Greyed rows have the mechanism
+  switched off. Toggle a switch and watch the row move — that is the same
+  evidence the offline scoreboard reports, minus the control run.</div>
 
   <h2>Inspector</h2>
   <div id="inspector"><div class="empty">Click a robot or an aisle.</div></div>
@@ -303,7 +313,9 @@ function fitCanvas() {
   OY = Math.floor((stage.clientHeight - CELL * S.layout.height) / 2);
 }
 
-function renderAll() { drawGrid(); drawMetrics(); drawSpark(); drawInspector(); drawClock(); }
+function renderAll() {
+  drawGrid(); drawMetrics(); drawHypotheses(); drawSpark(); drawInspector(); drawClock();
+}
 
 function drawClock() {
   const m = S.state.metrics;
@@ -451,7 +463,10 @@ function drawMetrics() {
     ["completed", m.completed], ["pending", m.pending],
     ["throughput", m.throughput], ["mean service", m.mean_service],
     ["p95 service", m.p95_service], ["max wait", m.max_wait],
-    ["travel", m.travel], ["dir. switches", m.switches],
+    ["travel", m.travel],
+    ["dir. switches", `${m.switches} (${m.forced_switches} forced)`],
+    ["aisle thr. /1000", m.aisle_throughput],
+    ["head-on conflicts", m.head_on], ["counterflow moves", m.counterflow],
     ["deadlocks", `${m.deadlocks} / ${m.recovered} rec`],
     ["backtracks", m.backtracks], ["Jain fairness", m.fairness],
     ["ms / step", m.ms],
@@ -460,6 +475,16 @@ function drawMetrics() {
   $("metrics").innerHTML = rows.map(([k, v]) =>
     `<div class="stat"><span>${k}</span><b style="color:${
       k === "collision free" && v === "NO" ? "var(--bad)" : "inherit"}">${v}</b></div>`).join("");
+}
+
+function drawHypotheses() {
+  const rows = S.state.hypotheses || [];
+  $("hypotheses").innerHTML = rows.map((h) => `
+    <div class="stat" style="opacity:${h.active ? 1 : 0.4}"
+         title="${h.mechanism} — ${h.better} is better${h.active ? "" : " (mechanism off)"}">
+      <span><b style="color:var(--text)">${h.key}</b> ${h.metric}</span>
+      <b>${h.value}</b>
+    </div>`).join("");
 }
 
 function drawSpark() {
@@ -495,17 +520,29 @@ function drawInspector() {
     const live = S.state.aisles.find((a) => a.id === S.sel.id);
     const stat = S.layout.aisles.find((a) => a.id === S.sel.id);
     if (!live) { box.innerHTML = '<div class="empty">gone</div>'; return; }
-    const dir = live.direction > 0 ? "FORWARD" : live.direction < 0 ? "REVERSE" : "none";
+    const name = (d) => d > 0 ? "FORWARD" : d < 0 ? "REVERSE" : "none";
+    const dir = name(live.direction);
+    const green = live.direction === 0
+      ? "—"
+      : `${live.held_for} / ${live.max_green} steps` +
+        (live.green_left === 0 ? " <b style='color:var(--bad)'>flip due</b>" : "");
     box.innerHTML = `
       <div class="stat"><span>aisle</span><b>#${live.id}</b></div>
       <div class="stat"><span>state</span><b>${live.state}</b></div>
       <div class="stat"><span>direction</span><b>${dir}</b></div>
+      <div class="stat"><span>axis</span><b>${live.axis || "single cell"}</b></div>
       <div class="stat"><span>occupancy</span><b>${live.occupancy} / ${live.capacity}</b></div>
       <div class="stat"><span>length</span><b>${stat.vertices.length}</b></div>
       <div class="stat"><span>managed</span><b>${live.manageable ? "yes" : "no (short or cut edge)"}</b></div>
-      <div class="stat"><span>lock until</span><b>t=${live.lock_until}</b></div>
-      <div class="stat"><span>switches</span><b>${live.switches}</b></div>
-      <div class="stat"><span>reservations</span><b>${live.reservations.join(", ") || "—"}</b></div>`;
+      <div class="stat"><span>min green until</span><b>t=${live.lock_until}</b></div>
+      <div class="stat"><span>held (max green)</span><b>${green}</b></div>
+      <div class="stat"><span>pending flip</span><b>${name(live.pending)}</b></div>
+      <div class="stat"><span>switches (forced)</span><b>${live.switches} (${live.starvation_flips})</b></div>
+      <div class="stat"><span>robots cleared</span><b>${live.exits}</b></div>
+      <div class="stat"><span>reservations</span><b>${live.reservations.join(", ") || "—"}</b></div>
+      <div class="hint">Minimum green stops the direction flapping; maximum
+      green stops it starving the other way. Once "held" reaches the maximum,
+      any opposing demand drains the aisle and flips it.</div>`;
     return;
   }
 
@@ -518,6 +555,8 @@ function drawInspector() {
       <td>${cand.legal
         ? '<span class="chip ok">legal</span>'
         : cand.reasons.map((x) => `<span class="chip bad">${x}</span>`).join("")}
+        ${(cand.penalties || []).map((x) =>
+          `<span class="chip warn">${x} −${cand.penalty}</span>`).join("")}
         ${cand.occupied_by !== null ? `<span class="chip">on R${cand.occupied_by}</span>` : ""}</td>
     </tr>`).join("");
 
@@ -536,9 +575,11 @@ function drawInspector() {
     <div class="stat"><span>tasks done</span><b>${robot.completed}</b></div>
     <h2 style="margin-top:14px">Why it moved there</h2>
     <table><tr><th>cell</th><th>score</th><th>verdict</th></tr>${rows}</table>
-    <div class="hint">State after timestep ${S.state.timestep - 1}. Rejection rules
-    run in spec §22.1 order; a stalled robot usually shows the same reason on
-    every candidate.</div>`;
+    <div class="hint">State after timestep ${S.state.timestep - 1}. Red chips are
+    hard rejections — off-graph, kinematics, vertex or swap conflict — and remove
+    the move. Amber chips are aisle penalties: they only make the move expensive,
+    so a candidate can carry one and still be chosen. A stalled robot usually
+    shows the same reason on every candidate.</div>`;
 }
 
 /* --------------------------------------------------------------- events */

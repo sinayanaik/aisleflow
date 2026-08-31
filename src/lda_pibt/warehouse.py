@@ -69,9 +69,37 @@ class Aisle:
     direction_switches: int = 0
     draining_since: Optional[int] = None
     minimum_lock_time: int = 20
+    maximum_lock_time: int = 40
     switch_threshold: float = 5.0
     #: False -> this aisle is always OPEN (too short, or a cut edge)
     manageable: bool = True
+    #: timestep the current direction was committed, for the maximum-green rule
+    direction_since: int = 0
+    #: direction to adopt once the aisle finishes draining
+    pending_direction: AisleDirection = AisleDirection.NONE
+    #: how many flips were forced by the maximum-green rule rather than by a
+    #: demand imbalance -- the signal that an aisle is being starved
+    starvation_flips: int = 0
+    #: robots that have left the aisle, for per-aisle throughput
+    exits: int = 0
+
+    @property
+    def axis(self) -> str:
+        """'row' for a horizontal run, 'col' for a vertical one, '' otherwise.
+
+        Segmentation splits at every turn, so a multi-cell aisle always has an
+        axis; '' means a single cell (no direction) or a component that is not
+        a simple path.
+        """
+        if len(self.vertices) < 2:
+            return ""
+        rows = {v[0] for v in self.vertices}
+        cols = {v[1] for v in self.vertices}
+        if len(rows) == 1:
+            return "row"
+        if len(cols) == 1:
+            return "col"
+        return ""
 
     @property
     def start_vertex(self) -> Vertex:
@@ -204,37 +232,90 @@ class Warehouse:
                         visited.add(n)
                         stack.append(n)
             ordered = self._order_component(component, corridor_set)
-            capacity = self._aisle_capacity(len(ordered))
-            aisle = Aisle(
-                id=aisle_id,
-                vertices=ordered,
-                capacity=capacity,
-                minimum_lock_time=max(
-                    2,
-                    min(
-                        self.params.minimum_aisle_lock_time,
-                        2 * len(ordered),
-                    ),
-                ),
-                switch_threshold=self.params.direction_switch_threshold,
-            )
-            self.aisles[aisle_id] = aisle
-            for idx, v in enumerate(ordered):
-                self.info[v].aisle_id = aisle_id
-                self.info[v].index_in_aisle = idx
-            aisle_id += 1
+            for run in self._split_straight_runs(ordered):
+                aisle = self._build_aisle(aisle_id, run)
+                self.aisles[aisle_id] = aisle
+                for idx, v in enumerate(run):
+                    self.info[v].aisle_id = aisle_id
+                    self.info[v].index_in_aisle = idx
+                aisle_id += 1
+
+    def _build_aisle(self, aisle_id: int, vertices: List[Vertex]) -> Aisle:
+        p = self.params
+        minimum_lock = max(2, min(p.minimum_aisle_lock_time, 2 * len(vertices)))
+        return Aisle(
+            id=aisle_id,
+            vertices=vertices,
+            capacity=self._aisle_capacity(len(vertices)),
+            minimum_lock_time=minimum_lock,
+            # A maximum green below the minimum green would be contradictory:
+            # the aisle would be due to flip before it is allowed to.
+            maximum_lock_time=max(minimum_lock, p.maximum_aisle_lock_time),
+            switch_threshold=p.direction_switch_threshold,
+        )
+
+    @staticmethod
+    def _split_straight_runs(ordered: List[Vertex]) -> List[List[Vertex]]:
+        """Cut a corridor component into maximal straight runs.
+
+        A component of non-intersection cells is not necessarily a straight
+        corridor: an L, U or T shape is one component too.  `AisleDirection`
+        means "index increasing" and only carries a physical meaning -- one
+        compass axis -- on a straight run, so giving a bend a traffic direction
+        makes the corner one-way in *both* senses and cuts the map in half.
+        Splitting at every turn keeps each aisle on a single axis.
+
+        The turn cell closes the run it is already part of, and the next run
+        begins after it, so the runs partition the component and each stays on
+        one axis.  Runs of length 1 (a lone elbow) are kept: they fall below
+        `directional_aisle_min_length`, so they stay bidirectional and behave
+        like the intersections they sit between.
+        """
+        if len(ordered) <= 1:
+            return [list(ordered)] if ordered else []
+
+        def axis(u: Vertex, v: Vertex) -> Optional[int]:
+            if abs(u[0] - v[0]) + abs(u[1] - v[1]) != 1:
+                return None  # not adjacent: a non-path component
+            return 0 if u[0] != v[0] else 1
+
+        runs: List[List[Vertex]] = []
+        run: List[Vertex] = [ordered[0]]
+        run_axis: Optional[int] = None
+        for previous, current in zip(ordered, ordered[1:]):
+            step_axis = axis(previous, current)
+            if step_axis is None or (run_axis is not None and step_axis != run_axis):
+                runs.append(run)
+                run, run_axis = [current], None
+                continue
+            run.append(current)
+            run_axis = step_axis
+        runs.append(run)
+        return [r for r in runs if r]
 
     def _aisle_capacity(self, length: int) -> int:
-        """Spec 9.2 `aisle.capacity`, with an exit-throughput alternative.
+        """Spec 9.2 `aisle.capacity`, plus two alternatives.
 
         A single-file corridor is throttled by the robot at its exit, so packing
         it to `length` robots just builds a queue that cannot drain.
+
+        - ``"length"``     spec 9.2 verbatim: ``ratio * cells``.
+        - ``"throughput"`` what one train clears before the aisle must flip,
+          ``ratio * length / T_min``; correct in spirit, far too tight in
+          practice at the default lock time.
+        - ``"drain"``      the default, and between the two: as many robots as
+          fit, but never more than can clear the aisle within `max_drain_time`.
+          The last robot in must still traverse ``length`` cells to leave, and
+          every robot ahead of it adds a step, so a queue of ``k`` needs about
+          ``length + k`` steps to empty.
         """
         p = self.params
         ratio = p.aisle_capacity_ratio
         if p.aisle_capacity_model == "throughput":
             lock = max(1, p.minimum_aisle_lock_time)
             raw = math.ceil(ratio * length / lock)
+        elif p.aisle_capacity_model == "drain":
+            raw = min(math.ceil(ratio * length), p.max_drain_time - length)
         else:
             raw = math.ceil(ratio * length)
         return max(1, min(p.aisle_capacity, int(raw)))
@@ -373,6 +454,10 @@ class Warehouse:
             aisle.congestion_cost = 0.0
             aisle.direction_switches = 0
             aisle.draining_since = None
+            aisle.direction_since = 0
+            aisle.pending_direction = AisleDirection.NONE
+            aisle.starvation_flips = 0
+            aisle.exits = 0
 
     def summary(self) -> Dict[str, object]:
         return {

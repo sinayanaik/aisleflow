@@ -48,3 +48,52 @@ def test_permutation_test_exact_enumeration_is_deterministic():
 def test_permutation_test_empty_group_returns_p_one():
     _, p = permutation_test([1.0, 2.0], [])
     assert p == 1.0
+
+
+# ------------------------------------------------- congestion term calibration
+def test_normalised_congestion_cannot_outrank_progress():
+    """The ordering slide 11 claims, made true.
+
+    `C_local` used to be a raw robot count mixed with two ratios, so `mu * C`
+    reached the scale of `alpha * Delta` and congestion silently became the
+    second-largest term in the score.
+    """
+    from lda_pibt import Params, Robot, Warehouse
+    from lda_pibt.congestion import CongestionModel, OccupancyIndex
+
+    params = Params(congestion_normalisation=True)
+    grid = "\n".join(["." * 9 for _ in range(9)])
+    warehouse = Warehouse.from_string(grid, params)
+    index = OccupancyIndex(warehouse, params)
+    model = CongestionModel(warehouse, index, params)
+
+    # Pack every cell: the worst congestion the model can ever report.
+    robots = [
+        Robot(id=i, position=v) for i, v in enumerate(warehouse.graph.vertices)
+    ]
+    index.rebuild(robots)
+    model.begin_timestep()
+    worst = max(
+        model.congestion(robots[0], v) for v in warehouse.graph.vertices
+    )
+    assert worst <= 1.0
+    assert params.mu_congestion * worst < params.alpha_progress
+
+
+def test_raw_congestion_mode_still_available():
+    from lda_pibt import Params, Robot, Warehouse
+    from lda_pibt.congestion import CongestionModel, OccupancyIndex
+
+    params = Params(congestion_normalisation=False)
+    grid = "\n".join(["." * 9 for _ in range(9)])
+    warehouse = Warehouse.from_string(grid, params)
+    index = OccupancyIndex(warehouse, params)
+    model = CongestionModel(warehouse, index, params)
+    robots = [
+        Robot(id=i, position=v) for i, v in enumerate(warehouse.graph.vertices)
+    ]
+    index.rebuild(robots)
+    model.begin_timestep()
+    centre = (4, 4)
+    # Unnormalised, the local term alone exceeds a whole step of progress.
+    assert model.congestion(robots[0], centre) > params.alpha_progress
