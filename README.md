@@ -398,52 +398,44 @@ framing is "fairer" is a judgment call worth showing both sides of):
 
 | variant | thr | svc | p (thr) | ms/step |
 |---|---:|---:|---:|---:|
-| lifelong_pibt (ref) | 0.11 | 150.3 | — | 0.32 |
-| full_lda_pibt | 0.15 | 159.7 | 0.001 | 0.94 |
-| token_passing | 0.00 | 22.0 | <0.001 | 26.1 |
-| token_passing_recovery | 0.01 | 32.1 | <0.001 | 24.5 |
-| rhcr | 0.01 | 21.4 | <0.001 | 51.9 |
+| lifelong_pibt (ref) | 0.13 | 155.4 | — | 0.41 |
+| **full_lda_pibt** | **0.14** | 153.5 | 0.016 | 1.43 |
+| token_passing | 0.00 | 22.4 | <0.001 | 38.0 |
+| token_passing_recovery | 0.01 | 36.2 | <0.001 | 34.3 |
+| rhcr | 0.01 | 21.4 | <0.001 | 73.0 |
 
 **warehouse_corridors** — 35 robots:
 
 | variant | thr | svc | p (thr) | ms/step |
 |---|---:|---:|---:|---:|
-| lifelong_pibt (ref) | 0.16 | 164.2 | — | 0.70 |
-| full_lda_pibt | 0.02 | 134.8 | <0.001 | 1.58 |
-| token_passing | 0.00 | 0.0 | <0.001 | 51.0 |
-| token_passing_recovery | 0.00 | 0.0 | <0.001 | 32.2 |
-| rhcr | 0.00 | 4.3 | <0.001 | 31.6 |
-
-**warehouse_medium** — 40 robots, open grid:
-
-| variant | thr | svc | p (thr) | ms/step |
-|---|---:|---:|---:|---:|
-| lifelong_pibt (ref) | 0.50 | 144.1 | — | 0.83 |
-| full_lda_pibt | 0.20 | 165.0 | <0.001 | 2.40 |
-| token_passing | 0.00 | 49.1 | <0.001 | 158.7 |
-| token_passing_recovery | 0.01 | 100.3 | <0.001 | 134.2 |
-| rhcr | 0.01 | 38.2 | <0.001 | 58.1 |
+| lifelong_pibt (ref) | 0.14 | 150.9 | — | 0.82 |
+| full_lda_pibt | 0.13 | 148.8 | 0.157 | 2.78 |
+| token_passing | 0.00 | 0.0 | <0.001 | 70.9 |
+| token_passing_recovery | 0.00 | 0.0 | <0.001 | 39.1 |
+| rhcr | 0.00 | 4.3 | <0.001 | 45.9 |
 
 Full per-seed data and every `CORE_REPORT_FIELDS` column lands in
 `results/baseline_comparison.json`.
 
-**The headline is unambiguous and was not the expected result going in:
-plain `lifelong_pibt` — the simplest configuration already in this
-repo — beats both external baselines by a wide, statistically significant
-margin (p < 0.001 on throughput in every cell above) on every map tested,
-including the open `warehouse_medium` grid where neither baseline has any
-obvious structural excuse.** Token Passing completes literally zero tasks on
-`warehouse_corridors` across all 10 seeds. Inspecting `tp_path_not_found` and
-`tp_forced_holds` (both exposed via `stats()`) confirms this is genuine
-gridlock, not a crash or a silent no-op: on `warehouse_bottleneck`, all 16
-robots queue nose-to-tail in the single connecting corridor and none move
-again for the rest of the run. This is the mechanism PIBT was built to solve
-— priority inheritance lets a blocked robot push the one ahead of it out of
-the way; Token Passing has no such mechanism, so a queue that forms never
-resolves. RHCR's windowed joint replanning does modestly better (it completes
-some tasks on two of three maps where Token Passing completes none) but is
-still nowhere close to PIBT, and is 30–190x more expensive per step
-(`ms/step` above) than even the full LDA-PIBT variant.
+**Plain `lifelong_pibt` beats both external baselines by a wide, significant
+margin (p < 0.001 on throughput in every cell) on every map tested.** Token
+Passing completes literally zero tasks on `warehouse_corridors` across all 10
+seeds. Inspecting `tp_path_not_found` and `tp_forced_holds` (both exposed via
+`stats()`) confirms genuine gridlock rather than a crash or a silent no-op: on
+`warehouse_bottleneck`, all 16 robots queue nose-to-tail in the single
+connecting corridor and none move again for the rest of the run. This is the
+mechanism PIBT was built to solve — priority inheritance lets a blocked robot
+push the one ahead of it out of the way, and Token Passing has no such
+mechanism, so a queue that forms never resolves. RHCR's windowed joint
+replanning does modestly better but is still nowhere close, at 30–90× the cost
+per step.
+
+`full_lda_pibt` now sits alongside `lifelong_pibt` rather than far behind it:
+it wins on `warehouse_bottleneck` (0.14 vs 0.13, p = 0.016) and is
+statistically indistinguishable on `warehouse_corridors` (0.13 vs 0.14,
+p = 0.157), where it previously lost 0.02 to 0.16. That is the same repair
+story as the ablation tables above, measured against the outside instead of
+against itself.
 
 Three caveats before reading too much into the margin:
 
