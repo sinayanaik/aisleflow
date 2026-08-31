@@ -736,9 +736,9 @@ src/lda_pibt/gui/  browser GUI (server.py + static/index.html)
 src/lda_pibt/baselines/  Token Passing and RHCR, independent of the PIBT machinery
 tests/           179 tests: graph, PIBT, aisle manager, lifelong layer, GUI, baselines, stats
 experiments/     run_ablation.py, run_density_sweep.py, run_factorial_ablation.py,
-                 run_baseline_comparison.py
+                 run_baseline_comparison.py, run_hypothesis_suite.py
 results/         JSON output (git-ignored)
-docs/            implementation notes
+docs/            implementation notes, mathematical guide, project-review deck
 ```
 
 ## Citation
