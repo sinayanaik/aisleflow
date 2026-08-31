@@ -556,12 +556,18 @@ class AisleManager:
     def violates_aisle_direction(
         self, robot: Robot, current: Vertex, candidate: Vertex, timestep: int
     ) -> bool:
-        """Spec section 27.
+        """Spec section 27: does this move run against the aisle's direction?
 
         Per spec 10.2/10.4 the directional state restricts *entry*: a robot
         already inside may continue in the aisle direction or leave.  An egress
         move toward the nearer endpoint is always kept available so that the
         DRAINING state can actually terminate.
+
+        The name is historical: this is a *predicate*, not a veto.  Its answer
+        is priced by `CandidateScorer.aisle_penalty` rather than used to drop
+        the candidate -- see the note there for why deleting the move instead
+        breaks PIBT's progress argument.  It becomes a rejection again only
+        under `hard_direction_constraints`.
         """
         if not self.enabled:
             return False
