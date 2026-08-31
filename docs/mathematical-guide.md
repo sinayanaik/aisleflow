@@ -23,7 +23,43 @@ Notation used throughout, matching the codebase's own docstrings:
 
 ---
 
+## How to read this
+
+This document is a reference, not a tutorial: it is organised by module, and
+every section states its formulas exactly as the code computes them. That
+makes it thorough and slow to read front-to-back, so three routes through it
+are worth naming.
+
+**To get oriented (about 20 minutes).** Read §0 for the two-layer
+architecture, §11 for the sixteen-step loop that runs every timestep, and
+keep §16 — the glossary of every symbol — open beside whatever else you read.
+Those three answer "what is this system doing?"
+
+**To understand the contribution (about an hour).** Add §4 (the candidate
+score, which is where every high-level preference is finally cashed out), §6
+(aisle direction, the actual novelty), and §10 (deadlock detection and
+recovery, which is what makes §6 survivable). Each of those carries a worked
+example computed from a live run — real robots, real numbers, on
+`warehouse_medium`.
+
+**As a reference.** Everything else. §15 is the complete parameter list with
+defaults and the ablation ladder; `docs/implementation-notes.md` maps spec
+sections to functions; the README's Results section reports which of these
+mechanisms actually earn their cost.
+
+Five **worked examples** are marked in the text. Every number in them is
+computed by `tools/worked_examples.py`, which imports the same modules the
+simulator does and runs them on a fixed scenario; `tests/test_worked_examples.py`
+fails if this document and the code ever disagree. They are the fastest way
+to see what a formula really does.
+
+<!-- TOC -->
+
+---
+
 ## 0. The two-layer architecture
+
+> **In one sentence.** Every mechanism in this document sits in one of two layers: an upper layer that decides what each robot *wants*, and a lower layer that decides what is *allowed*. Only the lower layer can prevent a collision, and nothing in the upper layer is permitted to remove a move the lower layer would have considered.
 
 LDA-PIBT extends **Priority Inheritance with Backtracking** (PIBT; Okumura,
 Machida, Défago, Tamura, arXiv:1901.11282) — a single-timestep, decentralized
@@ -52,6 +88,8 @@ formula can, by construction, produce two robots on the same vertex.
 ---
 
 ## 1. Graph and warehouse model (`graph.py`, `warehouse.py`)
+
+> **In one sentence.** The warehouse is a grid of open and blocked cells. This section defines how far apart two cells are, which cells are corridors, which are junctions, and which single cells the whole map depends on.
 
 ### 1.1 Grid graph
 
@@ -159,6 +197,8 @@ is a bridge                                (one-way-ing a cut edge disconnects t
 
 ## 2. Robots and tasks (`robot.py`, `task.py`)
 
+> **In one sentence.** What a robot remembers from one timestep to the next, and where the never-ending stream of jobs comes from.
+
 ### 2.1 Robot state
 
 `Robot` carries, among other fields: `priority` (float, recomputed every
@@ -219,6 +259,8 @@ rates.
 
 ## 3. Priority function (`priority.py`)
 
+> **In one sentence.** Who plans first each timestep. Robots are ranked by what they are carrying, and a robot that has been waiting long enough always eventually outranks everyone — that bound is the fairness guarantee.
+
 The priority function must satisfy two competing goals: a loaded robot
 should almost always outrank a free one (so deliveries don't stall behind
 idle repositioning), yet **no robot should starve forever**. LDA-PIBT
@@ -274,6 +316,22 @@ checks (`test_waiting_eventually_overcomes_the_class_gap`, using
 — fairness would no longer be guaranteed, which the function surfaces
 rather than silently allows.
 
+<!-- worked-example: priority -->
+> **Worked example.** The same scenario run out to timestep 149, so that robots have had time to accumulate waiting. Three of the 24: the highest-priority robot, the one that has waited longest, and the lowest-priority one.
+>
+> ```
+> robot     state        task         P_class  k_w·W  k_b·B  k_e·E  p_i(t)
+> --------  -----------  -----------  -------  -----  -----  -----  -------
+> robot 15  to_delivery  to_delivery  300      0      0      50     350.002
+> robot 3   to_pickup    to_pickup    200      15     0      50     265
+> robot 0   to_pickup    to_pickup    200      0      0      50     250
+> ```
+>
+> `P_class` sets the band; the waiting and blocked terms move a robot within it and, given long enough, out of it. The full class spread is 400 (400 for a robot in recovery down to 0 for an idle one) and `k_w` = 5, so 80 steps of waiting is worth the entire spread: a robot that waits that long outranks *any* robot of any class (§3.2).
+>
+> That bound is the fairness guarantee, and it is the reason the priority function has a waiting term at all. Without it a permanently higher-class neighbour — a loaded robot on a floor that always has loaded robots — could starve an idle one indefinitely, and the throughput number would never show it.
+<!-- /worked-example -->
+
 ### 3.3 Tie-breaking and ordering
 
 `order_by_priority` sorts by `(-priority, id)` — descending priority, id as
@@ -284,6 +342,8 @@ but the explicit `id` key guarantees determinism regardless.
 ---
 
 ## 4. Candidate scoring (`scoring.py`)
+
+> **In one sentence.** Given the moves a robot is *allowed* to make, this is the single number that ranks them. Every preference in the system — direction, congestion, turning cost, aisle rules — is finally cashed out here, and nowhere else.
 
 Once PIBT (§7) has produced a *legal* candidate set for a robot, something
 must rank them — that ranking is what turns "collision-free" into
@@ -413,6 +473,28 @@ for a third reason, which is why `"step"` is the default.
 `CandidateScorer.sort_key(robot, v) = (-score(robot, v), v)` — descending
 score, ties broken by vertex coordinates for determinism.
 
+<!-- worked-example: score -->
+> **Worked example.** `warehouse_medium`, variant `full_lda_pibt`, seed 7, 24 robots, timestep 18. Robot 3 is at (10,20) heading for waypoint (0,12), 18 steps away, so it is in `TRANSIT` mode with `β_i` = 3 and `γ_i` = 2 (§4.2, §4.3). Its previous move was `south` and its preferred direction is `north`. Every column below is computed by the same functions `CandidateScorer.score` itself calls, and they sum to the printed `S(v)`:
+>
+> ```
+> cell     move   α·prog  β·dir  γ·aisle  −λ·turn  −μ·cong  −ν/−ξ  −ζ   S(v)    rejected by      priced
+> -------  -----  ------  -----  -------  -------  -------  -----  ---  ------  ---------------  -------------------------------
+> (9,20)   north  +10     +3     +0       −1       −0.11    +0     +0   11.89   vertex-conflict  -
+> (10,19)  west   +10     +0     +0       −0.5     −0.1     +0     +0   9.4     -                -
+> (10,20)  stay   +0      +0     +0       +0       −0.16    −0.2   +0   -0.36   -                -
+> (10,21)  east   −10     +0     +0       −0.5     −0.16    +0     +0   -10.66  -                -
+> (11,20)  south  −10     +0     +0       +0       −0.28    +0     −16  -26.28  -                aisle-direction, no-reservation
+> ```
+>
+> Read the last two columns first, because they are different kinds of thing. **Rejected by** is legality: those moves are gone before scoring, and no score could rescue them. **Priced** is preference: the move is still on the table, it just costs.
+>
+> (9,20) scores highest at 11.89 and is unavailable regardless: `vertex-conflict` removed it in §7.2. So the move actually chosen is (10,19) at S = 9.4 — the best of what is *legal*.
+>
+> The shape of the winning number is the whole argument: progress contributes +10, while every other term together moves it by −0.6. The preference terms break ties between moves that agree on progress; they never outvote progress itself. That is what `α > ζ > β > γ > λ` buys.
+>
+> (11,20) is the instructive row. It pays 16 for `aisle-direction, no-reservation` and finishes 35.68 behind — last by a wide margin, and still in the candidate set. Set `hard_direction_constraints` and that same move is deleted instead; a move PIBT cannot see is a move priority inheritance cannot use to unblock a chain (§7.4). The gap between those two treatments is what the README's ablation measures as 1.9× to 3.1× throughput.
+<!-- /worked-example -->
+
 ### 4.7 Preferred route direction and hysteresis
 
 ```
@@ -432,6 +514,8 @@ mid-corridor as `compute_route_direction`'s greedy choice wobbles.
 ---
 
 ## 5. Congestion model (`congestion.py`)
+
+> **In one sentence.** How crowded a cell is about to be, expressed as one number between 0 and 1 so that it can modulate the score without ever dominating it.
 
 ### 5.1 Occupancy index
 
@@ -485,6 +569,22 @@ Normalising is a *calibration* fix, not a performance one: measured on the
 bundled maps it is neutral to slightly negative on throughput. What it buys is
 that the weight ordering the score claims is the ordering it has.
 
+<!-- worked-example: congestion -->
+> **Worked example.** The same robot and timestep. `C_i(v)` mixes three occupancy signals with weights `ω_local` = 1, `ω_aisle` = 1, `ω_down` = 1, then divides by their sum (3) because `congestion_normalisation` is on:
+>
+> ```
+> cell     C_local  C_aisle  C_down  C_i(v)  −μ·C
+> -------  -------  -------  ------  ------  ------
+> (9,20)   0.091    0.25     0       0.114   −0.114
+> (10,19)  0.091    0        0.2     0.097   −0.097
+> (10,20)  0.077    0        0.4     0.159   −0.159
+> (10,21)  0.091    0        0.4     0.164   −0.164
+> (11,20)  0.182    0.25     0.4     0.277   −0.277
+> ```
+>
+> Normalisation is what makes this a modulator rather than a rival. The largest `C_i(v)` here is 0.277, so the entire congestion term is worth at most 0.277 — against `α` = 10 for a single step of progress. Turn normalisation off and `C_local` reverts to a raw robot count: `μ·C` then reaches the scale of `α·Δ` (measured mean 3.40, p90 5.75, max 9.60 on this map at 40 robots), and congestion stops modulating the smaller terms and starts overruling the largest one.
+<!-- /worked-example -->
+
 ### 5.4 Route-level congestion (for task assignment)
 
 ```
@@ -498,6 +598,8 @@ candidate scoring.
 ---
 
 ## 6. Aisle management (`aisle_manager.py`)
+
+> **In one sentence.** Narrow corridors get a traffic light. Robots ask for a direction, the corridor decides from the aggregate, and it holds that decision long enough for the decision to be worth making — but not forever.
 
 Design principle, stated verbatim in the code twice: **"robots generate
 directional requests, but aisles make directional decisions."** No single
@@ -587,6 +689,24 @@ committed direction can neither be reversed for `minimum_lock_time` steps nor
 held past `maximum_lock_time` against opposing demand — checked by
 `test_minimum_lock_time_blocks_an_immediate_flip` and
 `test_maximum_green_forces_a_flip_under_balanced_demand`.
+
+<!-- worked-example: aisle -->
+> **Worked example.** Same run, timestep 18. Aisle 38 runs (11,20) -> (14,20) (length 4, capacity 4, axis `col`). Each robot routed through it contributes `w_u·U + w_w·W + w_p·P − w_l·L − w_c·C` (§6.2) to whichever direction it wants, and the two sides are summed:
+>
+> ```
+> S_a^+  (forward demand)      = -0.558
+> S_a^-  (reverse demand)      = 4.758
+> imbalance  S_a^+ − S_a^-     = −5.317
+> dead band  ± τ_switch        = 5
+> occupancy                    = 1 robot(s) inside
+> state on entry               = REVERSE, direction REVERSE
+> locked until t               = 26 (T_min = 8, T_max = 40)
+> ```
+>
+> With hysteresis on, `update_aisle_direction` returns `REVERSE`; with the dead band removed it returns `REVERSE`. The two agree here, which is the common case: hysteresis is not meant to fire often, it is meant to make the rare flip deliberate.
+>
+> An imbalance of 5.317 against a dead band of 5 clears the band, and a committed direction is additionally locked for `T_min` = 8 steps. The maximum green matters for the opposite failure: past `T_max` = 40 steps *any* opposing demand forces a drain, so a balanced aisle - pickups on one side, deliveries on the other, imbalance permanently inside the band - cannot hold one direction forever and starve the traffic wanting the other way.
+<!-- /worked-example -->
 
 ### 6.4 Aisle state machine
 
@@ -688,6 +808,8 @@ would never actually empty.
 ---
 
 ## 7. PIBT core (`pibt.py`)
+
+> **In one sentence.** The only part of the system that decides collision-freedom. A robot takes the best move it can; if the cell it wants is occupied, it lends its priority to the occupant and asks it to move first.
 
 This is the safety-critical layer: everything above only ranks and
 restricts candidates, but only this recursion (plus `validate.py`, §7.4)
@@ -808,6 +930,8 @@ safety net rather than a rare fallback.
 
 ## 8. Routing (`routing.py`)
 
+> **In one sentence.** How a robot works out a path to its next waypoint, and when that path is recomputed.
+
 By default, `Router.route` is just `graph.shortest_route` (§1.2) — plain
 BFS. When `direction_aware_routing` is enabled *and* `direction_control ==
 "aisle"`, it instead runs a **weighted A\*** using the BFS distance map as
@@ -833,6 +957,8 @@ flips.
 ---
 
 ## 9. Task assignment (`assignment.py`)
+
+> **In one sentence.** Which robot gets which job. A greedy match over a cost that knows about distance, congestion, one-way aisles and how long the job has queued.
 
 ### 9.1 Directional delay
 
@@ -876,6 +1002,21 @@ from the priority function's waiting term (§3). Returns `INF` if either
 `x_i → p` or `p → d` is unreachable, so an infeasible pairing is never
 chosen.
 
+<!-- worked-example: assignment -->
+> **Worked example.** Same run, timestep 18. One unassigned task: pickup (0,0), delivery (15,0), released at t = 6 so it has been waiting 12 steps. Two candidate robots, costed by `TaskAssigner.assignment_cost`:
+>
+> ```
+> robot           a·d(r,p)  b·d(p,d)  g·C    d·W  e·T_dir  z·B  J(i,τ)
+> --------------  --------  --------  -----  ---  -------  ---  ------
+> robot 16 (0,4)  4         7.5       2.4    −6   0        0    7.9
+> robot 18 (0,8)  8         7.5       2.667  −6   0        0    12.17
+> ```
+>
+> Robot 16 wins at J = 7.9. Two columns are worth pausing on. `d(pickup, delivery)` is identical for both robots, because it does not depend on which robot goes — it is in the cost only so that a queue of tasks is ordered by total work rather than by how near its pickup happens to be. And `δ` = −0.5 is *negative*, so the waiting term is a discount: the longer a task has been queued the cheaper it looks, which is how ageing gets into a greedy match.
+>
+> That discount is capped at `assign_waiting_cap` = 60. Uncapped, `waiting_time` grows without bound in a lifelong run and dwarfs both distance and congestion within about a hundred steps; the match degenerates into oldest-task-first, and a congestion-aware assignment can no longer show any effect at all — which is exactly what H4 reported before the cap existed (§9.3).
+<!-- /worked-example -->
+
 ### 9.4 Greedy matching
 
 `assign_tasks_greedily` first pre-filters the unassigned-task pool to the
@@ -896,6 +1037,8 @@ guaranteed globally optimal, only locally greedy at each pairing.
 ---
 
 ## 10. Deadlock detection and recovery (`deadlock.py`)
+
+> **In one sentence.** How the system tells a genuine deadlock apart from ordinary queueing — which in dense lifelong traffic is most of what it sees — and the seven increasingly drastic things it tries once it is sure.
 
 ### 10.1 Three distinct stall signals
 
@@ -1001,6 +1144,8 @@ one escalation step per detection cycle.
 
 ## 11. The lifelong simulation loop (`simulator.py`)
 
+> **In one sentence.** The sixteen steps that run, in this order, on every timestep. If you read one section to understand the system's shape, read this one.
+
 `Simulator.step()` executes, per its own numbered comments, tying every
 prior section together in execution order:
 
@@ -1060,6 +1205,8 @@ mode only) every robot has reached its static goal.
 
 ## 12. Evaluation metrics (`metrics.py`)
 
+> **In one sentence.** What gets measured at the end of a run, and how each number is defined.
+
 ### 12.1 Percentile
 
 Standard linear-interpolated percentile:
@@ -1100,6 +1247,8 @@ recovery_time_total / recovered`).
 ---
 
 ## 13. Statistics (`stats.py`)
+
+> **In one sentence.** How to tell a real difference between two configurations from noise, without assuming the measurements are normally distributed.
 
 Pure Python (no scipy/numpy), used by `experiments.run_comparison_table` to
 turn a handful of per-seed means into a defensible confidence interval and
@@ -1152,6 +1301,8 @@ pool (no valid split exists).
 ---
 
 ## 14. Baseline algorithms (`baselines/`)
+
+> **In one sentence.** The two published lifelong algorithms LDA-PIBT is compared against, and the space-time search both of them are built on.
 
 Built to give LDA-PIBT something from the literature to be compared
 against, since every ablation-table comparison elsewhere in the codebase is
@@ -1258,6 +1409,8 @@ steps for the next window.
 ---
 
 ## 15. Parameter reference (`config.Params`)
+
+> **In one sentence.** Every tunable in one table: what it does, what it defaults to, and which ablation variant switches it.
 
 Every tunable constant, grouped by the section above that uses it.
 
@@ -1383,6 +1536,8 @@ the same bootstrap CI and permutation test.
 ---
 
 ## 16. Glossary of symbols
+
+> **In one sentence.** Every symbol used above, in one table, with the module that owns it.
 
 | symbol | meaning | module |
 |---|---|---|

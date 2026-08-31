@@ -20,6 +20,26 @@ and, at the architectural level:
 Zero dependencies for the simulator itself. `matplotlib` and `pillow` are only
 needed for animations.
 
+## Documentation
+
+Both documents are committed as PDFs, so they open in the browser straight from
+GitHub — no clone, no PowerPoint, no Python:
+
+- **[Mathematical guide](docs/pdf/aisleflow-mathematical-guide.pdf)** (PDF, 29pp)
+  — every algorithm, formula and symbol in the codebase, with a contents page,
+  a plain-English summary of each section, and five worked examples computed
+  from a live run. Source: [`docs/mathematical-guide.md`](docs/mathematical-guide.md).
+- **[Project-review deck](docs/pdf/aisleflow-mapf-presentation.pdf)** (PDF, 37
+  slides) — forty years of MAPF, the gap this project set out to close, and what
+  the measurements said. Also available
+  [with speaker notes](docs/pdf/aisleflow-mapf-presentation-notes.pdf).
+  Source: [`docs/deck/slides.html`](docs/deck/slides.html).
+- [`docs/implementation-notes.md`](docs/implementation-notes.md) maps each spec
+  section to the function that implements it.
+
+Rebuild the PDFs with `python3 tools/build_docs.py` (standard library, plus any
+Chromium-family browser). See [`docs/README.md`](docs/README.md).
+
 ---
 
 ## What changed in this pass
@@ -71,7 +91,7 @@ Also in this pass: the metrics the hypotheses are actually about
 `starvation_flips`); `experiments/run_hypothesis_suite.py`, which scores each
 hypothesis on *its own* metric with a bootstrap CI and a permutation test; GUI
 controls for every new flag, an aisle max-green readout, and a live hypothesis
-panel. **179 tests**, up from 161.
+panel. **183 tests**, up from 161.
 
 Two things the previous review predicted that turned out not to hold, both now
 implemented and measured so the null results are reproducible: coordinated
@@ -104,7 +124,7 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 179 tests
+pytest                       # 183 tests
 ```
 
 Python 3.10+.
@@ -742,11 +762,14 @@ maps/            warehouse maps
 src/lda_pibt/    the package (see the module table above)
 src/lda_pibt/gui/  browser GUI (server.py + static/index.html)
 src/lda_pibt/baselines/  Token Passing and RHCR, independent of the PIBT machinery
-tests/           179 tests: graph, PIBT, aisle manager, lifelong layer, GUI, baselines, stats
+tests/           183 tests: graph, PIBT, aisle manager, lifelong layer, GUI,
+                 baselines, stats, and the guide's worked examples
 experiments/     run_ablation.py, run_density_sweep.py, run_factorial_ablation.py,
                  run_baseline_comparison.py, run_hypothesis_suite.py
 results/         JSON output (git-ignored)
-docs/            implementation notes, mathematical guide, project-review deck
+tools/           build_docs.py (the PDFs), worked_examples.py (the guide's numbers)
+docs/            mathematical guide, project-review deck, implementation notes
+docs/pdf/        the built, distributable PDFs
 ```
 
 ## Citation
