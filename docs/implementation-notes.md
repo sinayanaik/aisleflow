@@ -36,7 +36,7 @@ Congestion-Aware Multi-Agent Pickup and Delivery*, and where it lives.
 | 23.1 | congestion terms | `congestion.CongestionModel` |
 | 25 | PIBT recursion | `PIBTPlanner.pibt` |
 | 26 | conflict checks | `pibt.py`, `validate.py` |
-| 27 | aisle direction constraints | `AisleManager.violates_aisle_direction` |
+| 27 | aisle direction constraints | `AisleManager.violates_aisle_direction`, priced by `CandidateScorer.aisle_penalty` (not rejected — see below) |
 | 28 | deadlock detection | `deadlock.DeadlockMonitor.detect_deadlocked_groups` |
 | 28.1 | dependency graph | `DeadlockMonitor.build_dependency_graph`, `.find_cycles` |
 | 29 | seven recovery levels | `DeadlockMonitor.recover_from_deadlock` |
@@ -51,6 +51,42 @@ Congestion-Aware Multi-Agent Pickup and Delivery*, and where it lives.
 | 38.3 | fairness | `tests/test_lifelong.py::test_waiting_eventually_overcomes_the_class_gap` |
 | — | GUI + candidate explainer | `gui/server.py`, `gui/static/index.html`, `PIBTPlanner.explain_candidates` |
 | 38.4 | direction stability | `tests/test_aisle_manager.py::test_minimum_lock_time_blocks_an_immediate_flip` |
+
+## Deliberate deviations from the spec
+
+Four, each with the measurement that motivated it. All are flagged, so the
+spec-literal behaviour stays runnable.
+
+1. **Aisle direction ranks candidates; it does not reject them** (spec 22.1,
+   27). The spec lists "violates aisle direction" and "violates a reservation"
+   among the hard rejection rules. Implementing them that way deletes legal
+   moves from the candidate set, and PIBT's progress argument rests on being
+   able to push any robot into an adjacent cell — so inheritance chains
+   dead-end against the constraint. Both are now `zeta` penalties in
+   `S_i(v)`, sized between the other soft terms and `alpha_progress`.
+   Measured: `aisle_direction_only` goes from 0.010 to 0.153 tasks/step on
+   `warehouse_corridors`, 0.071 to 0.346 on `warehouse_narrow`, 0.169 to 0.370
+   on `warehouse_medium`. Restore with `hard_direction_constraints=True`.
+
+2. **A maximum green** (spec 16). The spec gives an aisle a minimum lock and a
+   dead band, which bound how soon a direction may change but not how long it
+   may persist. With near-balanced demand — the normal case when pickups are on
+   one side of the map and deliveries on the other — the imbalance never leaves
+   the dead band and the aisle holds one direction forever. `T_max =
+   maximum_aisle_lock_time`: past it, any opposing demand forces a drain and a
+   flip. Set it very large to recover the spec behaviour
+   (`aisle_direction_no_max_green` does exactly that).
+
+3. **Aisles are straight runs** (spec 9.2). Segmenting by connected component
+   alone yields L-, U- and T-shaped aisles, on which `FORWARD`/`REVERSE` has no
+   single compass meaning and a one-way rule blocks the corner both ways.
+   Segmentation now cuts at every turn; `Aisle.axis` reports `row` or `col`.
+
+4. **Recovery needs corroboration** (spec 28). The spec names three stall
+   signals; the implementation treated the weakest (no progress for
+   `t_blocked` steps) as sufficient, which fires constantly in dense lifelong
+   traffic. A group must now also show a wait-for cycle or a repeated
+   configuration. Restore with `require_deadlock_corroboration=False`.
 
 ## Complexity
 
@@ -79,5 +115,25 @@ Measured on `warehouse_medium` with 40 robots: 0.96 ms/step for
   communication delay.
 - Intersection reservations. Spec 22.1 lists "violates a locked intersection";
   aisle reservations are implemented, intersection locking is not.
-- Coordinated direction assignment across parallel aisles — see the README
-  results discussion; this is the most promising next step.
+- Entry capacity admission does not yet earn its cost. It is implemented and,
+  for the first time, measurable (`reservations` no longer requires
+  `direction_control="aisle"`), but on every bundled map it reduces throughput
+  without a consistent reduction in head-on conflicts. Either the admission
+  rule or the capacity model needs rethinking; the mechanism is not the
+  problem, the policy is.
+- The robot-level direction term `beta` is net negative on two of three maps
+  (`no_direction_term` beats `aisle_direction_only`), and its proximity decay
+  is inert — changing `r_near`/`r_far` produces bit-identical runs, because
+  `beta` only ever breaks ties among candidates with equal progress and the
+  decay lowers it exactly where progress already decides.
+
+## Closed since the last review
+
+- **Coordinated direction assignment across parallel aisles** was called the
+  most promising next step. It is now implemented
+  (`coordinate_aisle_directions`: commit in descending `|imbalance|`, roll back
+  anything that breaks strong connectivity of the directed residual graph) and
+  its measured effect on the bundled maps is between ±0.000 and ±0.011 — a null
+  result. A single one-way aisle almost never disconnects a ladder graph, so the
+  guard barely fires. The collapse it was meant to cure was a liveness failure,
+  fixed by the maximum green above.
