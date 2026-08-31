@@ -1,0 +1,64 @@
+\section{Statistics}
+\label{sec:statistics}
+
+\begin{lede}
+How to tell a real difference between two configurations from noise, without
+assuming the measurements are normally distributed.
+\end{lede}
+
+Pure Python, no SciPy or NumPy, so the analysis carries the same zero-dependency
+guarantee as the simulator. Used to turn a handful of per-seed means into a
+defensible interval and significance test.
+
+\subsection{Percentile bootstrap confidence interval}
+
+\begin{algorithm}[H]
+\caption{\code{bootstrap\_ci(values, $B = 10{,}000$, $\alpha = 0.05$)}}
+\begin{algorithmic}[1]
+\For{$b = 1$ to $B$}
+  \State draw $n$ values from \code{values} \emph{with replacement}; record their mean
+\EndFor
+\State sort the $B$ resample means
+\State \Return $\left(\overline{x},\ m_{\lfloor (\alpha/2)B \rfloor},\ m_{\lfloor (1-\alpha/2)B \rfloor}\right)$
+\end{algorithmic}
+\end{algorithm}
+
+This is the standard percentile bootstrap for a $(1-\alpha)$ interval on the
+mean. No distributional assumption is made beyond resampling with replacement
+approximating the sampling distribution. It degenerates to a point for fewer
+than two values, since no variance can be estimated from one sample.
+
+\subsection{Permutation test}
+
+\begin{algorithm}[H]
+\caption{\code{permutation\_test(a, b, $P = 10{,}000$)}}
+\begin{algorithmic}[1]
+\State $\mathrm{obs} \gets \overline{a} - \overline{b}$;\quad
+  $\mathrm{pooled} \gets a \cup b$;\quad
+  $N \gets \binom{|a| + |b|}{|a|}$
+\If{$N \leq 20{,}000$}
+  \State $p \gets \dfrac{|\{\text{splits with } |\text{mean difference}| \geq |\mathrm{obs}| - 10^{-12}\}|}{N}$
+  \Comment{exact enumeration}
+\Else
+  \State $p \gets \dfrac{|\{\text{of } P \text{ random relabelings meeting the same bound}\}|}{P}$
+\EndIf
+\State \Return $(\mathrm{obs}, p)$
+\end{algorithmic}
+\end{algorithm}
+
+A standard two-sided permutation test: under the null hypothesis that $a$ and
+$b$ are drawn from the same distribution, every relabeling of the pooled data
+into two groups of the original sizes is equally likely, so $p$ is the fraction
+of relabelings at least as extreme as the one observed. Below the enumeration
+threshold every split is enumerated exactly and the result is
+seed-independent; above it, relabelings are sampled from a seeded generator, so
+the result is still deterministic. It returns $p = 1$ if either group is empty
+or spans the whole pool.
+
+\begin{caveat}
+With five seeds per cell, $\binom{10}{5} = 252$ distinct splits exist, so the
+smallest attainable two-sided $p$-value is $2/252 \approx 0.008$. A reported
+$p < 0.001$ in \Cref{sec:results} therefore comes from a cell with more seeds
+or from the Monte Carlo branch; a five-seed comparison cannot produce one, and
+none is claimed.
+\end{caveat}

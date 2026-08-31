@@ -1,0 +1,122 @@
+\section{Task assignment}
+\label{sec:assignment}
+
+\begin{lede}
+Which robot gets which job. A greedy match over a cost that knows about
+distance, congestion, one-way aisles and how long the job has queued.
+\end{lede}
+
+\subsection{Directional delay}
+\label{sec:assignment-delay}
+
+\begin{equation}
+  T_{\mathrm{dir}}(s, g) = \sum_{a \in \mathcal{A}(\mathrm{route}(s, g))} \mathrm{delay}(a),
+\end{equation}
+\begin{equation}
+  \mathrm{delay}(a) =
+  \begin{cases}
+    0 & a \text{ is \textsc{open}},\\
+    \mathrm{occ}(a) + 1 & a \text{ is \textsc{draining}},\\
+    \tfrac{1}{2}T_{\min} + \mathrm{occ}(a) & \text{direction mismatches},\\
+    0 & \text{direction already matches.}
+  \end{cases}
+\end{equation}
+The third case is the cost of waiting for a drain and a flip. Computed only
+when \param{direction\_control} is \code{"aisle"}, with each aisle counted once
+even if the route touches it repeatedly.
+
+\subsection{Blocking estimate}
+
+\begin{equation}
+  B(i, \tau) = \frac{|\{\text{bottleneck vertices on } \mathrm{route}(x_i, p_\tau)\}|}
+    {\max(1, |\mathrm{route}|)}.
+\end{equation}
+
+\subsection{The assignment cost}
+\label{sec:assignment-cost}
+
+\begin{equation}
+  J(i, \tau) = a\, d(x_i, p) + b\, d(p, d) + g\, C + \delta\, W
+    + e\, T_{\mathrm{dir}} + z\, B.
+  \label{eq:assignment}
+\end{equation}
+
+\begin{center}\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Term} & \textbf{Meaning} & \textbf{Coefficient} \\
+\midrule
+$a\, d(x_i, p)$ & robot to pickup distance & \param{assign\_alpha\_to\_pickup} $= 1.0$ \\
+$b\, d(p, d)$ & pickup to delivery distance & \param{assign\_beta\_pickup\_to\_delivery} $= 0.5$ \\
+$g\, C$ & route congestion, if congestion-aware & \param{assign\_gamma\_congestion} $= 12.0$ \\
+$\delta\, W$ & task waiting time, capped at 60 & \param{assign\_delta\_waiting} $= -0.5$ \\
+$e\, T_{\mathrm{dir}}$ & directional delay, \Cref{sec:assignment-delay} & \param{assign\_eta\_direction} $= 1.0$ \\
+$z\, B$ & bottleneck blocking, if congestion-aware & \param{assign\_zeta\_blocking} $= 1.0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Note that $\delta = -0.5$ is \textbf{negative}: a longer-waiting task
+\emph{lowers} its own cost and is preferred over a fresher, possibly nearer
+one. This is the assignment layer's own fairness mechanism, separate from and
+additive to the priority function's waiting term (\Cref{sec:priority}). The
+cost returns $\INF$ if either leg is unreachable, so an infeasible pairing is
+never chosen.
+
+\begin{caveat}
+Two coefficients here were recalibrated rather than redesigned, and both
+mattered. \param{assign\_gamma\_congestion} was $2.0$ against distances of
+10--40, so the entire congestion term was worth about four cost units and could
+not influence a match --- a congestion-aware assignment that cannot change an
+assignment is not a mechanism. And \param{assign\_waiting\_cap} bounds a term
+that otherwise grows without limit in a lifelong run: uncapped, waiting
+dominates distance and congestion within about a hundred steps and the match
+degenerates to oldest-task-first, which is exactly what hypothesis H4 was
+reporting before the cap existed.
+\end{caveat}
+
+% worked-example: assignment
+\begin{workedexample}
+\textbf{Worked example.} Same run, timestep 18. One unassigned task: pickup (0,0), delivery (15,0), released at t = 6 so it has been waiting 12 steps. Two candidate robots, costed by \code{TaskAssigner.assignment\_cost}:
+
+{\fontsize{9.0}{10.8}\selectfont
+\begin{verbatim}
+robot           a·d(r,p)  b·d(p,d)  g·C    d·W  e·T_dir  z·B  J(i,τ)
+--------------  --------  --------  -----  ---  -------  ---  ------
+robot 16 (0,4)  4         7.5       2.4    −6   0        0    7.9
+robot 18 (0,8)  8         7.5       2.667  −6   0        0    12.17
+\end{verbatim}
+}
+
+Robot 16 wins at J = 7.9. Two columns are worth pausing on. \code{d(pickup, delivery)} is identical for both robots, because it does not depend on which robot goes — it is in the cost only so that a queue of tasks is ordered by total work rather than by how near its pickup happens to be. And \code{δ} = −0.5 is \emph{negative}, so the waiting term is a discount: the longer a task has been queued the cheaper it looks, which is how ageing gets into a greedy match.
+
+That discount is capped at \code{assign\_waiting\_cap} = 60. Uncapped, \code{waiting\_time} grows without bound in a lifelong run and dwarfs both distance and congestion within about a hundred steps; the match degenerates into oldest-task-first, and a congestion-aware assignment can no longer show any effect at all — which is exactly what H4 reported before the cap existed (\Cref{sec:assignment-cost}).
+\end{workedexample}
+% /worked-example
+
+\subsection{Greedy matching}
+
+\code{assign\_tasks\_greedily} first pre-filters the unassigned pool to the
+oldest
+\[
+  \max\bigl(\param{assignment\_candidate\_limit},\ |\text{free robots}|\bigr)
+\]
+tasks, sorted by $(t_{\mathrm{rel}}, \mathrm{id})$ --- a cheap bound, so cost is
+never computed against an unbounded backlog. It then repeatedly takes the
+cheapest feasible pair:
+
+\begin{algorithm}[H]
+\caption{\code{assign\_tasks\_greedily}}
+\begin{algorithmic}[1]
+\While{free robots and candidate tasks remain}
+  \State $(i^\ast, \tau^\ast) \gets \arg\min_{(i, \tau) \text{ feasible}} J(i, \tau, t)$
+  \State assign $i^\ast \leftarrow \tau^\ast$; remove both from their pools
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+This is greedy minimum-cost matching, $O(RT)$ per round for $R$ robots and $T$
+candidate tasks --- not the Hungarian algorithm, so it is locally greedy at
+each pairing rather than globally optimal. It is held \emph{identical} across
+every planner compared in \Cref{sec:results}, including both external
+baselines, so that comparisons isolate the movement layer.

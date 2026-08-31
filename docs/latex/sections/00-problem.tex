@@ -1,0 +1,141 @@
+\section{The problem, stated precisely}
+\label{sec:problem}
+
+\begin{lede}
+A warehouse floor, a never-ending stream of jobs, and a fleet that must keep
+moving forever. This section fixes the model, the constraints and --- the part
+that decides how every later number should be read --- the traffic regime the
+measurements are taken in.
+\end{lede}
+
+\subsection{Environment and agents}
+
+The warehouse is a 4-connected grid graph $G = (V, E)$. A vertex is a cell
+$v = (r, c)$; $V$ holds the passable cells and $E$ joins orthogonally adjacent
+ones. Shelving, walls and racking are simply absent from $V$. Certain vertices
+carry a role: $V_{\mathrm{p}} \subset V$ are pickup stations,
+$V_{\mathrm{d}} \subset V$ delivery stations, and $V_{\mathrm{k}} \subset V$
+parking bays.
+
+A fleet $A = \{1, \dots, n\}$ of identical robots occupies distinct vertices.
+Time is discrete and synchronous: at each timestep every robot simultaneously
+either moves to a vertex adjacent to its current one or stays where it is,
+\begin{equation}
+  \pos{i}{t+1} \in N(\pos{i}{t}) \cup \{\pos{i}{t}\},
+  \label{eq:move}
+\end{equation}
+and a joint move is legal exactly when it creates neither of the two standard
+conflicts:
+\begin{align}
+  \text{vertex conflict:} && \pos{i}{t+1} &= \pos{j}{t+1}, & i &\neq j,
+  \label{eq:vertex-conflict}\\
+  \text{swap conflict:} && \pos{i}{t+1} = \pos{j}{t} &\ \wedge\
+    \pos{j}{t+1} = \pos{i}{t}, & i &\neq j.
+  \label{eq:swap-conflict}
+\end{align}
+There is no rotation cost and no kinematic model; a robot's heading is tracked
+only so that changing it can be discouraged (\Cref{sec:score-turn}).
+
+\subsection{The task stream}
+
+This is a \emph{lifelong} problem, not a one-shot one. Tasks are not known in
+advance and never stop arriving. A task $\tau = (p, d, t_{\mathrm{rel}})$
+releases at time $t_{\mathrm{rel}}$ and requires some robot to visit its pickup
+$p \in V_{\mathrm{p}}$ and then its delivery $d \in V_{\mathrm{d}}$, in that
+order. Arrivals follow one of four processes (\Cref{sec:arrivals}); the
+experiments in this document use a Poisson process of mean rate $\lambda$
+tasks per timestep.
+
+A robot is assigned at most one task at a time and is free again on delivery.
+Assignment is itself part of the problem --- which robot takes which job
+matters --- and is handled by a greedy minimum-cost match
+(\Cref{sec:assignment}) held \emph{identical} across every planner compared in
+this document, so that comparisons isolate the movement layer.
+
+The quantity a task contributes to the evaluation is its \emph{service time},
+\begin{equation}
+  \mathrm{svc}(\tau) = t_{\mathrm{complete}}(\tau) - t_{\mathrm{rel}}(\tau),
+\end{equation}
+defined only for tasks that actually complete --- a restriction
+\Cref{sec:regime} returns to, because it is the single most misread number in
+the whole evaluation.
+
+\subsection{Objective}
+
+Over a horizon of $T$ timesteps, with $K$ tasks completed, the primary
+objective is \textbf{throughput}
+\begin{equation}
+  \Theta = \frac{K}{T} \quad \text{(tasks per timestep)},
+  \label{eq:throughput}
+\end{equation}
+subject to the joint plan being conflict-free at every step. Makespan --- the
+standard objective for one-shot MAPF --- is undefined here: there is no last
+task. Sum-of-costs is likewise unavailable, since the set of costs is not
+fixed in advance.
+
+Secondary quantities are reported throughout, and each answers a different
+question: mean and $p_{95}$ service time (latency, and tail latency),
+Jain's fairness index over per-robot completion counts (is the fleet used
+evenly), direction switches per 1000 steps (is the aisle signal stable),
+head-on conflicts and counterflow moves (is the aisle layer doing what it
+claims), and mean planner runtime per timestep (what the method costs).
+
+\subsection{The traffic regime, and why it decides how to read every number}
+\label{sec:regime}
+
+The measurements in this document are taken in \textbf{saturation}, and this
+must be stated before any of them is quoted.
+
+The arrival rate $\lambda$ is set well above what the floor can serve. On
+\variant{warehouse\_medium} tasks arrive at $\lambda = 1.5$ per timestep and
+the best configuration completes about $0.50$ per timestep; on
+\variant{warehouse\_bottleneck}, $\lambda = 0.8$ against roughly $0.14$ served.
+Between a sixth and a third of offered demand is served; the backlog grows
+without bound for the whole run. Three consequences follow, and all three are
+routinely misread.
+
+\begin{enumerate}
+\item \textbf{Throughput measures capacity, not effort.} In saturation there
+is always another task waiting, so no planner is ever idle for want of work and
+$\Theta$ is exactly the floor's service capacity under that planner. This is
+why $\Theta$ is the primary objective and why differences in it are meaningful
+even when they look small: $0.50$ against $0.31$ tasks per timestep is a $61\%$
+difference in the capacity of the warehouse.
+
+\item \textbf{Service time is censored, and the censoring is not random.}
+$\mathrm{svc}(\tau)$ exists only for completed tasks. A planner that serves
+only the nearby, easy tasks and abandons the rest reports an \emph{excellent}
+mean service time. This is not hypothetical: on
+\variant{warehouse\_bottleneck} Token Passing reports a mean service time of
+roughly $22$ timesteps --- the best figure in the table --- while completing
+essentially nothing, because the handful of tasks it finishes are the ones it
+finishes in the first few timesteps before the corridor jams forever. Mean
+service time may be compared only between planners with comparable throughput.
+\Cref{fig:censoring} shows this trap directly.
+
+\item \textbf{Robot count is not a free parameter.} All planners are compared
+at the same fleet size on the same map, because throughput is not monotone in
+fleet size once the floor is congested --- adding robots past the congestion
+knee lowers it.
+\end{enumerate}
+
+\begin{caveat}
+Every table in \Cref{sec:results} therefore reports throughput first, quotes
+service time only alongside it, and never ranks two planners by service time
+alone. A reader who takes one thing from this section: \emph{a low mean service
+time next to a low throughput is a symptom, not an achievement.}
+\end{caveat}
+
+\subsection{What makes this hard, in one paragraph}
+
+A warehouse map is mostly corridors. In a single-file corridor, two robots
+wanting opposite directions cannot both proceed, and no local rule that treats
+them symmetrically resolves it; one must yield, and something must decide
+which. Worse, in a lifelong setting the pair that meets head-on is replaced by
+another pair a few timesteps later, so a resolution that works once must keep
+working forever, under an adversarial arrival process the planner does not
+control. Optimal joint planning would resolve this and is exponential
+(\Cref{sec:related-cbs}); planning each robot independently against a
+reservation table is cheap and deadlocks (\Cref{sec:related-tp}). The
+interesting region is between the two, and that is where PIBT
+(\Cref{sec:related-pibt}) and this work sit.

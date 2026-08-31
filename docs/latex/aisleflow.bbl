@@ -1,0 +1,50 @@
+\begin{thebibliography}{6}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Jain et~al.(1984)Jain, Chiu, and Hawe]{jain1984fairness}
+Rajendra Jain, Dah-Ming Chiu, and William Hawe.
+\newblock A quantitative measure of fairness and discrimination for resource
+  allocation in shared computer systems.
+\newblock Technical Report DEC-TR-301, Digital Equipment Corporation, 1984.
+
+\bibitem[Knuth(1997)]{knuth1997taocp2}
+Donald~E. Knuth.
+\newblock \emph{The Art of Computer Programming, Volume 2: Seminumerical
+  Algorithms}.
+\newblock Addison-Wesley, 3rd edition, 1997.
+
+\bibitem[Li et~al.(2021)Li, Tinka, Kiesel, Durham, Kumar, and
+  Koenig]{li2021rhcr}
+Jiaoyang Li, Andrew Tinka, Scott Kiesel, Joseph~W. Durham, T.~K.~Satish Kumar,
+  and Sven Koenig.
+\newblock Lifelong multi-agent path finding in large-scale warehouses.
+\newblock In \emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}, volume~35, pages 11272--11281, 2021.
+
+\bibitem[Ma et~al.(2017)Ma, Li, Kumar, and Koenig]{ma2017tp}
+Hang Ma, Jiaoyang Li, T.~K.~Satish Kumar, and Sven Koenig.
+\newblock Lifelong multi-agent path finding for online pickup and delivery
+  tasks.
+\newblock In \emph{Proceedings of the 16th International Conference on
+  Autonomous Agents and Multiagent Systems (AAMAS)}, pages 837--845, 2017.
+
+\bibitem[Okumura et~al.(2019)Okumura, Machida, D{\'e}fago, and
+  Tamura]{okumura2019pibt}
+Keisuke Okumura, Manao Machida, Xavier D{\'e}fago, and Yasumasa Tamura.
+\newblock Priority inheritance with backtracking for iterative multi-agent path
+  finding.
+\newblock In \emph{Proceedings of the 28th International Joint Conference on
+  Artificial Intelligence (IJCAI)}, pages 535--542, 2019.
+\newblock arXiv:1901.11282.
+
+\bibitem[Sharon et~al.(2015)Sharon, Stern, Felner, and
+  Sturtevant]{sharon2015cbs}
+Guni Sharon, Roni Stern, Ariel Felner, and Nathan~R. Sturtevant.
+\newblock Conflict-based search for optimal multi-agent pathfinding.
+\newblock \emph{Artificial Intelligence}, 219:\penalty0 40--66, 2015.
+
+\end{thebibliography}

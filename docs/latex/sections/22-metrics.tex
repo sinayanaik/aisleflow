@@ -1,0 +1,62 @@
+\section{Evaluation metrics}
+\label{sec:metrics}
+
+\begin{lede}
+What gets measured at the end of a run, how each number is defined, and which
+of them may be compared with which.
+\end{lede}
+
+\subsection{Percentile}
+
+Standard linear interpolation, on the sorted values, with
+$\mathrm{pos} = (n-1) \cdot q/100$ and $\mathrm{lo} = \lfloor \mathrm{pos} \rfloor$:
+\begin{equation}
+  \mathrm{percentile}(x, q)
+    = x_{\mathrm{lo}} (1 - f) + x_{\mathrm{lo}+1} f,
+  \qquad f = \mathrm{pos} - \mathrm{lo}.
+\end{equation}
+
+\subsection{Jain's fairness index}
+
+\begin{equation}
+  \mathcal{J} = \frac{\left(\sum_i T_i\right)^2}{n \sum_i T_i^2},
+  \label{eq:jain}
+\end{equation}
+computed on each robot's completed-task count \citep{jain1984fairness}.
+$\mathcal{J} \in (0, 1]$, equal to 1 exactly when every robot completed the
+same number of tasks, and tending to $1/n$ as one robot does everything.
+
+\subsection{Aggregate report fields}
+
+$\Theta = K / \max(1, T)$ (\Cref{eq:throughput}); makespan as the maximum
+completion time; mean, median, $p_{95}$ and maximum service time over completed
+tasks; total and mean travel distance, incremented once per actual move;
+direction switches per 1000 steps; the PIBT counters of
+\Cref{sec:pibt-recursion}; and the deadlock counters of
+\Cref{sec:deadlock-detection}, with mean recovery time as
+$\text{recovery time total} / \text{recovered}$.
+
+Four counters exist specifically to test claims that throughput cannot see, and
+are what the hypothesis suite of \Cref{sec:results-hypotheses} scores against:
+
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Counter} & \textbf{The claim it tests} \\
+\midrule
+\code{head\_on\_conflicts} & entry admission reduces head-on meetings (H3) \\
+\code{counterflow\_moves} & the measured price of ranking direction rather than enforcing it \\
+\code{aisle\_throughput\_per\_1000} & narrow aisles flow better under direction control (H1) \\
+\code{starvation\_flips} & flips forced by the maximum green rather than by demand \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{caveat}
+\textbf{Service time is censored.} Every service-time field is computed over
+\emph{completed} tasks only, and in the saturated regime of
+\Cref{sec:regime} that is a minority of the tasks released. A planner that
+completes only the easy ones reports the best mean service time in the table
+while delivering nothing. Compare service times only between planners of
+comparable throughput; \Cref{fig:censoring} shows what happens otherwise.
+\end{caveat}

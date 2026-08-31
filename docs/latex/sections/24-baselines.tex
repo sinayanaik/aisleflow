@@ -1,0 +1,113 @@
+\section{Baseline algorithms}
+\label{sec:baselines}
+
+\begin{lede}
+The two published lifelong algorithms LDA-PIBT is compared against, and the
+space-time search both are built on. \Cref{sec:related} says what they are
+for; this section says how they are implemented here.
+\end{lede}
+
+Both reuse the identical \code{assignment.TaskAssigner}
+(\Cref{sec:assignment}), so only the low-level movement and
+collision-avoidance layer differs. Neither uses candidate scoring, aisle
+direction or reservations; both navigate with their own time-expanded,
+reservation-table A$^\ast$, built from scratch because nothing else in this
+codebase is collision-aware in that sense.
+
+\subsection{Time-expanded \texorpdfstring{A$^\ast$}{A*}}
+\label{sec:baselines-astar}
+
+The shared primitive: cooperative A$^\ast$ over states $(\text{vertex}, t)$
+rather than plain vertices, since avoiding other robots requires reasoning
+about \emph{when} a cell is occupied, not just whether it is passable.
+\begin{equation}
+  f(v, t) = g(v, t) + h(v),
+  \qquad
+  h(v) = \Dg{\mathrm{goal}}(v),
+\end{equation}
+with $h$ the precomputed BFS distance map of \Cref{sec:graph-distances}. On an
+unweighted grid where every move costs exactly 1, $h$ is the true shortest-path
+distance and therefore admissible and consistent, so the search is optimal for
+the single agent. Each transition is a move to a neighbour or a wait, each
+costing $+1$, filtered through the reservation table --- which checks both a
+vertex hold and, critically, a reverse-edge hold, catching swap conflicts the
+same way \Cref{sec:pibt-conflicts} does.
+
+Two modes:
+\begin{itemize}
+\item \code{require\_goal=True} (Token Passing): return only a path that
+  reaches the goal \emph{and} can hold there for the rest of the horizon, the
+  standard cooperative-A$^\ast$ goal condition, so a robot does not stop
+  somewhere another robot will need later.
+\item \code{require\_goal=False} (RHCR): the horizon is a short rolling window
+  decoupled from goal distance, so reaching the goal within one window is the
+  exception. Returns the best-effort path to whichever boundary state has the
+  smallest $h$, ties broken by pop order.
+\end{itemize}
+
+\code{prioritized\_plan} plans robots one at a time, committing each path into
+the shared table before planning the next --- the classical sequential MAPF
+decomposition: no joint-optimality guarantee, always fast, always produces some
+legal plan. Every robot's current cell is pre-held for one extra timestep so a
+later, not-yet-planned robot cannot path straight through a robot that has not
+moved yet.
+
+\code{resolve\_residual\_conflicts} is a post-hoc safety net run after either
+baseline finishes: it repeatedly finds any residual vertex or swap conflict
+among the committed next positions and downgrades the lower-priority robot to
+hold in place, iterating until stable --- bounded by $n+1$ iterations, since
+each pass removes at least one conflict.
+
+\subsection{Token Passing}
+\label{sec:baselines-tp}
+
+Each step, any robot whose committed path is stale (start or goal mismatch, or
+exhausted) is replanned via \code{prioritized\_plan} with
+\code{require\_goal=True}, against a table pre-seeded by holding every
+still-valid path of settled robots. A robot whose search fails waits in place,
+incrementing \code{tp\_path\_not\_found}.
+
+Token Passing as published has \textbf{no priority-inheritance or backtracking
+mechanism}: a blocked robot cannot ask the robot in its way to move. This is
+the structural reason --- not an artefact of this implementation --- for the
+corridor gridlock reported in \Cref{sec:results-baselines}: once a queue forms
+in a single-file corridor with no mechanism to displace anyone, it never
+resolves. The counters \code{tp\_path\_not\_found} and \code{tp\_forced\_holds}
+are exposed so that a zero-throughput run can be confirmed as genuine gridlock
+rather than a crash or a silent no-op.
+
+\subsection{RHCR}
+\label{sec:baselines-rhcr}
+
+Every \param{baseline\_replan\_period} steps (default 5) all robots are jointly
+replanned over a \param{baseline\_window}-length horizon (default 10) via
+windowed CBS:
+
+\begin{algorithm}[H]
+\caption{Windowed CBS (\code{baselines/rhcr.py})}
+\begin{algorithmic}[1]
+\State \textbf{root}: each robot's unconstrained time-expanded A$^\ast$ path
+  (\code{require\_goal=False}); $\mathrm{cost} = \sum_i |\mathrm{path}_i|$
+\While{the open list is non-empty}
+  \State pop the lowest-cost node
+  \State $c \gets$ first conflict in the node's paths within the window
+    \Comment{shared vertex, or a reversed-edge swap}
+  \If{no conflict} \Return the node's paths \EndIf
+  \State branch into two children, each adding one of the two constraints from $c$
+  \State replan only the newly-constrained robot in each child; push if feasible
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+Branching follows \citet{sharon2015cbs} exactly: a vertex conflict $(i, j, v,
+t)$ gives children $\{i \text{ forbidden at } (v,t)\}$ and $\{j \text{
+forbidden at } (v,t)\}$; an edge conflict gives the two directed-edge
+prohibitions. If node expansions exceed \param{node\_expansion\_cap} (500)
+before a conflict-free node is found, the search falls back to
+\code{prioritized\_plan} for that window and increments \code{cbs\_fallbacks}
+--- standard, documented practice for bounding CBS's worst case, not a shortcut
+unique to this implementation.
+
+Between periodic replans, \code{\_repair\_stale\_paths} gives any robot with a
+newly assigned task or an exhausted path an immediate single-agent repair,
+rather than making it wait up to a full replan period.

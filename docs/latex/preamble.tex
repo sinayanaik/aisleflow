@@ -1,0 +1,144 @@
+% Preamble for aisleflow.tex. LuaLaTeX only.
+
+\usepackage{geometry}
+\geometry{a4paper, margin=27mm, top=25mm, bottom=27mm}
+
+\usepackage{fontspec}
+\usepackage{unicode-math}
+% amssymb is deliberately absent: unicode-math provides the same symbols and
+% the two clash over \eth and friends.
+\usepackage{amsmath}
+\usepackage{amsthm}
+\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+
+% Stray Unicode in prose: the source of this document was Markdown that wrote
+% Greek letters and arrows literally, and a missing glyph in the main roman
+% font is silent. Mapping them here means a literal alpha typesets as maths
+% rather than vanishing.
+\usepackage{newunicodechar}
+\newunicodechar{α}{\ensuremath{\alpha}}
+\newunicodechar{β}{\ensuremath{\beta}}
+\newunicodechar{γ}{\ensuremath{\gamma}}
+\newunicodechar{δ}{\ensuremath{\delta}}
+\newunicodechar{ε}{\ensuremath{\varepsilon}}
+\newunicodechar{ζ}{\ensuremath{\zeta}}
+\newunicodechar{η}{\ensuremath{\eta}}
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{μ}{\ensuremath{\mu}}
+\newunicodechar{ν}{\ensuremath{\nu}}
+\newunicodechar{ξ}{\ensuremath{\xi}}
+\newunicodechar{ρ}{\ensuremath{\rho}}
+\newunicodechar{σ}{\ensuremath{\sigma}}
+\newunicodechar{τ}{\ensuremath{\tau}}
+\newunicodechar{ω}{\ensuremath{\omega}}
+\newunicodechar{Δ}{\ensuremath{\Delta}}
+\newunicodechar{Σ}{\ensuremath{\Sigma}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≠}{\ensuremath{\neq}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{←}{\ensuremath{\leftarrow}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{·}{\ensuremath{\cdot}}
+\newunicodechar{−}{\ensuremath{-}}
+\newunicodechar{∈}{\ensuremath{\in}}
+\newunicodechar{∅}{\ensuremath{\emptyset}}
+\newunicodechar{∞}{\ensuremath{\infty}}
+
+\usepackage{microtype}
+% This document is full of long unbreakable identifiers (maximum_aisle_lock_time,
+% congestion_assignment_only). Without room to stretch, a paragraph carrying two
+% of them overflows the column.
+\emergencystretch=3em
+\tolerance=1200
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{graphicx}
+\graphicspath{{../figures/}}
+\usepackage{float}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{enumitem}
+\setlist{itemsep=0.25em, topsep=0.35em, parsep=0pt}
+
+\usepackage{xcolor}
+\definecolor{rulegrey}{HTML}{D6DBE4}
+\definecolor{inkblue}{HTML}{1F4E79}
+\definecolor{boxbg}{HTML}{F4F6FA}
+\definecolor{ledebg}{HTML}{EFF5EF}
+\definecolor{warnbg}{HTML}{FBF3EC}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{breakable}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+\floatname{algorithm}{Algorithm}
+
+\usepackage[round,authoryear]{natbib}
+\usepackage[hidelinks,bookmarks=true,bookmarksnumbered=true]{hyperref}
+\hypersetup{
+  pdftitle={AisleFlow: aisle-managed lifelong PIBT},
+  pdfsubject={Multi-agent pickup and delivery},
+  colorlinks=true, linkcolor=inkblue, citecolor=inkblue, urlcolor=inkblue,
+}
+\usepackage{cleveref}
+
+% ---------------------------------------------------------------------------
+% editorial devices carried over from the Markdown guide
+% ---------------------------------------------------------------------------
+
+% "In one sentence" -- the one-line summary every system section opens with,
+% so the document can be skimmed at one level and read at another.
+\newtcolorbox{lede}{
+  breakable, enhanced, colback=ledebg, colframe=ledebg!60!black,
+  boxrule=0pt, leftrule=2pt, arc=0pt, outer arc=0pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fontupper=\small\itshape,
+}
+
+% A generated worked example. Everything inside one of these is written by
+% tools/worked_examples.py; see the header of aisleflow.tex.
+\newtcolorbox{workedexample}{
+  breakable, enhanced, colback=boxbg, colframe=rulegrey,
+  boxrule=0.6pt, arc=1.5pt,
+  left=8pt, right=8pt, top=7pt, bottom=7pt,
+  fontupper=\small,
+}
+
+% A finding that contradicts the design, or a caveat a reader must carry.
+\newtcolorbox{caveat}[1][]{
+  breakable, enhanced, colback=warnbg, colframe=warnbg!55!black,
+  boxrule=0pt, leftrule=2pt, arc=0pt, outer arc=0pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fontupper=\small, #1
+}
+
+% Fixed-width transcripts (ASCII diagrams, generated tables) that must not
+% reflow. \small is deliberate: these are program output, not prose.
+\newenvironment{transcript}
+  {\begin{quote}\small\ttfamily\obeylines\obeyspaces\parskip=0pt}
+  {\end{quote}}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\param}[1]{\texttt{#1}}
+\newcommand{\variant}[1]{\texttt{#1}}
+% the indicator function. \mathbf rather than \mathbbm: unicode-math has no
+% blackboard digit, and a bold 1 is unambiguous next to the weights.
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+
+% notation shorthands used throughout
+\newcommand{\Dg}[1]{D_{#1}}
+\newcommand{\pos}[2]{x_{#1}(#2)}
+\newcommand{\score}{S_i(v)}
+\newcommand{\INF}{\ensuremath{\infty}}
+
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{3}
+
+\theoremstyle{definition}
+\newtheorem{proposition}{Proposition}
