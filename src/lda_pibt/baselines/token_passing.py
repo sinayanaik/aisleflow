@@ -308,17 +308,23 @@ class TokenPassingPlanner:
         # These maps are not well-formed (see the module docstring), and there
         # the same agent blocks by sitting in the one corridor joining the
         # pickups to the deliveries. Path2 exists to get an idle agent out of
-        # the way, so its trigger is widened to the same condition stated
-        # generally: *there is work to do and this agent cannot reach any of
-        # it*. That is a documented deviation from Algorithm 1, and without it
+        # the way, so its trigger is widened to: *there is work to do and none
+        # of it is reachable* -- reachable in the graph with every
+        # already-resting agent removed, which is what `_reachable` computes.
+        # That is a documented deviation from Algorithm 1, and without it
         # Token Passing deadlocks at t = 0 on `warehouse_bottleneck`, where 16
         # agents resting on 83 cells cut the floor into pieces before a single
         # task has been handed out.
-        # reaching here means the agent has no task and did not get one, either
-        # because nothing was reachable or because nothing could be planned;
-        # both are "there is work and this agent cannot serve any of it"
-        unserved_work = bool(task_queue.available(timestep))
-        blocking = unserved_work or any(
+        #
+        # Deliberately *not* widened further, to "could not plan to any of
+        # it". A search that fails while its goal is still reachable failed
+        # because of an agent that is moving, and that agent will have moved
+        # by the next timestep -- so the answer there is to wait and ask
+        # again, which is the algorithm's own answer, rather than to walk off
+        # somewhere. Widening it that far also made every idle agent on a
+        # saturated floor run a Path2 search every timestep.
+        unreachable_work = bool(task_queue.available(timestep)) and not available
+        blocking = unreachable_work or any(
             task.delivery == robot.position
             for task in task_queue.tasks.values()
             if task.status is not TaskStatus.COMPLETED
