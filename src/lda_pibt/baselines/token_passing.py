@@ -103,24 +103,15 @@ class TokenPassingPlanner:
         #: `paths[i][0]` is where robot i stands at the current timestep
         self.paths: Dict[int, List[Vertex]] = {}
 
-        #: the endpoints of the MAPD instance (Ma et al. section 3): task
-        #: endpoints plus the parking endpoints agents rest at
-        self.task_endpoints: Set[Vertex] = set(warehouse.pickup_vertices) | set(
-            warehouse.delivery_vertices
-        )
-        self.parking_endpoints: List[Vertex] = list(warehouse.parking_vertices)
-
-        #: Where Path2 may send an idle agent, best first. Ma et al. say "some
-        #: endpoint", which on a well-formed instance means a parking endpoint
-        #: -- there are at least as many of those as agents, and resting on one
-        #: never blocks a path between task endpoints. These maps have between
-        #: 0 and 4 of them for up to 40 agents, so the list is extended with
-        #: the next best things the map does offer, in descending order of how
-        #: safe it is to stand there: parking bays, then passing bays, then
-        #: cells whose removal does not disconnect the floor. A documented
-        #: deviation, and the alternative is an idle agent with nowhere legal
-        #: to go, standing in the only corridor.
-        self.rest_endpoints: List[Vertex] = self._rest_endpoints(warehouse)
+        #: Where Path2 may send an idle agent, keyed by how good a place it is
+        #: to stand. Ma et al. say "some endpoint", which on a well-formed
+        #: instance means a parking endpoint -- there are at least as many of
+        #: those as agents, and resting on one never blocks a path between
+        #: task endpoints. These maps have between 0 and 4 of them for up to
+        #: 40 agents, so the set is extended with the next best things the map
+        #: does offer. A documented deviation, and the alternative is an idle
+        #: agent with nowhere legal to go, standing in the only corridor.
+        self.rest_endpoints: Dict[Vertex, int] = self._rest_endpoints(warehouse)
 
         self.token_requests = 0
         self.astar_calls = 0
@@ -433,14 +424,11 @@ class TokenPassingPlanner:
         }
         resting = {self._path_end(other) for other in robots if other.id != robot.id}
         candidates = sorted(
-            (
-                (rank, self.graph.route_distance(robot.position, endpoint), endpoint)
-                for rank, endpoint in enumerate(self._endpoints())
-                if endpoint in reachable
-                and endpoint not in wanted
-                and endpoint not in resting
-            ),
-            key=lambda item: (item[0] >= len(self.parking_endpoints), item[1], item[2]),
+            (tier, self.graph.route_distance(robot.position, endpoint), endpoint)
+            for endpoint, tier in self._endpoints().items()
+            if endpoint in reachable
+            and endpoint not in wanted
+            and endpoint not in resting
         )
         for _, distance, endpoint in candidates:
             if not budget:
@@ -453,30 +441,30 @@ class TokenPassingPlanner:
         return [robot.position]
 
     @staticmethod
-    def _rest_endpoints(warehouse: Warehouse) -> List[Vertex]:
+    def _rest_endpoints(warehouse: Warehouse) -> Dict[Vertex, int]:
+        """Every cell an idle agent may be sent to, keyed by how good it is.
+
+        Tier 0 is a real parking endpoint, tier 1 a passing bay, tier 2 any
+        remaining non-task cell whose occupant does not disconnect the floor.
+        Path2 prefers the lowest tier it can reach, and the tiers exist
+        because these maps do not supply enough of tier 0: `warehouse_medium`
+        has four bays for forty agents and `warehouse_corridors` has none.
+        """
         graph = warehouse.graph
         articulations = graph.articulation_points
-        passing = [v for v, info in warehouse.info.items() if info.is_passing_bay]
-        seen: Set[Vertex] = set()
-        ordered: List[Vertex] = []
-        for pool in (
+        stations = set(warehouse.pickup_vertices) | set(warehouse.delivery_vertices)
+        pools = (
             warehouse.parking_vertices,
-            passing,
-            [
-                v
-                for v in graph.vertices
-                if v not in warehouse.pickup_vertices
-                and v not in warehouse.delivery_vertices
-                and v not in articulations
-            ],
-        ):
+            [v for v, info in warehouse.info.items() if info.is_passing_bay],
+            [v for v in graph.vertices if v not in stations and v not in articulations],
+        )
+        tiers: Dict[Vertex, int] = {}
+        for tier, pool in enumerate(pools):
             for vertex in pool:
-                if vertex not in seen:
-                    seen.add(vertex)
-                    ordered.append(vertex)
-        return ordered
+                tiers.setdefault(vertex, tier)
+        return tiers
 
-    def _endpoints(self) -> List[Vertex]:
+    def _endpoints(self) -> Dict[Vertex, int]:
         return self.rest_endpoints
 
     # ------------------------------------------------------------ movement
