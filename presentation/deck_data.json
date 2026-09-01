@@ -1,0 +1,625 @@
+{
+  "meta": {
+    "git_sha": "ef0910e",
+    "seeds": 5,
+    "timesteps": 400,
+    "generated_utc": "2026-09-01T10:17:31Z",
+    "scenarios": [
+      {
+        "map": "warehouse_bottleneck",
+        "robots": 16,
+        "rate": 0.8
+      },
+      {
+        "map": "warehouse_corridors",
+        "robots": 35,
+        "rate": 1.0
+      },
+      {
+        "map": "warehouse_narrow",
+        "robots": 30,
+        "rate": 1.2
+      },
+      {
+        "map": "warehouse_medium",
+        "robots": 40,
+        "rate": 1.5
+      }
+    ]
+  },
+  "featured": {
+    "header": [
+      "Planner",
+      "Throughput (tasks / 1000 steps)",
+      "95% interval"
+    ],
+    "rows": [
+      [
+        "**Aisleflow**",
+        "147",
+        "136\u2013156"
+      ],
+      [
+        "RHCR (Li et al. 2021, PBS)",
+        "100",
+        "94\u2013108"
+      ],
+      [
+        "Token Passing (Ma et al. 2017, Alg. 1)",
+        "94",
+        "90\u201398"
+      ],
+      [
+        "TP + task swaps (Ma et al. 2017, Alg. 2)",
+        "50",
+        "38\u201363"
+      ]
+    ],
+    "caption": "`warehouse_bottleneck`, 16 robots, 0.8 jobs per timestep. Tasks delivered per 1000 timesteps; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `ef0910e`."
+  },
+  "ladder": {
+    "header": [
+      "Configuration",
+      "bottleneck",
+      "corridors",
+      "narrow",
+      "medium"
+    ],
+    "rows": [
+      [
+        "plain lifelong PIBT",
+        "0.127",
+        "0.131",
+        "**0.354**",
+        "**0.502**"
+      ],
+      [
+        "+ turning cost",
+        "0.152",
+        "**0.196**",
+        "0.269",
+        "0.411"
+      ],
+      [
+        "+ stay-in-lane bonus",
+        "**0.155**",
+        "0.181",
+        "0.256",
+        "0.424"
+      ],
+      [
+        "+ crowding",
+        "0.147",
+        "0.178",
+        "0.309",
+        "0.426"
+      ],
+      [
+        "+ deadlock recovery (full)",
+        "0.147",
+        "0.153",
+        "0.291",
+        "0.416"
+      ]
+    ],
+    "caption": "Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `ef0910e`."
+  },
+  "sensitivity": {
+    "header": [
+      "Family",
+      "Knob neutralised",
+      "Pooled effect",
+      "p",
+      "Worst map"
+    ],
+    "rows": [
+      [
+        "score",
+        "`progress_reward`",
+        "-100.0%",
+        "0.000",
+        "bottleneck (-100.0%)"
+      ],
+      [
+        "recovery",
+        "`require_deadlock_corroboration`",
+        "-54.1%",
+        "0.000",
+        "corridors (-90.2%)"
+      ],
+      [
+        "priority",
+        "`priority_class_spread`",
+        "-38.7%",
+        "0.000",
+        "bottleneck (-71.9%)"
+      ],
+      [
+        "score",
+        "`reverse_multiplier`",
+        "-17.2%",
+        "0.000",
+        "narrow (-24.5%)"
+      ],
+      [
+        "score",
+        "`turn_penalty`",
+        "-15.1%",
+        "0.004",
+        "corridors (-28.9%)"
+      ],
+      [
+        "priority",
+        "`waiting_weight`",
+        "-10.0%",
+        "0.034",
+        "corridors (-23.8%)"
+      ],
+      [
+        "congestion",
+        "`local_congestion_radius=1`",
+        "-7.9%",
+        "0.070",
+        "corridors (-22.0%)"
+      ],
+      [
+        "assignment",
+        "`cost_to_pickup`",
+        "-6.4%",
+        "0.086",
+        "narrow (-15.1%)"
+      ],
+      [
+        "congestion",
+        "`local_congestion_radius=5`",
+        "-5.2%",
+        "0.111",
+        "corridors (-16.7%)"
+      ],
+      [
+        "priority",
+        "`priority_inside_aisle`",
+        "-4.4%",
+        "0.203",
+        "corridors (-20.9%)"
+      ],
+      [
+        "assignment",
+        "`cost_pickup_to_delivery`",
+        "-3.5%",
+        "0.202",
+        "narrow (-8.7%)"
+      ],
+      [
+        "recovery",
+        "`stall_steps`",
+        "-2.9%",
+        "0.050",
+        "corridors (-6.5%)"
+      ],
+      [
+        "assignment",
+        "`cost_waiting_cap`",
+        "-2.8%",
+        "0.116",
+        "corridors (-8.2%)"
+      ],
+      [
+        "score",
+        "`aisle_bonus/aisle_bonus_near`",
+        "-2.6%",
+        "0.475",
+        "narrow (-11.4%)"
+      ],
+      [
+        "assignment",
+        "`cost_congestion`",
+        "-2.4%",
+        "0.503",
+        "corridors (-9.1%)"
+      ],
+      [
+        "score",
+        "`crowding_penalty`",
+        "-0.3%",
+        "0.913",
+        "corridors (-16.2%)"
+      ],
+      [
+        "recovery",
+        "`recovery_max_level=4`",
+        "+0.0%",
+        "1.000",
+        "\u2014"
+      ],
+      [
+        "assignment",
+        "`cost_blocking`",
+        "+0.0%",
+        "0.744",
+        "\u2014"
+      ],
+      [
+        "assignment",
+        "`cost_waiting`",
+        "+0.1%",
+        "0.984",
+        "corridors (-11.7%)"
+      ],
+      [
+        "recovery",
+        "`recovery_max_level=0`",
+        "+4.2%",
+        "0.061",
+        "\u2014"
+      ],
+      [
+        "recovery",
+        "`recovery_max_level=1`",
+        "+4.2%",
+        "0.061",
+        "\u2014"
+      ],
+      [
+        "recovery",
+        "`recovery_max_level=2`",
+        "+4.2%",
+        "0.061",
+        "\u2014"
+      ],
+      [
+        "recovery",
+        "`recovery_max_level=3`",
+        "+4.2%",
+        "0.061",
+        "\u2014"
+      ],
+      [
+        "recovery",
+        "`recovery`",
+        "+4.2%",
+        "0.061",
+        "\u2014"
+      ]
+    ],
+    "caption": "24 variants, 10 seeds, 400 steps, 4 maps. Effect is the change in throughput from removing the knob, so a positive number means the planner is better without it. Paired sign-flip test; git `5f68d90`."
+  },
+  "maps": {
+    "header": [
+      "Map",
+      "Grid",
+      "Drivable cells",
+      "Pickup / delivery / parking",
+      "Aisle length",
+      "Aisles",
+      "Junctions",
+      "Cells that split the floor"
+    ],
+    "rows": [
+      [
+        "`warehouse_bottleneck`",
+        "7x23",
+        "83",
+        "6 / 6 / 2",
+        "2-5",
+        "25",
+        "10",
+        "7"
+      ],
+      [
+        "`warehouse_corridors`",
+        "9x23",
+        "123",
+        "5 / 5 / 0",
+        "1-22",
+        "13",
+        "6",
+        "0"
+      ],
+      [
+        "`warehouse_narrow`",
+        "15x25",
+        "135",
+        "5 / 5 / 2",
+        "5-7",
+        "22",
+        "11",
+        "0"
+      ],
+      [
+        "`warehouse_small`",
+        "9x17",
+        "81",
+        "5 / 5 / 2",
+        "3-4",
+        "22",
+        "11",
+        "0"
+      ],
+      [
+        "`warehouse_medium`",
+        "16x25",
+        "184",
+        "7 / 7 / 4",
+        "3-5",
+        "45",
+        "24",
+        "0"
+      ],
+      [
+        "`corridor`",
+        "1x11",
+        "11",
+        "1 / 1 / 0",
+        "11-11",
+        "1",
+        "0",
+        "9"
+      ],
+      [
+        "`loop`",
+        "5x5",
+        "18",
+        "3 / 3 / 1",
+        "1-4",
+        "8",
+        "2",
+        "2"
+      ]
+    ],
+    "caption": "Derived from the map files by `tools/make_docs_tables.py`; nothing here is declared in the map format except which cells are floor, shelf, pickup, delivery and parking. \"Cells that split the floor\" are graph articulation points: a robot standing on one disconnects part of the warehouse from the rest."
+  },
+  "four_floors": [
+    {
+      "map": "warehouse_bottleneck",
+      "robots": 16,
+      "rate": 0.8,
+      "best_variant": "full_lda_pibt",
+      "best_variant_label": "Aisleflow (full congestion config)",
+      "aisleflow": {
+        "mean": 147,
+        "lo": 136,
+        "hi": 156
+      },
+      "strongest_baseline": "rhcr",
+      "strongest_baseline_label": "RHCR",
+      "baselines": {
+        "rhcr": {
+          "mean": 100,
+          "lo": 94,
+          "hi": 108
+        },
+        "token_passing": {
+          "mean": 94,
+          "lo": 90,
+          "hi": 98
+        },
+        "token_passing_task_swaps": {
+          "mean": 50,
+          "lo": 38,
+          "hi": 63
+        }
+      },
+      "lead_pct": 47,
+      "decisive": true,
+      "verdict": "decisive \u2014 intervals do not overlap",
+      "collision_free": true
+    },
+    {
+      "map": "warehouse_corridors",
+      "robots": 35,
+      "rate": 1.0,
+      "best_variant": "full_lda_pibt",
+      "best_variant_label": "Aisleflow (full congestion config)",
+      "aisleflow": {
+        "mean": 153,
+        "lo": 98,
+        "hi": 190
+      },
+      "strongest_baseline": "rhcr",
+      "strongest_baseline_label": "RHCR",
+      "baselines": {
+        "rhcr": {
+          "mean": 128,
+          "lo": 65,
+          "hi": 190
+        },
+        "token_passing": {
+          "mean": 0,
+          "lo": 0,
+          "hi": 0
+        },
+        "token_passing_task_swaps": {
+          "mean": 0,
+          "lo": 0,
+          "hi": 0
+        }
+      },
+      "lead_pct": 20,
+      "decisive": false,
+      "verdict": "ahead, but inside the intervals",
+      "collision_free": true
+    },
+    {
+      "map": "warehouse_narrow",
+      "robots": 30,
+      "rate": 1.2,
+      "best_variant": "lifelong_pibt",
+      "best_variant_label": "Aisleflow (plain lifelong PIBT)",
+      "aisleflow": {
+        "mean": 354,
+        "lo": 340,
+        "hi": 364
+      },
+      "strongest_baseline": "rhcr",
+      "strongest_baseline_label": "RHCR",
+      "baselines": {
+        "rhcr": {
+          "mean": 178,
+          "lo": 94,
+          "hi": 258
+        },
+        "token_passing": {
+          "mean": 28,
+          "lo": 2,
+          "hi": 55
+        },
+        "token_passing_task_swaps": {
+          "mean": 18,
+          "lo": 10,
+          "hi": 26
+        }
+      },
+      "lead_pct": 99,
+      "decisive": true,
+      "verdict": "decisive \u2014 intervals do not overlap",
+      "collision_free": true
+    },
+    {
+      "map": "warehouse_medium",
+      "robots": 40,
+      "rate": 1.5,
+      "best_variant": "lifelong_pibt",
+      "best_variant_label": "Aisleflow (plain lifelong PIBT)",
+      "aisleflow": {
+        "mean": 502,
+        "lo": 487,
+        "hi": 517
+      },
+      "strongest_baseline": "rhcr",
+      "strongest_baseline_label": "RHCR",
+      "baselines": {
+        "rhcr": {
+          "mean": 478,
+          "lo": 464,
+          "hi": 491
+        },
+        "token_passing": {
+          "mean": 85,
+          "lo": 38,
+          "hi": 121
+        },
+        "token_passing_task_swaps": {
+          "mean": 45,
+          "lo": 30,
+          "hi": 64
+        }
+      },
+      "lead_pct": 5,
+      "decisive": false,
+      "verdict": "ahead, but inside the intervals",
+      "collision_free": true
+    }
+  ],
+  "runtime": {
+    "rows": [
+      {
+        "map": "warehouse_bottleneck",
+        "robots": 16,
+        "ms_per_step": {
+          "lifelong_pibt": 0.43,
+          "full_lda_pibt": 1.19,
+          "token_passing": 134.44,
+          "token_passing_task_swaps": 87.35,
+          "rhcr": 30.09
+        },
+        "vs_rhcr": 25,
+        "vs_token_passing": 113
+      },
+      {
+        "map": "warehouse_corridors",
+        "robots": 35,
+        "ms_per_step": {
+          "lifelong_pibt": 0.82,
+          "full_lda_pibt": 2.16,
+          "token_passing": 122.35,
+          "token_passing_task_swaps": 66.53,
+          "rhcr": 77.13
+        },
+        "vs_rhcr": 36,
+        "vs_token_passing": 57
+      },
+      {
+        "map": "warehouse_narrow",
+        "robots": 30,
+        "ms_per_step": {
+          "lifelong_pibt": 1.07,
+          "full_lda_pibt": 3.27,
+          "token_passing": 386.44,
+          "token_passing_task_swaps": 134.53,
+          "rhcr": 104.38
+        },
+        "vs_rhcr": 32,
+        "vs_token_passing": 118
+      },
+      {
+        "map": "warehouse_medium",
+        "robots": 40,
+        "ms_per_step": {
+          "lifelong_pibt": 1.12,
+          "full_lda_pibt": 3.39,
+          "token_passing": 1245.32,
+          "token_passing_task_swaps": 313.82,
+          "rhcr": 58.95
+        },
+        "vs_rhcr": 17,
+        "vs_token_passing": 367
+      }
+    ],
+    "min_vs_rhcr": 17,
+    "max_vs_rhcr": 36,
+    "min_vs_tp": 57,
+    "max_vs_tp": 367
+  },
+  "density": {
+    "rows": [
+      {
+        "map": "warehouse_corridors",
+        "rate": 1.0,
+        "robot_counts": [
+          5,
+          10,
+          20,
+          30,
+          40
+        ],
+        "variant": "full_lda_pibt",
+        "variant_label": "Aisleflow (full congestion config)",
+        "per_1000": [
+          84,
+          122,
+          152,
+          162,
+          152
+        ],
+        "peak_robots": 30,
+        "peak_value": 162,
+        "delta_20_to_40": 0
+      },
+      {
+        "map": "warehouse_medium",
+        "rate": 1.5,
+        "robot_counts": [
+          5,
+          10,
+          20,
+          30,
+          40
+        ],
+        "variant": "lifelong_pibt",
+        "variant_label": "Aisleflow (plain lifelong PIBT)",
+        "per_1000": [
+          122,
+          194,
+          350,
+          438,
+          498
+        ],
+        "peak_robots": 40,
+        "peak_value": 498,
+        "delta_20_to_40": 148
+      }
+    ],
+    "seeds": 3
+  }
+}

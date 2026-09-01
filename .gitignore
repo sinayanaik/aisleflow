@@ -21,3 +21,10 @@ results/
 
 # LaTeX build products. The distributable PDF is committed under docs/pdf/,
 # built by tools/build_docs.py; everything latexmk leaves behind is not.
+
+# The slide deck. `presentation/assets/*.png` are the committed figures
+# rasterised for PowerPoint -- they are un-ignored so the deck rebuilds
+# without matplotlib. The QA render and the npm tree are not deliverables.
+!presentation/assets/*.png
+presentation/node_modules/
+/Aisleflow-Research-Review.pdf
