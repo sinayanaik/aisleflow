@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>SPAR-PIBT — how the planner works</title>
+<style>
+  @page { size: A4 portrait; margin: 18mm 17mm 16mm; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font: 10.5pt/1.5 "Charter", "Bitstream Charter", Georgia, "Times New Roman", serif;
+    color: #14171a; background: #fff; margin: 0 auto; max-width: 176mm;
+  }
+  h1 { font-size: 22pt; line-height: 1.15; margin: 0 0 .2em; letter-spacing: -.01em; }
+  h1 + .sub { font-size: 12pt; color: #5b636c; margin: 0 0 1.4em; font-style: italic; }
+  h2 {
+    font-size: 13.5pt; margin: 1.9em 0 .5em; padding-top: .35em;
+    border-top: 1.5px solid #14171a; break-after: avoid;
+  }
+  h3 { font-size: 11pt; margin: 1.3em 0 .35em; break-after: avoid; }
+  h2 .n, h3 .n { color: #8a929b; font-weight: 600; margin-right: .5em; }
+  p { margin: 0 0 .7em; }
+  ul, ol { margin: 0 0 .8em; padding-left: 1.2em; }
+  li { margin: 0 0 .3em; }
+  code, .mono { font-family: "SFMono-Regular", "DejaVu Sans Mono", Menlo, monospace; font-size: .88em; }
+  code { background: #f2f4f6; padding: .05em .3em; border-radius: 3px; }
+  .math {
+    background: #f7f8fa; border-left: 2.5px solid #b8c0c8; padding: .6em .9em;
+    margin: .8em 0; font-size: 10.5pt; line-height: 1.65; break-inside: avoid;
+  }
+  .math .where { display: block; font-size: 9pt; color: #5b636c; margin-top: .45em; }
+  .var { font-style: italic; }
+  .lede {
+    background: #eef2f6; padding: .9em 1.1em; margin: 0 0 1.4em;
+    border-radius: 4px; font-size: 10.5pt;
+  }
+  .lede p:last-child { margin-bottom: 0; }
+  .key {
+    border: 1px solid #14171a; padding: .8em 1em; margin: 1em 0;
+    break-inside: avoid;
+  }
+  .key b { display: block; font-size: 9pt; letter-spacing: .09em;
+           text-transform: uppercase; color: #5b636c; margin-bottom: .35em; }
+  table { border-collapse: collapse; width: 100%; margin: .9em 0; font-size: 9.3pt;
+          break-inside: avoid; }
+  th, td { text-align: left; padding: .32em .5em; border-bottom: .5px solid #d6dbe0;
+           vertical-align: top; }
+  th { border-bottom: 1px solid #14171a; font-size: 8.6pt; text-transform: uppercase;
+       letter-spacing: .06em; color: #40474e; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  pre {
+    background: #f7f8fa; border: .5px solid #dde2e7; border-radius: 4px;
+    padding: .7em .9em; margin: .8em 0; font-size: 8.7pt; line-height: 1.42;
+    font-family: "SFMono-Regular", "DejaVu Sans Mono", Menlo, monospace;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  pre .c { color: #6b7480; }
+  .note { font-size: 9.3pt; color: #4a525a; }
+  .page-break { break-before: page; }
+  figure { margin: 1em 0; break-inside: avoid; }
+  figcaption { font-size: 9pt; color: #5b636c; margin-top: .4em; }
+  a { color: #14171a; }
+</style>
+
+<h1>SPAR-PIBT, from the inside</h1>
+<p class="sub">Every rule the planner applies, why it is there, and the arithmetic it does each timestep.</p>
+
+<div class="lede">
+<p><b>The planner in one paragraph.</b> Robots live on a 4-connected grid of a
+warehouse. Every timestep each robot picks one of its five moves — four
+neighbours or stay — and PIBT resolves the fights: higher-priority robots claim
+cells first, and a robot that is in the way is <i>pushed</i> out of the way
+rather than merely blocked. SPAR adds a layer above that: corridors ("aisles")
+are given a traffic direction that reverses on demand, and a robot that drives
+against the current is <b>not forbidden — it is charged</b>. The charge is a
+number in the same objective that ranks every other move.</p>
+<p><b>The one design decision.</b> Direction is a term in the objective, not a
+constraint on the domain. PIBT's guarantee rests on a robot always having
+somewhere to be pushed; a one-way rule deletes exactly those escape moves.
+Pricing keeps them, and the price is set so a robot pays it only when nothing
+better is left.</p>
+</div>
+
+<h2><span class="n">1</span>The pieces, and where they live</h2>
+
+<p>Five objects, and every formula below refers only to these.</p>
+
+<table>
+<tr><th>Object</th><th>What it is</th><th>Code</th></tr>
+<tr><td><span class="var" style="white-space:nowrap">G = (V, E)</span></td><td>the passable grid, 4-connected. Vertices are cells.</td><td><code>graph.py</code></td></tr>
+<tr><td>aisle <span class="var">a</span></td><td>a maximal <i>straight</i> run of non-intersection cells, ordered from <code>start_vertex</code> to <code>end_vertex</code>. Moving up the index is <b>FORWARD</b>, down is <b>REVERSE</b>. Bends are split, so an aisle always lies on one compass axis.</td><td><code>warehouse.py</code></td></tr>
+<tr><td>robot <span class="var">i</span></td><td>position <span class="var">x<sub>i</sub></span>, a task, a waypoint <span class="var">g<sub>i</sub></span>, a route, and a priority <span class="var">p<sub>i</sub></span>.</td><td><code>robot.py</code></td></tr>
+<tr><td>task <span class="var">τ</span></td><td>a pickup cell and a delivery cell, released at some timestep. Lifelong: they keep arriving (Poisson).</td><td><code>task.py</code></td></tr>
+<tr><td>timestep</td><td>all robots move simultaneously; a move is to a neighbour or stay.</td><td><code>simulator.py</code></td></tr>
+</table>
+
+<p>Two derived facts about the map matter later. A cell is a
+<b>bottleneck</b> if it is a cut vertex, an endpoint of a bridge edge, or a dead
+end. An aisle is <b>manageable</b> — allowed to hold a traffic direction — only
+if it is at least <code>directional_aisle_min_length</code> = 4 cells long and
+contains no bridge edge. Making a cut edge one-way would disconnect the
+warehouse, so those aisles stay permanently open. That check is the reason the
+system cannot lock itself out of a region.</p>
+
+<h2><span class="n">2</span>One timestep, end to end</h2>
+
+<p>This is <code>Simulator.step()</code>, in order. Steps 1–3 are the lifelong
+bookkeeping; 4–8 are SPAR; 11–12 are PIBT; 13–14 execute.</p>
+
+<table>
+<tr><th style="width:3.2em">#</th><th>What happens</th><th>Why it is here</th></tr>
+<tr><td>1</td><td>New tasks arrive.</td><td>lifelong workload</td></tr>
+<tr><td>2</td><td>Task states advance; completed tasks are recorded.</td><td>a robot at its pickup becomes loaded</td></tr>
+<tr><td>3</td><td>Free robots are matched to pending tasks (§9).</td><td>assignment decides <i>where</i> traffic will go</td></tr>
+<tr><td>4</td><td>Waypoint, route distance <span class="var">r<sub>i</sub></span>, proximity mode, and the weights <span class="var">β<sub>i</sub></span>, <span class="var">γ<sub>i</sub></span> (§4).</td><td>how strongly this robot should care about direction <i>right now</i></td></tr>
+<tr><td>5</td><td>Routes are recomputed; each robot's preferred compass direction is set, with hysteresis.</td><td>the route is what carries direction into the one-step score</td></tr>
+<tr><td>6</td><td>Aisle entrance queues and per-robot direction requests.</td><td>robots <i>request</i></td></tr>
+<tr><td>7</td><td>Every aisle re-decides its direction (§6).</td><td>aisles <i>decide</i></td></tr>
+<tr><td>8</td><td>Entry reservations are expired and granted (§7).</td><td>capacity admission</td></tr>
+<tr><td>9</td><td>Deadlock detection and progressive recovery (§10).</td><td>uses last step's wait-for graph</td></tr>
+<tr><td>10</td><td>Priorities <span class="var">p<sub>i</sub>(t)</span> computed; robots sorted (§3).</td><td>who gets to choose first</td></tr>
+<tr><td style="white-space:nowrap">11–12</td><td>PIBT: each robot in priority order picks its move, pushing others as needed (§8).</td><td>the only step that decides collisions</td></tr>
+<tr><td>13</td><td>The joint plan is validated: no two robots in one cell, no swaps.</td><td>a safety assertion, on by default</td></tr>
+<tr><td style="white-space:nowrap">14–16</td><td>Everyone moves at once; counters and metrics are logged.</td><td></td></tr>
+</table>
+
+<p class="note">Note what is <i>not</i> in step 12: nothing about direction. By
+the time PIBT runs, the aisle layer has already spoken, and it spoke by
+changing numbers in the score, not by removing options.</p>
+
+<h2><span class="n">3</span>Who chooses first: priority</h2>
+
+<p>PIBT is a priority scheme, so the priority function <i>is</i> the policy for
+whose journey matters. It is a sum of a class term and four continuous terms.</p>
+
+<div class="math">
+<span class="var">p<sub>i</sub>(t)</span> = <span class="var">P</span><sub>class</sub>(<span class="var">i</span>)
+ + <span class="var">P</span><sub>aisle</sub>·[<span class="var">i</span> is inside an aisle]
+ + <span class="var">k<sub>u</sub></span>·<span class="var">U<sub>i</sub></span>(<span class="var">t</span>)
+ + <span class="var">k<sub>w</sub></span>·<span class="var">W<sub>i</sub></span>
+ + <span class="var">k<sub>b</sub></span>·<span class="var">B<sub>i</sub></span>
+ + <span class="var">ε<sub>i</sub></span>
+<span class="where">
+<span class="var">U<sub>i</sub></span> task urgency · <span class="var">W<sub>i</sub></span> steps waited ·
+<span class="var">B<sub>i</sub></span> steps blocked · <span class="var">ε<sub>i</sub></span> a fixed per-robot tie-breaker, so the order is deterministic.
+</span>
+</div>
+
+<table>
+<tr><th>Class</th><th class="num">P<sub>class</sub></th><th>Meaning</th></tr>
+<tr><td>emergency</td><td class="num">400</td><td>robot is in deadlock recovery</td></tr>
+<tr><td>loaded</td><td class="num">300</td><td>carrying, heading to delivery</td></tr>
+<tr><td>pickup</td><td class="num">200</td><td>heading to a pickup</td></tr>
+<tr><td>repositioning</td><td class="num">100</td><td>parked / moving out of the way</td></tr>
+<tr><td>free</td><td class="num">0</td><td>idle, no task</td></tr>
+<tr><td>inside an aisle</td><td class="num">+50</td><td>added on top: get the corridor cleared first</td></tr>
+</table>
+
+<div class="key">
+<b>The intuition</b>
+Classes are 100 apart and waiting is worth <span class="var">k<sub>w</sub></span> = 5 per step, so a
+robot cannot be starved by class alone: after
+(400 − 0)/5 = <b>80 steps of waiting an idle robot outranks anything</b>. That
+ratio is the <i>fairness horizon</i>, and it is the only thing standing between
+"loaded robots first" and permanent starvation of everyone else. Being blocked
+counts double (<span class="var">k<sub>b</sub></span> = 10) because a blocked robot is
+usually the head of a queue: promoting it unjams the robots behind it too.
+</div>
+
+<h2><span class="n">4</span>How much a robot should care about direction</h2>
+
+<p>A robot 30 cells from its waypoint should happily follow the traffic scheme.
+A robot one cell away should ignore it and arrive. So the direction weights are
+functions of the remaining route distance <span class="var">r<sub>i</sub></span>,
+not constants.</p>
+
+<div class="math">
+mode = TRANSIT if <span class="var">r<sub>i</sub></span> &gt; <span class="var">R</span><sub>far</sub>,
+ APPROACH if <span class="var">r<sub>i</sub></span> &gt; <span class="var">R</span><sub>near</sub>,
+ else ARRIVAL<br>
+<span class="var">β<sub>i</sub></span> = <span class="var">β</span><sub>max</sub> · min(1,
+ max(0, <span class="var">r<sub>i</sub></span> − <span class="var">R</span><sub>near</sub>) /
+ max(1, <span class="var">R</span><sub>far</sub> − <span class="var">R</span><sub>near</sub>))<br>
+<span class="var">γ<sub>i</sub></span> = <span class="var">γ</span><sub>strong</sub> (TRANSIT),
+ ½(<span class="var">γ</span><sub>strong</sub>+<span class="var">γ</span><sub>weak</sub>) (APPROACH),
+ <span class="var">γ</span><sub>weak</sub> (ARRIVAL)
+<span class="where">Defaults <span class="var">R</span><sub>near</sub> = 2, <span class="var">R</span><sub>far</sub> = 8,
+<span class="var">β</span><sub>max</sub> = 3, <span class="var">γ</span><sub>strong</sub> = 2, <span class="var">γ</span><sub>weak</sub> = 0.5.</span>
+</div>
+
+<p><span class="var">β<sub>i</sub></span> ramps linearly from 0 at two cells out
+to its ceiling at eight and stays there. <span class="var">γ<sub>i</sub></span>
+is the pull to stay in the aisle you are already in — useful while transiting,
+harmful when your shelf is one cell to the side, so it decays too. Both are
+computed once per robot per timestep (step 4) and then held fixed while every
+candidate move is scored.</p>
+
+<p>The robot's <b>preferred compass direction</b> is simply the orientation of
+the first edge of its route. Hysteresis keeps that preference from flapping: it
+is only re-committed at an intersection, when the robot is not in TRANSIT, or
+when it has been blocked for <code>t_blocked</code> = 10 steps.</p>
+
+<h2><span class="n">5</span>The score: one number per candidate move</h2>
+
+<p>This is the heart of the planner. For robot <span class="var">i</span>
+considering moving to cell <span class="var">v</span>:</p>
+
+<div class="math">
+<span class="var">S<sub>i</sub></span>(<span class="var">v</span>) =
+ <b>α·Δ<sub>i</sub>(v)</b>
+ + <span class="var">β<sub>i</sub></span>·[<span class="var">v</span> is the preferred direction]
+ + <span class="var">γ<sub>i</sub></span>·[<span class="var">v</span> is in the same aisle]
+ − <span class="var">λ</span><sub>turn</sub>·<span class="var">P</span><sup>turn</sup>
+ − <span class="var">μ</span>·<span class="var">C<sub>i</sub></span>(<span class="var">v</span>)
+ − <span class="var">ν</span>·<span class="var">P</span><sup>wait</sup>
+ − <span class="var">ξ</span>·[<span class="var">v</span> is a bottleneck]
+ − <b>ζ<sub>flow</sub>·[counterflow] − ζ<sub>ticket</sub>·[no reservation]</b>
+</div>
+
+<table>
+<tr><th>Term</th><th class="num">Default</th><th>What it is, and why</th></tr>
+<tr><td><span class="var">α</span>·<span class="var">Δ<sub>i</sub></span></td><td class="num">10</td>
+<td><b>Progress.</b> <span class="var">Δ</span> = route distance from here − route distance from <span class="var">v</span>, i.e. <b>+1, 0 or −1</b>. This dominates everything, which is the point: the planner is a shortest-path follower that has been taught manners.</td></tr>
+<tr><td><span class="var">β<sub>i</sub></span></td><td class="num">0 … 3</td><td>Move agrees with the robot's own preferred heading. Decays to 0 near the waypoint (§4).</td></tr>
+<tr><td><span class="var">γ<sub>i</sub></span></td><td class="num">0.5 … 2</td><td>Stay in the aisle you are in. Zeroed when the robot is standing on an intersection — an intersection is where you are <i>meant</i> to change aisle.</td></tr>
+<tr><td><span class="var">λ</span><sub>turn</sub></td><td class="num">0.5</td><td>Turn cost: 0 straight, 1 for a turn, <span class="var">η</span> = 2 for a reversal. Real robots pay for rotation; this stops zig-zag paths.</td></tr>
+<tr><td><span class="var">μ</span>·<span class="var">C<sub>i</sub></span></td><td class="num">1</td><td>Congestion, in [0, 1] (§5.1). Steers around jams before entering them.</td></tr>
+<tr><td><span class="var">ν</span>·<span class="var">P</span><sup>wait</sup></td><td class="num">0.2</td><td>Waiting in place costs 1 — <i>unless</i> the robot is already at its waypoint, where waiting is free.</td></tr>
+<tr><td><span class="var">ξ</span></td><td class="num">1</td><td>Bottleneck cell (cut vertex, bridge, dead end). Don't loiter in the doorway.</td></tr>
+<tr><td><b><span class="var">ζ</span><sub>flow</sub></b></td><td class="num">8</td><td><b>Counterflow.</b> The move opposes the aisle's committed direction.</td></tr>
+<tr><td><b><span class="var">ζ</span><sub>ticket</sub></b></td><td class="num">8</td><td><b>No ticket.</b> Entering a directional aisle without a valid reservation, or one that is already full.</td></tr>
+</table>
+
+<div class="key">
+<b>Why ζ = 8 and not 8000</b>
+Read the numbers as a sentence. A step of progress is worth 10. Every polite
+term put together — heading, aisle continuity, no turn, empty, not a bottleneck
+— is worth at most 3 + 2 = 5. So:
+<ul style="margin-top:.5em">
+<li>A <b>legal</b> move that makes progress scores 10 + up to 5. It always wins.</li>
+<li>A <b>counterflow</b> move that makes progress scores 10 − 8 = <b>+2</b>.</li>
+<li><b>Waiting</b> scores −0.2 (and worse if the cell is congested).</li>
+</ul>
+So a robot with a legal way forward never goes counterflow, and a robot with no
+legal way forward goes counterflow rather than sit in a queue. That is the whole
+policy, and it falls straight out of α &gt; ζ &gt; β &gt; γ &gt; μ ≈ ξ &gt; λ &gt; ν.
+</div>
+
+<h3><span class="n">5.1</span>Congestion</h3>
+
+<div class="math">
+<span class="var">C<sub>i</sub></span>(<span class="var">v</span>) =
+ (<span class="var">ω<sub>l</sub></span>·<span class="var">C</span><sub>local</sub> +
+  <span class="var">ω<sub>a</sub></span>·<span class="var">C</span><sub>aisle</sub> +
+  <span class="var">ω<sub>d</sub></span>·<span class="var">C</span><sub>down</sub>) /
+ (<span class="var">ω<sub>l</sub></span>+<span class="var">ω<sub>a</sub></span>+<span class="var">ω<sub>d</sub></span>)
+<span class="where">
+<span class="var">C</span><sub>local</sub> = robots within Manhattan radius 3 of <span class="var">v</span>, divided by the passable cells in that diamond &nbsp;·&nbsp;
+<span class="var">C</span><sub>aisle</sub> = occupancy / capacity of <span class="var">v</span>'s aisle &nbsp;·&nbsp;
+<span class="var">C</span><sub>down</sub> = fraction of the next 5 route cells beyond <span class="var">v</span> that are occupied.
+All three weights default to 1.
+</span>
+</div>
+
+<p>All three components are <b>ratios in [0, 1]</b> and the weights are
+normalised, so <span class="var">C</span> itself is in [0, 1] and
+<span class="var">μ</span>·<span class="var">C</span> can never reach the scale
+of <span class="var">α</span>·<span class="var">Δ</span>. This is not cosmetic:
+if <span class="var">C</span><sub>local</sub> were a raw count (up to ~13 robots
+in that diamond) the congestion penalty alone would outweigh a step of progress
+and the robot would prefer to stand still in empty space.</p>
+
+<h2><span class="n">6</span>The aisle layer: direction as a traffic signal</h2>
+
+<p>The governing rule: <b>robots generate directional requests, aisles make
+directional decisions.</b> No robot ever sets an aisle's direction; it only
+votes.</p>
+
+<h3><span class="n">6.1</span>The vote</h3>
+
+<p>Each robot's route names the aisles it needs and the direction it needs them
+in (index increasing = FORWARD). Its vote has a weight:</p>
+
+<div class="math">
+<span class="var">d<sub>i,a</sub></span> =
+ <span class="var">w<sub>u</sub></span>·<span class="var">U<sub>i</sub></span>
+ + <span class="var">w<sub>w</sub></span>·(max(<span class="var">W<sub>i</sub></span>, stalled steps) + <span class="var">B<sub>i</sub></span>)
+ + <span class="var">w<sub>p</sub></span>/(1 + dist(<span class="var">x<sub>i</sub></span>, nearest end of <span class="var">a</span>))
+ − <span class="var">w<sub>l</sub></span>·(route length)
+ − <span class="var">w<sub>c</sub></span>·(load of <span class="var">a</span>)
+<span class="where">
+Defaults <span class="var">w<sub>u</sub></span> = 1, <span class="var">w<sub>w</sub></span> = 0.5, <span class="var">w<sub>p</sub></span> = 2,
+<span class="var">w<sub>l</sub></span> = 0.05, <span class="var">w<sub>c</sub></span> = 0.5. &nbsp;
+<span class="var">S<sub>a</sub><sup>+</sup></span> and <span class="var">S<sub>a</sub><sup>−</sup></span> are the sums of
+<span class="var">d<sub>i,a</sub></span> over the robots asking for FORWARD and REVERSE.
+</span>
+</div>
+
+<p>Three details carry weight. <b>Proximity</b> is <span class="var">1/(1+d)</span>,
+so a robot at the mouth of the aisle counts for 2 and one ten cells away counts
+for 0.18 — imminent demand decides. <b>Stalled route progress counts as
+waiting</b>, not just standing still: a robot shuffling in place while getting
+no closer is starving, and this is what eventually flips an aisle against it.
+And demand is <b>signed against congestion</b>, so an aisle already full does
+not attract even more traffic.</p>
+
+<h3><span class="n">6.2</span>The decision</h3>
+
+<p>Let <span class="var">I</span> = <span class="var">S<sub>a</sub><sup>+</sup></span> −
+<span class="var">S<sub>a</sub><sup>−</sup></span> and let <span class="var">θ</span> = 5 be
+the dead band. Every timestep, for each manageable aisle:</p>
+
+<pre><span class="c"># state machine: OPEN -> FORWARD/REVERSE -> DRAINING -> ...</span>
+if state is DRAINING:
+    if occupancy &gt; 0 and (t - draining_since) &lt;= max_drain_time:   <span class="c"># 30</span>
+        hold                                    <span class="c"># nobody new may enter</span>
+    elif drained:  commit(pending_direction)    <span class="c"># the flip we drained for</span>
+    else:          reopen as OPEN               <span class="c"># drain timed out; do not block forever</span>
+
+elif occupancy &gt; 0 and direction is committed:
+    hold the direction, but
+    if opposing_imbalance &gt; θ:                             begin drain
+    if (t - direction_since) &gt;= max_lock and opposing &gt; 0: begin drain   <span class="c"># maximum green</span>
+
+else:                                           <span class="c"># empty, or no direction yet</span>
+    if t &lt; lock_until:  hold                    <span class="c"># minimum green: 20 steps</span>
+    elif I &gt;  θ:        commit FORWARD
+    elif I &lt; -θ:        commit REVERSE
+    else:               OPEN (no direction at all)</pre>
+
+<div class="key">
+<b>Two clocks, and why both are needed</b>
+<b>Minimum green</b> (<code>minimum_aisle_lock_time</code> = 20, and never more
+than twice the aisle's length) plus the dead band <span class="var">θ</span> is
+hysteresis: it stops an aisle flipping every time the demand wobbles.
+<b>Maximum green</b> (<code>maximum_aisle_lock_time</code> = 40) is the other
+half, and it is easy to leave out. Hysteresis bounds how <i>soon</i> a direction
+may change; nothing bounds how <i>long</i> it may persist. Pickups on one side
+of the map and deliveries on the other produce near-balanced demand — the normal
+case — so the imbalance never leaves the dead band and one direction is held
+forever while the other queue starves. Past 40 steps, <i>any</i> opposing demand
+forces a drain and a flip. Every such flip is counted as a
+<code>starvation_flip</code>, so the mechanism is visible in the metrics rather
+than a silent internal.
+</div>
+
+<p><b>Drain before reverse</b> is the safety rule: an aisle never reverses while
+robots are still inside it, because that would turn every one of them into a
+counterflow violator at once. It enters DRAINING, refuses new entrants, waits
+for the corridor to empty, and only then commits the pending direction. If it
+cannot empty within 30 steps — someone inside is itself stuck — the aisle
+reopens rather than blocking traffic indefinitely.</p>
+
+<h3><span class="n">6.3</span>What "counterflow" actually means</h3>
+
+<p><code>violates_aisle_direction</code> is a <i>predicate</i>, not a veto. Its
+answer becomes <span class="var">ζ</span><sub>flow</sub> in the score. It is true
+when the aisle has a committed direction and:</p>
+<ul>
+<li>the robot is <b>outside</b> and would enter against the direction (or the aisle is DRAINING — nobody enters a draining aisle); or</li>
+<li>the robot is <b>inside</b> and moves against the direction <i>without</i> heading for the nearer end.</li>
+</ul>
+<p>That last exemption is what lets DRAINING terminate: a robot caught facing the
+wrong way is always allowed to back out toward the near exit for free.</p>
+
+<h2><span class="n">7</span>Admission: reservations and capacity</h2>
+
+<p>Direction says <i>which way</i>; capacity says <i>how many</i>. They are
+separate mechanisms and separate flags — over-filling a single-file corridor
+jams it regardless of which way it points.</p>
+
+<ul>
+<li><b>Capacity.</b> Default model <code>"drain"</code>: an aisle of length <span class="var">L</span> holds
+  <code>min(⌈L⌉, max_drain_time − L)</code> robots, capped at 10. The reasoning
+  is the exit, not the volume: the last robot in still has <span class="var">L</span> cells to cross
+  and every robot ahead adds a step, so a queue that cannot clear within the
+  drain window is a queue that will jam.</li>
+<li><b>Tickets.</b> A robot within 3 cells of an entrance, whose requested
+  direction matches, and for which <code>occupancy + outstanding tickets &lt; capacity</code>,
+  is granted a <code>Reservation</code> with a TTL of 15 steps. Tickets are
+  handed out in priority order, expire on their own, and are dropped as soon as
+  the robot is inside or has re-routed.</li>
+<li><b>Open aisles need no ticket.</b> Requiring one to cross an OPEN aisle
+  would throttle every crossing on a map of short corridors. The occupancy cap
+  still applies there.</li>
+</ul>
+
+<p>Entering without a valid ticket costs <span class="var">ζ</span><sub>ticket</sub> = 8 — again
+a price, not a wall.</p>
+
+<h2><span class="n">8</span>PIBT: the only layer that decides collisions</h2>
+
+<p>Everything above changed the <i>order</i> of a robot's candidate moves.
+Nothing above removed one. PIBT now takes that ordered list and resolves the
+joint plan.</p>
+
+<p>The candidate set is <span class="var">C<sub>i</sub></span> = neighbours of
+<span class="var">x<sub>i</sub></span> ∪ {<span class="var">x<sub>i</sub></span>}.
+A candidate is dropped only for reasons of physics or safety:</p>
+
+<table>
+<tr><th>Rejection</th><th>Test</th></tr>
+<tr><td>off-graph</td><td>the cell is a wall or outside the map</td></tr>
+<tr><td>vertex conflict</td><td>the cell is already reserved this timestep, or its occupant is staying put</td></tr>
+<tr><td>swap conflict</td><td>the move would exchange cells with the robot that pushed you</td></tr>
+</table>
+
+<pre>PIBT(i, parent):
+    for v in candidates(i) sorted by descending S_i(v):     <span class="c"># §5</span>
+        if v is reserved: continue
+        reserve v for i
+        j = occupant(v)
+        if j is none or j has already planned elsewhere: return VALID
+        <span class="c"># priority inheritance: j must move, and it must move now</span>
+        if PIBT(j, parent=i) is VALID: return VALID
+        <span class="c"># backtracking: undo and try i's next-best candidate</span>
+        un-reserve v
+    <span class="c"># nothing worked: stay put, and record the block</span>
+    i.next = i.position; return INVALID</pre>
+
+<div class="key">
+<b>Why the aisle layer must not delete candidates</b>
+PIBT's progress argument is that the highest-priority robot always gets its
+best move, because any robot in the way can be <i>pushed</i> into some adjacent
+cell. That argument consumes free neighbours. A one-way rule removes, on
+average, half the neighbours of every cell in a corridor — precisely the escape
+moves the recursion needs. The result is not "slightly more careful traffic": it
+is a planner whose inheritance chains dead-end and whose corridors fill with
+robots that are individually obeying the rules. Measured, that is a
+<b>1.9× to 3.7× loss of throughput</b> versus pricing the same rule
+(<code>matrix-comparison.pdf</code>). The soft version keeps every candidate and
+merely reorders them, so the progress argument survives intact.
+</div>
+
+<p><code>hard_direction_constraints</code> restores the deleting behaviour. It
+exists only so that comparison can be run.</p>
+
+<h2><span class="n">9</span>Task assignment</h2>
+
+<p>Greedy minimum-cost matching between free robots and released tasks,
+re-run every timestep. It matters because assignment decides where traffic
+<i>will</i> be, minutes before the movement layer has to cope with it.</p>
+
+<div class="math">
+<span class="var">J</span>(<span class="var">i</span>, <span class="var">τ</span>) =
+ <span class="var">a</span>·<span class="var">d</span>(<span class="var">x<sub>i</sub></span>, pickup)
+ + <span class="var">b</span>·<span class="var">d</span>(pickup, delivery)
+ + <span class="var">g</span>·<span class="var">C</span><sub>route</sub>
+ + <span class="var">δ</span>·min(<span class="var">W<sub>τ</sub></span>, 60)
+ + <span class="var">e</span>·<span class="var">T</span><sub>direction</sub>
+ + <span class="var">z</span>·<span class="var">B</span>
+<span class="where">
+<span class="var">a</span> = 1, <span class="var">b</span> = 0.5, <span class="var">g</span> = 12,
+<span class="var">δ</span> = −0.5 (negative: older tasks are preferred),
+<span class="var">e</span> = 1, <span class="var">z</span> = 1.
+</span>
+</div>
+
+<p><span class="var">T</span><sub>direction</sub> is the expected wait for aisles
+currently pointing the wrong way (about half a lock time plus the occupancy of
+each such aisle) — the assignment layer <i>knows</i> about the traffic signals
+and prices the detour honestly. <span class="var">B</span> is the fraction of the
+route made of bottleneck cells. Two caps matter: the task-age term is clipped at
+60, or in a lifelong run it grows without bound and the match degenerates to
+oldest-task-first; and <span class="var">C</span><sub>route</sub> is a per-cell
+mean, so a long empty route never looks worse than a short jammed one.</p>
+
+<h2><span class="n">10</span>When it jams anyway</h2>
+
+<p>Three stall signals, and a deliberate rule about combining them:
+no route progress for <code>t_blocked</code> = 10 steps; a repeated local
+configuration (the robot's last 4 positions equal the 4 before them); and a
+cycle in the wait-for graph, where <span class="var">i</span> →
+<span class="var">j</span> means "<span class="var">i</span> asked
+<span class="var">j</span> to move and <span class="var">j</span> could not".</p>
+
+<p><b>No progress alone is not a deadlock.</b> In dense lifelong traffic a robot
+queues for ten steps as a matter of course. So it is only a precondition:
+a group must also show a cycle or a repeated configuration
+(<code>require_deadlock_corroboration</code>). Without that check, recovery
+fires on healthy traffic and levels 5–7 below destroy more throughput than they
+save. Groups are then formed either from a wait-for cycle or from
+spatially clustered blocked robots.</p>
+
+<p>Recovery is <b>progressive</b>: a group that is still stuck escalates one
+level per timestep, so cheap remedies get their chance first.</p>
+
+<table>
+<tr><th style="width:2em">Lv</th><th>Remedy</th><th>Cost</th></tr>
+<tr><td>1</td><td>recompute the group's routes</td><td>free</td></tr>
+<tr><td>2</td><td>re-decide the directions of the aisles involved</td><td>local</td></tr>
+<tr><td>3</td><td>release stale reservations</td><td>local</td></tr>
+<tr><td>4</td><td>raise the blocked robots to emergency priority (400)</td><td>reorders traffic</td></tr>
+<tr><td>5</td><td>allow a temporary reverse move (ignore direction for a few steps)</td><td>breaks the traffic scheme locally</td></tr>
+<tr><td>6</td><td>send robots to escape vertices (passing bays)</td><td>abandons the route</td></tr>
+<tr><td>7</td><td>run a local fallback planner</td><td>expensive</td></tr>
+</table>
+
+<p>A group that survives level 7 is counted as <code>unrecovered</code> and the
+strongest remedy keeps being applied. That counter is reported rather than
+hidden.</p>
+
+<h2><span class="n">11</span>The knobs that actually change behaviour</h2>
+
+<table>
+<tr><th>Parameter</th><th class="num">Default</th><th>Turn it up / off and…</th></tr>
+<tr><td><code>direction_control</code></td><td class="num">aisle</td><td><code>"robot"</code>: robots prefer a heading but no aisle ever commits. <code>"none"</code>: plain PIBT with congestion and turn costs.</td></tr>
+<tr><td><code>zeta_counterflow</code></td><td class="num">8</td><td>&gt; 10 makes direction effectively hard (progress can no longer buy it). 0 removes the traffic scheme's teeth.</td></tr>
+<tr><td><code>hard_direction_constraints</code></td><td class="num">off</td><td>On: direction becomes a rejection again. This is the ablation the method is named against.</td></tr>
+<tr><td><code>maximum_aisle_lock_time</code></td><td class="num">40</td><td>Higher: fewer flips, more starvation. Unbounded: aisles lock forever under balanced demand.</td></tr>
+<tr><td><code>direction_switch_threshold</code></td><td class="num">5</td><td>The dead band. Lower: twitchy signals. Higher: sluggish response.</td></tr>
+<tr><td><code>reservations</code></td><td class="num">on</td><td>Capacity admission. Independent of direction control.</td></tr>
+<tr><td><code>require_deadlock_corroboration</code></td><td class="num">on</td><td>Off: recovery fires on ordinary queueing and costs throughput.</td></tr>
+<tr><td><code>directional_aisle_min_length</code></td><td class="num">4</td><td>Short links are never made one-way; making them one-way fragments the network.</td></tr>
+<tr><td><code>direction_aware_routing</code></td><td class="num">off</td><td>On: routes are A* with a penalty of 6 per edge against the flow, so robots detour instead of queueing.</td></tr>
+</table>
+
+<h2><span class="n">12</span>Formula → code</h2>
+
+<table>
+<tr><th>What</th><th>Where</th></tr>
+<tr><td>priority <span class="var">p<sub>i</sub>(t)</span></td><td><code>priority.py:compute_priority</code></td></tr>
+<tr><td><span class="var">β<sub>i</sub></span>, <span class="var">γ<sub>i</sub></span>, proximity mode</td><td><code>scoring.py:compute_direction_weight</code>, <code>compute_aisle_weight</code></td></tr>
+<tr><td>score <span class="var">S<sub>i</sub></span>(<span class="var">v</span>)</td><td><code>scoring.py:CandidateScorer.score</code></td></tr>
+<tr><td><span class="var">ζ</span> terms</td><td><code>scoring.py:CandidateScorer.aisle_penalty</code></td></tr>
+<tr><td>congestion <span class="var">C<sub>i</sub></span>(<span class="var">v</span>)</td><td><code>congestion.py:CongestionModel.congestion</code></td></tr>
+<tr><td>demand <span class="var">S<sub>a</sub><sup>±</sup></span></td><td><code>aisle_manager.py:compute_directional_demand</code></td></tr>
+<tr><td>signal state machine</td><td><code>aisle_manager.py:update_aisle_direction</code></td></tr>
+<tr><td>tickets and capacity</td><td><code>aisle_manager.py:update_aisle_reservations</code>, <code>can_enter_aisle</code></td></tr>
+<tr><td>counterflow predicate</td><td><code>aisle_manager.py:violates_aisle_direction</code></td></tr>
+<tr><td>PIBT recursion</td><td><code>pibt.py:PIBTPlanner.pibt</code></td></tr>
+<tr><td>hard-rejection rules</td><td><code>pibt.py:feasible_candidates</code></td></tr>
+<tr><td>assignment cost <span class="var">J</span></td><td><code>assignment.py:assignment_cost</code></td></tr>
+<tr><td>detection and the ladder</td><td><code>deadlock.py:detect_deadlocked_groups</code>, <code>recover_from_deadlock</code></td></tr>
+<tr><td>the timestep</td><td><code>simulator.py:Simulator.step</code></td></tr>
+<tr><td>every default quoted here</td><td><code>config.py:Params</code></td></tr>
+</table>
+
+<p class="note" style="margin-top:1.6em">Ask the running planner why a robot did
+what it did: <code>pibt.py:explain_candidates</code> returns, per candidate, the
+rules that rejected it, the penalties it merely carried, and its score. A robot
+that is stalled almost always has one repeated reason.</p>

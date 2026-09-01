@@ -185,7 +185,7 @@ code { font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 12.5
     "how busy it was" &mdash; it is the warehouse's service capacity under that
     planner. That is why 502 against 313 tasks per 1000 timesteps is a 61% difference
     and not a rounding error. <strong>Throughput is reported per 1000
-    timesteps</strong> throughout this page and the paper.</p>
+    timesteps</strong> throughout this page and the comparison matrix.</p>
     <p><strong>Service time only counts tasks that finished.</strong> A planner
     that gives up on the hard tasks reports a beautiful mean service time. Both
     external baselines do exactly that here: near-zero throughput beside some of

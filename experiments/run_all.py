@@ -11,7 +11,7 @@ happened on four different afternoons.
 Nothing here re-implements an experiment: every suite is a call into
 `lda_pibt.experiments`. What this script adds is a provenance header on each
 file -- seeds, horizon, scenarios, git SHA, wall-clock date -- so a number in
-the paper can always be traced back to the run that produced it.
+the documents can always be traced back to the run that produced them.
 
 Usage::
 
@@ -48,7 +48,7 @@ from lda_pibt.experiments import (  # noqa: E402
 OUT_DIR = ROOT / "docs" / "data"
 
 #: `--quick` writes here instead. A two-seed smoke test that overwrote the
-#: committed dataset would silently invalidate every figure, the paper's tables
+#: committed dataset would silently invalidate every figure, the comparison matrix
 #: and the dashboard, all of which read `docs/data/` -- so it cannot.
 QUICK_DIR = ROOT / "results" / "quick"
 
@@ -267,8 +267,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.quick and out_dir == OUT_DIR:
         raise SystemExit(
             "refusing to write a --quick smoke test into docs/data/: those "
-            "files are the dataset the paper, the figures and the dashboard "
-            "are generated from. Drop --out, or pass a different directory."
+            "files are the dataset the comparison matrix, the figures and "
+            "the dashboard are generated from. Drop --out, or pass a "
+            "different directory."
         )
 
     started = time.time()

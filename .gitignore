@@ -21,13 +21,3 @@ results/
 
 # LaTeX build products. The distributable PDF is committed under docs/pdf/,
 # built by tools/build_docs.py; everything latexmk leaves behind is not.
-docs/latex/*.aux
-docs/latex/*.bbl
-docs/latex/*.blg
-docs/latex/*.fdb_latexmk
-docs/latex/*.fls
-docs/latex/*.log
-docs/latex/*.out
-docs/latex/*.toc
-docs/latex/aisleflow.pdf
-docs/latex/*.fdb_latexmk
