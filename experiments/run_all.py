@@ -17,7 +17,7 @@ Usage::
 
     python3 experiments/run_all.py                  # 5 seeds, 400 steps
     python3 experiments/run_all.py --seeds 10
-    python3 experiments/run_all.py --quick          # smoke test, ~1 minute
+    python3 experiments/run_all.py --quick          # smoke test -> results/quick/
     python3 experiments/run_all.py --only baselines
 """
 
@@ -46,6 +46,11 @@ from lda_pibt.experiments import (  # noqa: E402
 )
 
 OUT_DIR = ROOT / "docs" / "data"
+
+#: `--quick` writes here instead. A two-seed smoke test that overwrote the
+#: committed dataset would silently invalidate every figure, the paper's tables
+#: and the dashboard, all of which read `docs/data/` -- so it cannot.
+QUICK_DIR = ROOT / "results" / "quick"
 
 #: (map, robots, arrival rate). These are exactly the scenarios the four
 #: existing scripts already use for these maps, so this dataset stays
@@ -116,12 +121,13 @@ def header(suite: str, seeds: int, horizon: int, scenarios: Sequence) -> Dict[st
     }
 
 
-def write(name: str, payload: Dict[str, Any]) -> Path:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUT_DIR / f"{name}.json"
+def write(name: str, payload: Dict[str, Any], out_dir: Path = OUT_DIR) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{name}.json"
     path.write_text(json.dumps(payload, indent=2) + "\n")
     size = path.stat().st_size
-    print(f"  wrote {path.relative_to(ROOT)}  ({size / 1024:.0f} kB)")
+    shown = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+    print(f"  wrote {shown}  ({size / 1024:.0f} kB)")
     return path
 
 
@@ -245,21 +251,34 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="2 seeds, 120 steps -- a smoke test, not a result")
     parser.add_argument("--only", nargs="*", choices=SUITES, default=None,
                         help="run a subset of the suites")
+    parser.add_argument("--out", type=Path, default=None,
+                        help=f"where to write (default {OUT_DIR.relative_to(ROOT)}, "
+                             f"or {QUICK_DIR.relative_to(ROOT)} with --quick)")
     args = parser.parse_args(argv)
 
     seeds = 2 if args.quick else args.seeds
     horizon = 120 if args.quick else args.horizon
+    # resolved, because the guard below compares directories and a relative
+    # --out docs/data must not slip past it
+    out_dir = (args.out.resolve() if args.out
+               else (QUICK_DIR if args.quick else OUT_DIR))
     wanted = args.only or list(SUITES)
+
+    if args.quick and out_dir == OUT_DIR:
+        raise SystemExit(
+            "refusing to write a --quick smoke test into docs/data/: those "
+            "files are the dataset the paper, the figures and the dashboard "
+            "are generated from. Drop --out, or pass a different directory."
+        )
 
     started = time.time()
     for name in wanted:
         print(f"\n### {name}  ({seeds} seeds, {horizon} steps)")
         suite_started = time.time()
-        write(name, RUNNERS[name](seeds, horizon))
+        write(name, RUNNERS[name](seeds, horizon), out_dir)
         print(f"  {name} took {time.time() - suite_started:.0f}s")
 
-    print(f"\ndone in {(time.time() - started) / 60:.1f} min -> "
-          f"{OUT_DIR.relative_to(ROOT)}/")
+    print(f"\ndone in {(time.time() - started) / 60:.1f} min -> {out_dir}/")
     return 0
 
 
