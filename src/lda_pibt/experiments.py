@@ -13,7 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .baselines import RHCRPlanner, TokenPassingPlanner
+from .baselines import (
+    RHCRPlanner,
+    TokenPassingPlanner,
+    TokenPassingTaskSwapsPlanner,
+)
 from .config import (
     SENSITIVITY,
     SENSITIVITY_BASE,
@@ -41,15 +45,18 @@ from .warehouse import Warehouse
 #: by `Simulator(..., static_goals=...)` instead.
 LIFELONG_VARIANTS = [name for name in ABLATIONS if name != "pibt_baseline"]
 
-#: External (non-PIBT) baselines, keyed by variant name -> (planner factory,
-#: whether this variant runs with the same deadlock-recovery layer the PIBT
-#: variants get). Two Token Passing rows are kept deliberately: one faithful
-#: to Ma et al. 2017 (no recovery), one with recovery enabled, since which
-#: framing is "fairer" is itself part of what a reader needs to judge.
-BASELINE_PLANNERS: Dict[str, Tuple[PlannerFactory, bool]] = {
-    "token_passing": (TokenPassingPlanner, False),
-    "token_passing_recovery": (TokenPassingPlanner, True),
-    "rhcr": (RHCRPlanner, False),
+#: The published lifelong (MAPD) planners this project is measured against,
+#: keyed by variant name. All three are implemented from their papers and run
+#: with their own machinery rather than this project's: see
+#: `baselines/token_passing.py` and `baselines/rhcr.py`.
+#:
+#:   token_passing             Ma et al. AAMAS 2017, Algorithm 1 (TP)
+#:   token_passing_task_swaps  Ma et al. AAMAS 2017, Algorithm 2 (TPTS)
+#:   rhcr                      Li et al. AAAI 2021, with PBS as its solver
+BASELINE_PLANNERS: Dict[str, PlannerFactory] = {
+    "token_passing": TokenPassingPlanner,
+    "token_passing_task_swaps": TokenPassingTaskSwapsPlanner,
+    "rhcr": RHCRPlanner,
 }
 
 #: Fields averaged across seeds and reported by the experiment drivers.
@@ -103,11 +110,9 @@ def build_run(
     """
     planner_factory: Optional[PlannerFactory] = None
     if variant in BASELINE_PLANNERS:
-        factory, recovery = BASELINE_PLANNERS[variant]
-        planner_factory = factory
+        planner_factory = BASELINE_PLANNERS[variant]
         params = Params(
-            seed=seed, max_timesteps=timesteps, recovery=recovery,
-            **BASELINE_PARAMS_PRESET,
+            seed=seed, max_timesteps=timesteps, **BASELINE_PARAMS_PRESET,
         ).merged(**(overrides or {}))
     else:
         params = ablation(
@@ -227,6 +232,47 @@ def run_density_sweep(
     return rows
 
 
+def run_density_table(
+    map_path: str | Path,
+    variants: Sequence[str],
+    robot_counts: Sequence[int],
+    timesteps: int,
+    seeds: int = 3,
+    rate: float = 1.0,
+    arrival: str = "poisson",
+    jobs: int = 1,
+) -> List[Dict[str, Any]]:
+    """Throughput against how many robots are on the floor.
+
+    The canonical lifelong-MAPF plot, and the one that says the most with the
+    least: every planner has a robot count past which adding robots stops
+    buying throughput, and *where* that happens is the difference between
+    these algorithms. A single scenario at a single robot count cannot show
+    it, and reports a planner measured at one point on a curve as if that
+    point were the planner.
+
+    One row per (variant, robot count), with the per-seed values kept so a
+    figure can draw a real interval.
+    """
+    queue = [
+        (str(map_path), variant, n_robots, timesteps, seed, rate, arrival, None)
+        for n_robots in robot_counts
+        for variant in variants
+        for seed in range(seeds)
+    ]
+    results = _run_many(queue, jobs)
+    rows: List[Dict[str, Any]] = []
+    index = 0
+    for n_robots in robot_counts:
+        for variant in variants:
+            runs = results[index: index + seeds]
+            index += seeds
+            rows.append(
+                _average(runs, include_raw=True, variant=variant, n_robots=n_robots)
+            )
+    return rows
+
+
 #: Metrics reported by the factorial decomposition (a subset of REPORT_FIELDS
 #: relevant to the specific hypotheses each design was built to separate).
 FACTORIAL_FIELDS = ("throughput", "mean_service_time", "p95_service_time")
@@ -316,6 +362,36 @@ CORE_REPORT_FIELDS = (
 )
 
 
+def _run_job(
+    args: Tuple[str, str, int, int, int, float, str, Optional[Dict[str, Any]]]
+) -> Dict[str, Any]:
+    """Picklable worker: one configured run, for `ProcessPoolExecutor`."""
+    map_path, variant, n_robots, timesteps, seed, rate, arrival, overrides = args
+    return run_once(
+        map_path, variant, n_robots, timesteps, seed,
+        rate=rate, arrival=arrival, overrides=overrides,
+    )
+
+
+def _run_many(
+    jobs: Sequence[Tuple[str, str, int, int, int, float, str, Optional[Dict[str, Any]]]],
+    workers: int,
+) -> List[Dict[str, Any]]:
+    """Run `jobs`, in parallel when asked. Order of results matches `jobs`.
+
+    The published baselines re-solve a space-time search per agent per task
+    (Token Passing) or per window (RHCR), so a baseline sweep costs two
+    orders of magnitude more wall clock than a PIBT sweep of the same shape.
+    Spreading it over cores is the difference between minutes and an
+    afternoon; the runs are independent and seeded, so the result is
+    identical either way.
+    """
+    if workers > 1 and len(jobs) > 1:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(_run_job, jobs, chunksize=1))
+    return [_run_job(job) for job in jobs]
+
+
 def run_comparison_table(
     map_path: str | Path,
     variants: Sequence[str],
@@ -328,6 +404,7 @@ def run_comparison_table(
     overrides: Optional[Dict[str, Any]] = None,
     fields: Sequence[str] = CORE_REPORT_FIELDS,
     include_raw: bool = False,
+    jobs: int = 1,
 ) -> List[Dict[str, Any]]:
     """Compare PIBT variants and/or external baselines with honest statistics.
 
@@ -345,19 +422,19 @@ def run_comparison_table(
     figures in `tools/make_figures.py` need them: a confidence interval drawn
     from five points should show the five points.
     """
-    raw: Dict[str, List[Dict[str, Any]]] = {}
-    for variant in variants:
-        raw[variant] = [
-            run_once(map_path, variant, n_robots, timesteps, seed, rate=rate,
-                     arrival=arrival, overrides=overrides)
-            for seed in range(seeds)
-        ]
-    if reference_variant not in raw:
-        raw[reference_variant] = [
-            run_once(map_path, reference_variant, n_robots, timesteps, seed, rate=rate,
-                     arrival=arrival, overrides=overrides)
-            for seed in range(seeds)
-        ]
+    wanted = list(variants)
+    if reference_variant not in wanted:
+        wanted.append(reference_variant)
+    queue = [
+        (str(map_path), variant, n_robots, timesteps, seed, rate, arrival, overrides)
+        for variant in wanted
+        for seed in range(seeds)
+    ]
+    results = _run_many(queue, jobs)
+    raw: Dict[str, List[Dict[str, Any]]] = {
+        variant: results[index * seeds: (index + 1) * seeds]
+        for index, variant in enumerate(wanted)
+    }
 
     rows: List[Dict[str, Any]] = []
     for variant in variants:

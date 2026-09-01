@@ -1,79 +1,85 @@
 """Rolling-Horizon Collision Resolution (Li, Tinka, Kiesel, Durham, Kumar &
-Koenig, 2021) baseline planner.
+Koenig, AAAI 2021: *Lifelong Multi-Agent Path Finding in Large-Scale
+Warehouses*).
 
-Every `replan_period` steps, all robots are jointly replanned over a
-`window`-length horizon with windowed Conflict-Based Search (CBS): find each
-robot's own shortest space-time path, detect the first vertex/edge conflict
-within the window, branch into two children that each forbid one of the two
-robots from that (cell, time) or (edge, time), and recurse (Sharon et al.'s
-CBS, restricted to the window). Between periodic replans, robots simply
-consume their already-committed window path.
+RHCR is two ideas, and both of them are about *bounding* something:
 
-CBS is exponential in the worst case, so `cbs_node_cap` bounds the search and
-falls back to prioritized planning when exceeded -- standard RHCR practice,
-not a shortcut (Li et al. 2021 make the same tradeoff). The fallback rate is
-reported via `stats()` rather than hidden, since a high rate at some robot
-density is itself a finding.
+**Bounded horizon.** Collisions are resolved only within the next `w`
+timesteps. Paths are not truncated to `w` and agents are not required to
+reach their goals inside it -- the window bounds how far ahead the solver
+argues about conflicts, nothing else. Li et al.'s central finding is that a
+small `w` is not merely cheaper but often *better*, because resolving
+collisions 60 steps ahead of a warehouse that will have changed by then buys
+nothing.
 
-A newly-assigned or path-exhausted robot between periodic replans gets an
-immediate single-agent repair (via the same `prioritized_plan` helper used
-for the CBS fallback) rather than waiting for the next window -- a documented
-simplification so task (re)assignment, which happens every timestep
-regardless of planner, does not stall a robot for up to `replan_period` steps.
+**Rolling replanning.** All agents are replanned together every `h <= w`
+timesteps and follow the committed plan in between. Replanning every
+timestep is what RHCR exists not to do.
 
-Task assignment is untouched, matching `token_passing.py`: only the low-level
-movement/collision-avoidance layer is replaced.
+Agents are given a *sequence* of goals rather than one goal, which is how the
+paper keeps a robot that finishes a task mid-window from idling until the
+next replan: a robot on its way to a pickup is planned pickup-then-delivery
+in a single search (`space_time_search.bounded_horizon_astar`).
+
+**High-level solver.** The paper is explicit that RHCR is a framework that
+takes any MAPF solver, and that PBS -- Priority-Based Search (Ma, Harabor,
+Stuckey, Li & Koenig, AAAI 2019), already cited in the README -- is its
+default and best-performing choice at warehouse scale. PBS is implemented
+here: depth-first over a partial priority order, branching on the first
+conflict inside the window, replanning only the agents below the new
+ordering. When PBS exceeds its node budget the window degrades to plain
+prioritized planning, which Li et al. also do rather than blocking.
+
+Task assignment is *not* part of RHCR. The paper takes assignment as given
+from a separate task assigner, so this planner uses the simulator's shared
+`assignment.TaskAssigner` unchanged -- unlike Token Passing, where the
+assignment rules are part of the published algorithm.
 """
 
 from __future__ import annotations
 
-import heapq
 import itertools
 from dataclasses import dataclass, field
-from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
 from ..config import Params
 from ..congestion import OccupancyIndex
 from ..robot import Robot
 from ..scoring import CandidateScorer
-from ..types import Vertex
+from ..types import RobotState, Vertex
 from ..warehouse import Warehouse
 from .space_time_search import (
     ReservationTable,
+    bounded_horizon_astar,
     prioritized_plan,
-    reserve_path_with_hold,
     resolve_residual_conflicts,
-    space_time_astar,
 )
-
-#: sentinel reservation holder for CBS constraints -- always distinct from any
-#: real robot id (robots are ids 0..n-1), so `ReservationTable.is_free` blocks
-#: exactly the constrained robot and nobody else.
-_CONSTRAINT_SENTINEL = -1
-
-#: a vertex constraint is (vertex, t); an edge constraint is (u, v, t)
-Constraint = Tuple
 
 _counter = itertools.count()
 
 
 @dataclass
-class _CBSNode:
-    constraints: Dict[int, FrozenSet[Constraint]]
+class _PBSNode:
+    """One node of the priority-based search: a strict partial order and a plan."""
+
+    #: agent id -> agents that must yield to it (it has higher priority)
+    lower: Dict[int, Set[int]]
     paths: Dict[int, List[Vertex]]
+    cost: int = 0
 
 
 class RHCRPlanner:
-    """Drop-in low-level planner satisfying `Simulator`'s `plan_step`/`stats` contract.
+    """Drop-in low-level planner satisfying `Simulator`'s planner contract.
 
-    Accepts the same constructor as `PIBTPlanner`; `scorer` is unused.
-    `window`/`replan_period` default from
-    `params.baseline_window`/`params.baseline_replan_period`.
+    `window` (w) and `replan_period` (h) come from `params.baseline_window`
+    and `params.baseline_replan_period`; `scorer` is unused.
     """
 
-    #: bounds worst-case CBS expansion; exceeding it degrades to prioritized
-    #: planning for that window rather than blocking the simulation.
-    node_expansion_cap: int = 500
+    #: PBS high-level node budget for one window. Exceeding it degrades to
+    #: prioritized planning for that window rather than blocking the run.
+    pbs_node_cap: int = 200
+    #: single-agent search budget inside one PBS node
+    node_expansion_cap: int = 20_000
 
     def __init__(
         self,
@@ -82,184 +88,246 @@ class RHCRPlanner:
         scorer: CandidateScorer,
         params: Params,
     ):
+        self.warehouse = warehouse
         self.graph = warehouse.graph
         self.params = params
-        self.window = params.baseline_window
-        self.replan_period = params.baseline_replan_period
+        self.window = max(1, params.baseline_window)
+        self.replan_period = max(1, min(params.baseline_replan_period, self.window))
         self.paths: Dict[int, List[Vertex]] = {}
         self._last_replan_time: Optional[int] = None
 
-        self.cbs_calls = 0
-        self.cbs_expansions = 0
-        self.cbs_fallbacks = 0
+        self.replans = 0
+        self.pbs_expansions = 0
+        self.pbs_fallbacks = 0
+        self.low_level_calls = 0
         self.forced_holds = 0
+
+    # ---------------------------------------------------------------- goals
+    def _goal_sequence(self, robot: Robot) -> List[Vertex]:
+        """What this agent is trying to visit, in order.
+
+        A robot on the way to a pickup is given both legs, so a window that
+        happens to reach the pickup keeps going instead of parking there
+        until the next replan. Everything else is a single goal.
+        """
+        if robot.task is not None and robot.state is RobotState.TO_PICKUP:
+            return [robot.task.pickup, robot.task.delivery]
+        if robot.waypoint is not None:
+            return [robot.waypoint]
+        return [robot.position]
 
     # ------------------------------------------------------------- planning
     def plan_step(self, ordered_robots: Sequence[Robot], timestep: int) -> None:
         for robot in ordered_robots:
             robot.reset_step_state()
 
-        goals = {
-            robot.id: (robot.waypoint if robot.waypoint is not None else robot.position)
-            for robot in ordered_robots
-        }
-
-        due_for_replan = (
+        due = (
             self._last_replan_time is None
             or timestep - self._last_replan_time >= self.replan_period
+            or any(
+                len(self.paths.get(r.id) or []) < 2 or self.paths[r.id][0] != r.position
+                for r in ordered_robots
+            )
         )
-        if due_for_replan:
+        if due:
+            goals = {r.id: self._goal_sequence(r) for r in ordered_robots}
             self.paths = self._plan_window(ordered_robots, goals, timestep)
             self._last_replan_time = timestep
-        else:
-            self._repair_stale_paths(ordered_robots, goals, timestep)
+            self.replans += 1
 
         for robot in ordered_robots:
             path = self.paths.get(robot.id) or [robot.position]
             robot.next_position = path[1] if len(path) > 1 else path[0]
-            self.paths[robot.id] = path[1:] if len(path) > 1 else path
 
+        # a no-op on a conflict-free window plan; counted, not hidden
         forced = resolve_residual_conflicts(ordered_robots)
         self.forced_holds += len(forced)
+
         for robot in ordered_robots:
+            path = self.paths.get(robot.id) or [robot.position]
             if robot.id in forced:
                 self.paths[robot.id] = [robot.position]
-
-    def _repair_stale_paths(
-        self, ordered_robots: Sequence[Robot], goals: Dict[int, Vertex], timestep: int
-    ) -> None:
-        table = ReservationTable()
-        stale: List[Robot] = []
-        for robot in ordered_robots:
-            path = self.paths.get(robot.id)
-            if path and len(path) > 1 and path[0] == robot.position and path[-1] == goals[robot.id]:
-                reserve_path_with_hold(table, robot.id, path, timestep, self.window)
             else:
-                stale.append(robot)
-        if stale:
-            repaired = prioritized_plan(
-                stale, goals, table, self.graph, timestep, self.window,
-                node_expansion_cap=self.node_expansion_cap, require_goal=False,
-            )
-            self.paths.update(repaired)
+                self.paths[robot.id] = path[1:] if len(path) > 1 else path
 
-    # ------------------------------------------------------------------ CBS
+    # ------------------------------------------------------------------ PBS
     def _plan_window(
-        self, robots: Sequence[Robot], goals: Dict[int, Vertex], timestep: int
+        self,
+        robots: Sequence[Robot],
+        goals: Dict[int, List[Vertex]],
+        timestep: int,
     ) -> Dict[int, List[Vertex]]:
-        self.cbs_calls += 1
-        robots_by_id = {r.id: r for r in robots}
-        empty: FrozenSet[Constraint] = frozenset()
-        root_paths: Dict[int, List[Vertex]] = {}
-        for robot in robots:
-            path = self._low_level(robot, goals[robot.id], empty, timestep)
-            root_paths[robot.id] = path if path is not None else [robot.position]
-        root = _CBSNode(constraints={r.id: empty for r in robots}, paths=root_paths)
+        """One window of Priority-Based Search over `self.window` timesteps."""
+        ids = [r.id for r in robots]
+        by_id = {r.id: r for r in robots}
 
-        open_heap: List[Tuple[int, int, _CBSNode]] = [
-            (self._cost(root.paths), next(_counter), root)
-        ]
+        root = _PBSNode(lower={i: set() for i in ids}, paths={})
+        for robot in robots:
+            root.paths[robot.id] = self._single(robot, goals[robot.id], ReservationTable(), timestep)
+        root.cost = self._cost(root.paths)
+
+        stack: List[_PBSNode] = [root]
         expansions = 0
-        while open_heap:
-            _, _, node = heapq.heappop(open_heap)
+        while stack:
+            node = stack.pop()
             expansions += 1
-            self.cbs_expansions += 1
-            if expansions > self.node_expansion_cap:
-                self.cbs_fallbacks += 1
+            self.pbs_expansions += 1
+            if expansions > self.pbs_node_cap:
+                self.pbs_fallbacks += 1
                 return self._prioritized_fallback(robots, goals, timestep)
 
-            conflict = self._first_conflict(node.paths, timestep)
+            conflict = self._first_conflict(node.paths)
             if conflict is None:
                 return node.paths
 
-            for robot_id, constraint in self._branch(conflict):
-                child_constraints = dict(node.constraints)
-                child_constraints[robot_id] = node.constraints[robot_id] | {constraint}
-                new_path = self._low_level(
-                    robots_by_id[robot_id], goals[robot_id], child_constraints[robot_id], timestep
+            a, b = conflict
+            children: List[_PBSNode] = []
+            for high, low in ((a, b), (b, a)):
+                child = _PBSNode(
+                    lower={i: set(s) for i, s in node.lower.items()},
+                    paths=dict(node.paths),
                 )
-                if new_path is None:
-                    continue  # over-constrained: this branch is infeasible, drop it
-                child_paths = dict(node.paths)
-                child_paths[robot_id] = new_path
-                child = _CBSNode(child_constraints, child_paths)
-                heapq.heappush(open_heap, (self._cost(child.paths), next(_counter), child))
+                child.lower[high].add(low)
+                if self._cycle(child.lower, high):
+                    continue
+                if not self._replan_below(child, low, by_id, goals, timestep):
+                    continue
+                child.cost = self._cost(child.paths)
+                children.append(child)
+            # depth-first, cheaper child explored first: push it last
+            for child in sorted(children, key=lambda c: -c.cost):
+                stack.append(child)
 
-        self.cbs_fallbacks += 1
+        self.pbs_fallbacks += 1
         return self._prioritized_fallback(robots, goals, timestep)
 
-    def _low_level(
-        self, robot: Robot, goal: Vertex, constraints: FrozenSet[Constraint], timestep: int
+    def _replan_below(
+        self,
+        node: _PBSNode,
+        agent: int,
+        by_id: Dict[int, Robot],
+        goals: Dict[int, List[Vertex]],
+        timestep: int,
+    ) -> bool:
+        """Replan `agent` and, transitively, everyone below it that it now hits.
+
+        PBS's `update-plan`: an agent only avoids agents ranked above it, so
+        adding an ordering can only invalidate the plans of agents below the
+        newly-demoted one.
+        """
+        queue = [agent]
+        seen: Set[int] = set()
+        while queue:
+            current = queue.pop(0)
+            if current in seen:
+                continue
+            seen.add(current)
+            table = ReservationTable()
+            for other in self._above(node.lower, current):
+                table.reserve_path(other, node.paths[other], timestep, rest_at_end=False)
+            path = self._single(by_id[current], goals[current], table, timestep)
+            if path is None:
+                return False
+            node.paths[current] = path
+            for below in self._below(node.lower, current):
+                if self._pair_conflict(node.paths[current], node.paths[below]) is not None:
+                    queue.append(below)
+        return True
+
+    @staticmethod
+    def _above(lower: Dict[int, Set[int]], agent: int) -> Set[int]:
+        """Everyone `agent` must yield to (transitive closure upwards)."""
+        result: Set[int] = set()
+        stack = [
+            higher for higher, below in lower.items() if agent in below
+        ]
+        while stack:
+            current = stack.pop()
+            if current in result:
+                continue
+            result.add(current)
+            stack.extend(h for h, below in lower.items() if current in below)
+        return result
+
+    @staticmethod
+    def _below(lower: Dict[int, Set[int]], agent: int) -> Set[int]:
+        result: Set[int] = set()
+        stack = list(lower[agent])
+        while stack:
+            current = stack.pop()
+            if current in result:
+                continue
+            result.add(current)
+            stack.extend(lower[current])
+        return result
+
+    @classmethod
+    def _cycle(cls, lower: Dict[int, Set[int]], agent: int) -> bool:
+        return agent in cls._below(lower, agent)
+
+    def _single(
+        self,
+        robot: Robot,
+        goals: Sequence[Vertex],
+        table: ReservationTable,
+        timestep: int,
     ) -> Optional[List[Vertex]]:
-        table = ReservationTable()
-        for constraint in constraints:
-            if len(constraint) == 2:
-                table.vertex_reservations[constraint] = _CONSTRAINT_SENTINEL
-            else:
-                table.edge_reservations[constraint] = _CONSTRAINT_SENTINEL
-        return space_time_astar(
-            self.graph, robot.position, goal, timestep, table, self.window,
+        self.low_level_calls += 1
+        path = bounded_horizon_astar(
+            self.graph, robot.position, goals, timestep, table, self.window,
             node_expansion_cap=self.node_expansion_cap, robot_id=robot.id,
-            require_goal=False,
         )
+        if path is None or len(path) != self.window + 1:
+            # waiting the window out is legal unless a higher-priority agent
+            # has already claimed this cell, in which case the branch is
+            # infeasible and PBS should drop it
+            for offset in range(self.window + 1):
+                if not table.is_free(robot.position, timestep + offset, robot_id=robot.id):
+                    return None
+            return [robot.position] * (self.window + 1)
+        return path
 
-    def _first_conflict(
-        self, paths: Dict[int, List[Vertex]], start_time: int
-    ) -> Optional[Tuple[int, int, str, Any, int]]:
-        prev_positions: Optional[Dict[int, Vertex]] = None
-        for offset in range(self.window + 1):
-            positions: Dict[int, Vertex] = {}
-            occupant_at: Dict[Vertex, int] = {}
-            for robot_id, path in paths.items():
-                v = path[min(offset, len(path) - 1)]
-                positions[robot_id] = v
-                if v in occupant_at:
-                    return (occupant_at[v], robot_id, "vertex", v, start_time + offset)
-                occupant_at[v] = robot_id
-
-            if prev_positions is not None:
-                seen_edges: Dict[Tuple[Vertex, Vertex], int] = {}
-                for robot_id, v in positions.items():
-                    u = prev_positions[robot_id]
-                    if u == v:
-                        continue
-                    reverse = (v, u)
-                    if reverse in seen_edges:
-                        return (
-                            seen_edges[reverse], robot_id, "edge", (u, v), start_time + offset,
-                        )
-                    seen_edges[(u, v)] = robot_id
-            prev_positions = positions
+    # -------------------------------------------------------- conflict tests
+    def _first_conflict(self, paths: Dict[int, List[Vertex]]) -> Optional[Tuple[int, int]]:
+        ids = sorted(paths)
+        for i, a in enumerate(ids):
+            for b in ids[i + 1:]:
+                if self._pair_conflict(paths[a], paths[b]) is not None:
+                    return (a, b)
         return None
 
     @staticmethod
-    def _branch(conflict: Tuple[int, int, str, Any, int]) -> List[Tuple[int, Constraint]]:
-        robot_a, robot_b, kind, payload, t = conflict
-        if kind == "vertex":
-            vertex = payload
-            return [(robot_a, (vertex, t)), (robot_b, (vertex, t))]
-        u, v = payload
-        return [(robot_a, (u, v, t)), (robot_b, (v, u, t))]
+    def _pair_conflict(first: Sequence[Vertex], second: Sequence[Vertex]) -> Optional[int]:
+        span = min(len(first), len(second))
+        for t in range(span):
+            if first[t] == second[t]:
+                return t
+            if t and first[t] == second[t - 1] and second[t] == first[t - 1]:
+                return t
+        return None
 
     @staticmethod
     def _cost(paths: Dict[int, List[Vertex]]) -> int:
         return sum(len(p) for p in paths.values())
 
     def _prioritized_fallback(
-        self, robots: Sequence[Robot], goals: Dict[int, Vertex], timestep: int
+        self,
+        robots: Sequence[Robot],
+        goals: Dict[int, List[Vertex]],
+        timestep: int,
     ) -> Dict[int, List[Vertex]]:
-        table = ReservationTable()
         return prioritized_plan(
-            robots, goals, table, self.graph, timestep, self.window,
-            node_expansion_cap=self.node_expansion_cap, require_goal=False,
+            robots, goals, ReservationTable(), self.graph, timestep, self.window,
+            node_expansion_cap=self.node_expansion_cap,
         )
 
     # ---------------------------------------------------------- statistics
     def stats(self) -> Dict[str, Any]:
         return {
-            "rhcr_cbs_calls": self.cbs_calls,
-            "rhcr_cbs_expansions": self.cbs_expansions,
-            "rhcr_cbs_fallbacks": self.cbs_fallbacks,
+            "rhcr_replans": self.replans,
+            "rhcr_pbs_expansions": self.pbs_expansions,
+            "rhcr_pbs_fallbacks": self.pbs_fallbacks,
+            "rhcr_low_level_calls": self.low_level_calls,
             "rhcr_forced_holds": self.forced_holds,
             "rhcr_window": self.window,
             "rhcr_replan_period": self.replan_period,

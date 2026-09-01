@@ -23,7 +23,8 @@ because everything else was measured and deleted. Start with the first page.
 | **[02 — Decision flow](02-decision-flow.md)** | Diagrams: one timestep end to end, how a move is chosen, how a jam is cleared. |
 | **[03 — The maths](03-the-math.md)** | Every formula, with a symbol table and worked numbers. |
 | **[04 — Parameters](04-parameters.md)** | Every knob, its default, and the measured cost of removing it. |
-| **[05 — Results](05-results.md)** | The comparison against baselines, and the evidence behind every deletion. |
+| **[05 — Results](05-results.md)** | The comparison against the published planners, and the evidence behind every deletion. |
+| **[06 — The maps](06-the-maps.md)** | What the five warehouse floors are, and why each one is a different traffic problem. |
 
 ## The one-paragraph version
 
@@ -39,16 +40,22 @@ starves. That is the entire algorithm.
 ## Data and figures
 
 `data/` holds the experiment output — every file carries a `meta` block with
-the git SHA, seed count, horizon and scenarios. `figures/` (five SVGs, all
-embedded in page 05) and `gifs/` are generated from it:
+the git SHA, seed count, horizon and scenarios. `figures/` (five SVGs) and
+`gifs/` are generated from it:
 
 ```bash
 python3 experiments/run_sensitivity.py --seeds 10 --jobs 4
-python3 experiments/run_all.py --seeds 5
+python3 experiments/run_all.py --seeds 5 --jobs 4    # --jobs: the baseline
+                                                     # suites are the slow ones
 python3 tools/make_docs_tables.py
 python3 tools/make_figures.py
 python3 tools/make_gifs.py
 ```
+
+The `baselines` and `density` suites run Token Passing, TPTS and RHCR, which
+re-solve a space-time search per agent per task or per window. They cost about
+two orders of magnitude what a PIBT sweep of the same shape costs, which is
+why they take `--jobs`.
 
 The tables in pages 04 and 05 are generated between marker comments, and a test
 fails if they drift from the data.

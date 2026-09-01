@@ -22,6 +22,21 @@ DATA = ROOT / "docs" / "data"
 DOCS = ROOT / "docs"
 
 from lda_pibt.config import Params  # noqa: E402
+from lda_pibt.warehouse import Warehouse  # noqa: E402
+
+MAPS = ROOT / "maps"
+
+#: the order the maps page introduces them: the four the results use, then the
+#: two extra floors, then the unit-test fixtures
+MAP_ORDER = [
+    "warehouse_bottleneck",
+    "warehouse_corridors",
+    "warehouse_narrow",
+    "warehouse_small",
+    "warehouse_medium",
+    "corridor",
+    "loop",
+]
 
 BEGIN = "<!-- generated:{} -->"
 END = "<!-- /generated:{} -->"
@@ -53,6 +68,42 @@ def splice(doc: Path, key: str, body: str) -> bool:
 
 def pct(x: float) -> str:
     return f"{x * 100:+.1f}%"
+
+
+def map_table() -> str:
+    """Every bundled map, measured from the map file rather than described.
+
+    The map format declares only which cells are floor, shelf, pickup,
+    delivery and parking. Aisles, junctions and articulation points are
+    derived by `Warehouse`, which is the only reason this table can be
+    generated at all -- and the reason it is: a hand-written "5-cell aisles"
+    survives an edit to the map that makes it a lie.
+    """
+    lines = [
+        "| Map | Grid | Drivable cells | Pickup / delivery / parking | "
+        "Aisle length | Aisles | Junctions | Cells that split the floor |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for name in MAP_ORDER:
+        warehouse = Warehouse.from_file(MAPS / f"{name}.map")
+        info = warehouse.summary()
+        lengths = [aisle.length for aisle in warehouse.aisles.values()]
+        span = (f"{min(lengths)}-{max(lengths)}" if lengths else "—")
+        lines.append(
+            f"| `{name}` | {info['size']} | {info['vertices']} | "
+            f"{info['pickups']} / {info['deliveries']} / {info['parking']} | "
+            f"{span} | {info['aisles']} | {info['intersections']} | "
+            f"{info['articulation_points']} |"
+        )
+    lines += [
+        "",
+        "*Derived from the map files by `tools/make_docs_tables.py`; nothing "
+        "here is declared in the map format except which cells are floor, "
+        "shelf, pickup, delivery and parking. \"Cells that split the floor\" "
+        "are graph articulation points: a robot standing on one disconnects "
+        "part of the warehouse from the rest.*",
+    ]
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- parameters
@@ -145,11 +196,11 @@ def sensitivity_table(sens: Dict[str, Any]) -> str:
 def headline_table(baselines: Dict[str, Any]) -> str:
     """One row per planner per map: the comparison, in one place."""
     LABEL = {
-        "full_lda_pibt": "**This planner**",
-        "lifelong_pibt": "Plain lifelong PIBT",
-        "token_passing": "Token Passing",
-        "token_passing_recovery": "Token Passing + recovery",
-        "rhcr": "RHCR",
+        "full_lda_pibt": "**Aisleflow (shipped configuration)**",
+        "token_passing": "Token Passing (Ma et al. 2017, Alg. 1)",
+        "token_passing_task_swaps": "TP + task swaps (Ma et al. 2017, Alg. 2)",
+        "rhcr": "RHCR (Li et al. 2021, PBS)",
+        "lifelong_pibt": "Plain lifelong PIBT (ablation reference)",
     }
     maps = list(baselines["maps"])
     lines = [
@@ -222,6 +273,8 @@ def ladder_table(ablation: Dict[str, Any]) -> str:
 def main() -> int:
     sens = load("sensitivity")
     changed = []
+    if splice(DOCS / "06-the-maps.md", "maps", map_table()):
+        changed.append("06-the-maps.md:maps")
     if splice(DOCS / "04-parameters.md", "parameters", parameter_table(sens)):
         changed.append("04-parameters.md:parameters")
     if splice(DOCS / "05-results.md", "sensitivity", sensitivity_table(sens)):

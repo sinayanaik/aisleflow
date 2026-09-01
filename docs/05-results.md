@@ -18,11 +18,11 @@ Tasks delivered per timestep, against every planner we can compare with.
 <!-- generated:headline -->
 | Planner | bottleneck | corridors | medium |
 | --- | ---: | ---: | ---: |
-| **This planner** | 0.147 | 0.153 | 0.416 |
-| Plain lifelong PIBT | 0.127 | 0.131 | 0.502 |
-| Token Passing | 0.007 | 0.000 | 0.004 |
-| Token Passing + recovery | 0.010 | 0.000 | 0.008 |
-| RHCR | 0.011 | 0.001 | 0.014 |
+| **Aisleflow (shipped configuration)** | 0.147 | 0.153 | 0.416 |
+| Token Passing (Ma et al. 2017, Alg. 1) | 0.007 | 0.000 | 0.004 |
+| TP + task swaps (Ma et al. 2017, Alg. 2) | — | — | — |
+| RHCR (Li et al. 2021, PBS) | 0.011 | 0.001 | 0.014 |
+| Plain lifelong PIBT (ablation reference) | 0.127 | 0.131 | 0.502 |
 
 *Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `b00ff91`.*
 <!-- /generated:headline -->
@@ -64,7 +64,7 @@ configuration is not the best on any of them**:
 | + crowding | 0.147 | 0.178 | 0.309 | 0.426 |
 | + deadlock recovery (full) | 0.147 | 0.153 | 0.291 | 0.416 |
 
-*Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `b00ff91`.*
+*Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `ef0910e`.*
 <!-- /generated:ladder -->
 
 ![The ablation ladder: one panel per map, each rung adding one mechanism, with the best rung on each map marked](figures/04-ablation-ladder.svg)
