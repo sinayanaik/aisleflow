@@ -539,7 +539,6 @@ function drawInspector() {
       <div class="stat"><span>pending flip</span><b>${name(live.pending)}</b></div>
       <div class="stat"><span>switches (forced)</span><b>${live.switches} (${live.starvation_flips})</b></div>
       <div class="stat"><span>robots cleared</span><b>${live.exits}</b></div>
-      <div class="stat"><span>reservations</span><b>${live.reservations.join(", ") || "—"}</b></div>
       <div class="hint">Minimum green stops the direction flapping; maximum
       green stops it starving the other way. Once "held" reaches the maximum,
       any opposing demand drains the aisle and flips it.</div>`;
@@ -571,7 +570,7 @@ function drawInspector() {
     <div class="stat"><span>priority</span><b>${robot.priority}</b></div>
     <div class="stat"><span>waiting / stalled</span><b>${robot.waiting} / ${robot.stalled}</b></div>
     <div class="stat"><span>waiting for</span><b>${robot.waiting_for !== null ? "R" + robot.waiting_for : "—"}</b></div>
-    <div class="stat"><span>β / γ weight</span><b>${S.inspect ? S.inspect.direction_weight + " / " + S.inspect.aisle_weight : "—"}</b></div>
+    <div class="stat"><span>β / γ weight</span><b>${S.inspect ? S.inspect.direction_weight + " / " + S.inspect.aisle_bonus : "—"}</b></div>
     <div class="stat"><span>tasks done</span><b>${robot.completed}</b></div>
     <h2 style="margin-top:14px">Why it moved there</h2>
     <table><tr><th>cell</th><th>score</th><th>verdict</th></tr>${rows}</table>

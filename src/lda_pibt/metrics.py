@@ -87,7 +87,7 @@ class MetricsReport:
     deadlocks_unrecovered: int = 0
     mean_recovery_time: float = 0.0
     #: Per-remedy counters for the seven-level recovery ladder: how often
-    #: each level ran, and how often the group cleared within `t_blocked`
+    #: each level ran, and how often the group cleared within `stall_steps`
     #: steps of it. Reported by the sensitivity study, not by the standard
     #: suites, so existing datasets keep their shape.
     recovery_l1_fires: int = 0

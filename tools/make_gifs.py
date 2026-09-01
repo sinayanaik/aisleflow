@@ -251,7 +251,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             PanelSpec(
                 "recovery_uncorroborated",
                 "One stall signal is enough",
-                "no progress for t_blocked steps fires recovery",
+                "no progress for stall_steps steps fires recovery",
             ),
             PanelSpec(
                 "recovery_only",
@@ -274,7 +274,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         beats=(
             Beat(0, "Both sides run the SAME seven-level recovery. They differ only "
                     "in what is allowed to trigger it."),
-            Beat(50, "Left fires on one signal alone: no progress for t_blocked "
+            Beat(50, "Left fires on one signal alone: no progress for stall_steps "
                      "steps."),
             Beat(120, "But in dense lifelong traffic that signal describes an "
                       "ordinary queue, not a deadlock."),

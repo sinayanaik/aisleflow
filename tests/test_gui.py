@@ -78,11 +78,11 @@ def test_reset_returns_to_zero(session):
 
 
 def test_reconfigure_rebuilds_with_new_settings(session):
-    session.reconfigure({"n_robots": 5, "overrides": {"beta_strong": 7.5}})
+    session.reconfigure({"n_robots": 5, "overrides": {"turn_penalty": 7.5}})
     assert len(session.sim.robots) == 5
-    assert session.sim.params.beta_strong == 7.5
+    assert session.sim.params.turn_penalty == 7.5
     assert session.sim.timestep == 0
-    session.reconfigure({"n_robots": 8, "overrides": {"beta_strong": 3.0}})
+    session.reconfigure({"n_robots": 8, "overrides": {"turn_penalty": 0.5}})
 
 
 # ---------------------------------------------------------------- explainer

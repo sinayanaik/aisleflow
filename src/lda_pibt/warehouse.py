@@ -15,7 +15,6 @@ from .graph import GridGraph
 from .types import (
     AisleDirection,
     AisleState,
-    Reservation,
     Vertex,
 )
 
@@ -64,7 +63,6 @@ class Aisle:
     forward_queue: Set[int] = field(default_factory=set)
     reverse_queue: Set[int] = field(default_factory=set)
     lock_until: int = 0
-    reservations: Dict[int, Reservation] = field(default_factory=dict)
     congestion_cost: float = 0.0
     direction_switches: int = 0
     draining_since: Optional[int] = None
@@ -294,30 +292,21 @@ class Warehouse:
         return [r for r in runs if r]
 
     def _aisle_capacity(self, length: int) -> int:
-        """Spec 9.2 `aisle.capacity`, plus two alternatives.
+        """How many robots may be inside an aisle of this many cells.
 
-        A single-file corridor is throttled by the robot at its exit, so packing
-        it to `length` robots just builds a queue that cannot drain.
+        A single-file corridor is throttled by the robot at its exit, so
+        packing it full just builds a queue that cannot drain. The last robot
+        in must still traverse `length` cells to leave and every robot ahead of
+        it adds a step, so a queue of k needs roughly `length + k` steps to
+        empty: capping k at `max_drain_time - length` keeps the aisle drainable
+        within its own timeout.
 
-        - ``"length"``     spec 9.2 verbatim: ``ratio * cells``.
-        - ``"throughput"`` what one train clears before the aisle must flip,
-          ``ratio * length / T_min``; correct in spirit, far too tight in
-          practice at the default lock time.
-        - ``"drain"``      the default, and between the two: as many robots as
-          fit, but never more than can clear the aisle within `max_drain_time`.
-          The last robot in must still traverse ``length`` cells to leave, and
-          every robot ahead of it adds a step, so a queue of ``k`` needs about
-          ``length + k`` steps to empty.
+        There used to be two other formulas behind an `aisle_capacity_model`
+        switch. Neither changed throughput measurably and the code comments
+        already called both wrong, so this is the only one now.
         """
         p = self.params
-        ratio = p.aisle_capacity_ratio
-        if p.aisle_capacity_model == "throughput":
-            lock = max(1, p.minimum_aisle_lock_time)
-            raw = math.ceil(ratio * length / lock)
-        elif p.aisle_capacity_model == "drain":
-            raw = min(math.ceil(ratio * length), p.max_drain_time - length)
-        else:
-            raw = math.ceil(ratio * length)
+        raw = min(length, p.max_drain_time - length)
         return max(1, min(p.aisle_capacity, int(raw)))
 
     def _order_component(
@@ -450,7 +439,6 @@ class Warehouse:
             aisle.forward_queue.clear()
             aisle.reverse_queue.clear()
             aisle.lock_until = 0
-            aisle.reservations.clear()
             aisle.congestion_cost = 0.0
             aisle.direction_switches = 0
             aisle.draining_since = None

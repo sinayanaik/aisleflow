@@ -16,19 +16,22 @@ from .robot import Robot
 from .types import INF, AisleDirection, AisleState, RobotState, Vertex
 from .warehouse import Warehouse
 
-#: The seven remedies of spec section 29, in escalation order.
-RECOVERY_LEVEL_COUNT = 7
+#: The remedies, in escalation order. Two more used to sit above these --
+#: releasing entry permits, and dropping every directional constraint for the
+#: group -- and both are gone: the permits they released no longer exist, and
+#: truncating the ladder at this depth measured 6% *better* than running the
+#: full one, because the strongest remedy tore up routes faster than the jam
+#: was clearing.
+RECOVERY_LEVEL_COUNT = 5
 
 #: Human-readable names, in the same order, for the docs and the sensitivity
 #: study.  Index i here describes `recovery_l{i+1}_fires`.
 RECOVERY_LEVEL_NAMES = (
     "recompute routes",
     "reopen affected aisles",
-    "release stale reservations",
     "raise blocked priorities",
     "allow temporary reverse",
     "assign escape vertices",
-    "drop directional constraints",
 )
 
 
@@ -94,8 +97,8 @@ class DeadlockMonitor:
         if robot.state in (RobotState.FREE, RobotState.PARKED):
             return False
         return (
-            robot.no_progress_steps >= self.params.t_blocked
-            or robot.blocked_time >= self.params.t_blocked
+            robot.no_progress_steps >= self.params.stall_steps
+            or robot.blocked_time >= self.params.stall_steps
         )
 
     @staticmethod
@@ -165,7 +168,7 @@ class DeadlockMonitor:
         claimed: Set[int] = set()
 
         # Spec 28 lists three stall signals. No progress alone is the weakest:
-        # in dense lifelong traffic a robot queues for `t_blocked` steps as a
+        # in dense lifelong traffic a robot queues for `stall_steps` steps as a
         # matter of course, so treating that as a deadlock escalates recovery
         # on healthy traffic -- and levels 5-7 (temporary reverse, escape
         # vertices, waypoint hijack) then cost far more than they save. Require
@@ -228,7 +231,7 @@ class DeadlockMonitor:
                 # another 50 steps was not fixed by that level.
                 if last is not None:
                     level, applied_at = last
-                    if timestep - applied_at <= self.params.t_blocked:
+                    if timestep - applied_at <= self.params.stall_steps:
                         self.level_resolved[level] += 1
         for key in current_keys:
             if key not in self._group_start:
@@ -239,7 +242,7 @@ class DeadlockMonitor:
 
     # ------------------------------------------------------------ recovery
     def group_has_progress(self, group: Sequence[Robot]) -> bool:
-        return any(r.no_progress_steps < self.params.t_blocked for r in group)
+        return any(r.no_progress_steps < self.params.stall_steps for r in group)
 
     def recover_from_deadlock(
         self, group: Sequence[Robot], timestep: int
@@ -254,11 +257,9 @@ class DeadlockMonitor:
         all_levels = (
             self._recompute_routes,
             self._recompute_affected_aisles,
-            self._release_stale_reservations,
             self._increase_blocked_priorities,
             self._allow_temporary_reverse_move,
             self._assign_escape_vertices,
-            self._run_local_fallback_planner,
         )
         # `recovery_max_level` truncates the ladder so a sweep over 0..7
         # measures each level's *marginal* value. Leaving one level out in the
@@ -315,30 +316,24 @@ class DeadlockMonitor:
                     aisle.state = AisleState.DRAINING
 
     # Level 3
-    def _release_stale_reservations(
-        self, group: Sequence[Robot], timestep: int
-    ) -> None:
-        for robot in group:
-            self.aisles.release_reservations(robot)
-
-    # Level 4
     def _increase_blocked_priorities(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
+        """Buy the stuck group rank, at the same rate waiting buys it."""
         for robot in group:
-            robot.priority += self.params.blocked_weight * robot.no_progress_steps
+            robot.priority += self.params.waiting_weight * robot.no_progress_steps
 
-    # Level 5
+    # Level 4
     def _allow_temporary_reverse_move(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
         for robot in group:
-            robot.allow_reverse_until = timestep + self.params.t_blocked
+            robot.allow_reverse_until = timestep + self.params.stall_steps
             robot.ignore_direction_until = timestep + max(
-                1, self.params.t_blocked // 2
+                1, self.params.stall_steps // 2
             )
 
-    # Level 6
+    # Level 5
     def _assign_escape_vertices(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
@@ -369,23 +364,6 @@ class DeadlockMonitor:
         if not vertices:
             vertices = [v for v in wh.graph.vertices if wh.graph.degree(v) >= 3]
         return vertices
-
-    # Level 7
-    def _run_local_fallback_planner(
-        self, group: Sequence[Robot], timestep: int
-    ) -> bool:
-        """Last resort: drop all directional constraints for this group."""
-        for robot in group:
-            robot.ignore_direction_until = timestep + self.params.t_deadlock
-            robot.allow_reverse_until = timestep + self.params.t_deadlock
-            self.aisles.release_reservations(robot)
-            if robot.state is RobotState.RECOVERY and robot.task is not None:
-                robot.state = (
-                    RobotState.TO_DELIVERY
-                    if robot.task.pickup_time is not None
-                    else RobotState.TO_PICKUP
-                )
-        return True
 
     # ---------------------------------------------------------- statistics
     def stats(self) -> Dict[str, float]:

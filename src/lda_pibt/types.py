@@ -89,21 +89,6 @@ class PIBTResult(Enum):
     INVALID = "INVALID"
 
 
-@dataclass
-class Reservation:
-    """Aisle-entry reservation (spec section 18)."""
-
-    robot_id: int
-    aisle_id: int
-    direction: AisleDirection
-    entry_time: int
-    expected_exit_time: int
-    expiry_time: int
-
-    def is_valid(self, timestep: int) -> bool:
-        return timestep <= self.expiry_time
-
-
 class PlanningError(RuntimeError):
     """Raised when the executed joint move is not collision free (spec 31)."""
 
@@ -119,7 +104,6 @@ __all__ = [
     "TaskStatus",
     "ProximityMode",
     "PIBTResult",
-    "Reservation",
     "PlanningError",
     "Optional",
 ]

@@ -26,8 +26,7 @@ from lda_pibt.assignment import TaskAssigner, update_task_state, update_waypoint
 from lda_pibt.config import ablation
 from lda_pibt.deadlock import DeadlockMonitor
 from lda_pibt.scoring import (
-    compute_aisle_weight,
-    compute_direction_weight,
+    compute_aisle_bonus,
     compute_proximity_mode,
     turning_cost,
 )
@@ -168,18 +167,10 @@ def test_proximity_modes():
     assert compute_proximity_mode(1, params) is ProximityMode.ARRIVAL
 
 
-def test_direction_weight_decays_near_the_waypoint():
-    """Spec 13.4: beta -> 0 in arrival mode."""
-    params = Params(r_near=2, r_far=8, direction_control="aisle")
-    assert compute_direction_weight(50, params) == pytest.approx(params.beta_strong)
-    assert compute_direction_weight(1, params) == pytest.approx(0.0)
-    assert 0 < compute_direction_weight(5, params) < params.beta_strong
-
-
 def test_aisle_weight_weakens_with_proximity():
     params = Params(direction_control="aisle")
-    transit = compute_aisle_weight(ProximityMode.TRANSIT, params)
-    arrival = compute_aisle_weight(ProximityMode.ARRIVAL, params)
+    transit = compute_aisle_bonus(ProximityMode.TRANSIT, params)
+    arrival = compute_aisle_bonus(ProximityMode.ARRIVAL, params)
     assert transit > arrival
 
 
@@ -187,11 +178,11 @@ def test_turning_cost_penalises_reversal_most():
     params = Params()
     assert turning_cost(Compass.EAST, Compass.EAST, params) == 0.0
     assert turning_cost(Compass.EAST, Compass.NORTH, params) == 1.0
-    assert turning_cost(Compass.EAST, Compass.WEST, params) == params.lambda_reverse
+    assert turning_cost(Compass.EAST, Compass.WEST, params) == params.reverse_multiplier
 
 
 def test_progress_dominates_the_score():
-    """Spec 33: alpha > beta_strong > lambda_turn."""
+    """The score's tier structure: progress dominates every tie-break."""
     params = Params(direction_control="aisle")
     wh = warehouse()
     wh.precompute()
@@ -199,8 +190,7 @@ def test_progress_dominates_the_score():
     robot = Robot(id=0, position=(3, 3), waypoint=(0, 7))
     index.rebuild([robot])
     scorer = CandidateScorer(wh, CongestionModel(wh, index, params), params)
-    robot.direction_weight = params.beta_strong
-    robot.aisle_weight = params.gamma_strong
+    robot.aisle_bonus = params.aisle_bonus
     robot.preferred_direction = Compass.SOUTH  # deliberately wrong way
     toward = scorer.score(robot, (2, 3))  # progress, wrong direction
     away = scorer.score(robot, (4, 3))  # no progress, preferred direction
@@ -272,7 +262,7 @@ def test_stalled_robot_accumulates_no_progress():
 
 
 def test_recovery_escalates_one_level_at_a_time():
-    params = ablation("full_lda_pibt", Params(seed=1, t_blocked=1))
+    params = ablation("full_lda_pibt", Params(seed=1, stall_steps=1))
     wh = Warehouse.from_file("maps/warehouse_small.map", params)
     sim = build_simulator(wh, 4, params)
     sim.step()
@@ -337,14 +327,14 @@ def test_history_recording():
 def test_recovery_needs_more_than_slow_progress():
     """Queueing is not a deadlock.
 
-    `t_blocked` no-progress steps happen constantly in dense lifelong traffic.
+    `stall_steps` no-progress steps happen constantly in dense lifelong traffic.
     Treating that alone as a deadlock escalates recovery on healthy robots, and
     levels 5-7 (temporary reverse, escape vertices, waypoint hijack) then cost
     far more than they save.
     """
     from lda_pibt.deadlock import DeadlockMonitor
 
-    params = Params(recovery=True, require_deadlock_corroboration=True, t_blocked=2)
+    params = Params(recovery=True, require_deadlock_corroboration=True, stall_steps=2)
     warehouse = Warehouse.from_string("\n".join(["." * 9 for _ in range(3)]), params)
     sim = build_simulator(warehouse, 3, params, task_generator=None)
     monitor: DeadlockMonitor = sim.deadlocks
@@ -372,7 +362,7 @@ def test_recovery_needs_more_than_slow_progress():
 def test_uncorroborated_mode_restores_the_old_trigger():
     from lda_pibt.deadlock import DeadlockMonitor
 
-    params = Params(recovery=True, require_deadlock_corroboration=False, t_blocked=2)
+    params = Params(recovery=True, require_deadlock_corroboration=False, stall_steps=2)
     warehouse = Warehouse.from_string("\n".join(["." * 9 for _ in range(3)]), params)
     sim = build_simulator(warehouse, 3, params, task_generator=None)
     monitor: DeadlockMonitor = sim.deadlocks

@@ -21,7 +21,6 @@ def setup(**overrides):
     params = Params(
         direction_control="aisle",
         hysteresis=True,
-        reservations=True,
         **overrides,
     )
     warehouse = Warehouse.from_string(CORRIDOR, params)
@@ -163,45 +162,12 @@ def test_recovery_override_bypasses_direction():
     )
 
 
-# ------------------------------------------------------------- reservations
-def test_reservation_required_for_a_directional_aisle():
-    wh, index, mgr, _ = setup()
-    aisle = long_aisle(wh)
-    index.rebuild([])
-    mgr.update_aisle_direction(aisle, 20.0, 0.0, 0)
-    robot = Robot(id=0, position=aisle.start_vertex)
-    assert not mgr.can_enter_aisle(robot, aisle, AisleDirection.FORWARD, 1)
-    mgr.requests[robot.id] = (aisle.id, AisleDirection.FORWARD)
-    mgr._robot_lookup = {robot.id: robot}
-    mgr.update_aisle_reservations([robot], 1)
-    assert mgr.has_valid_reservation(robot, aisle, 1)
-    assert mgr.can_enter_aisle(robot, aisle, AisleDirection.FORWARD, 1)
-
-
-def test_reservations_expire():
-    wh, index, mgr, params = setup(reservation_ttl=3)
-    aisle = long_aisle(wh)
-    index.rebuild([])
-    mgr.update_aisle_direction(aisle, 20.0, 0.0, 0)
-    robot = Robot(id=0, position=aisle.start_vertex)
-    mgr.requests[robot.id] = (aisle.id, AisleDirection.FORWARD)
-    mgr._robot_lookup = {robot.id: robot}
-    mgr.update_aisle_reservations([robot], 0)
-    assert mgr.has_valid_reservation(robot, aisle, 0)
-    # The robot stops requesting this aisle, so nothing renews the grant.
-    mgr.requests.clear()
-    mgr.update_aisle_reservations([robot], 99)
-    assert robot.id not in aisle.reservations
-    assert not mgr.has_valid_reservation(robot, aisle, 99)
-
-
 def test_draining_aisle_refuses_entry():
     wh, index, mgr, _ = setup()
     aisle = long_aisle(wh)
     aisle.state = AisleState.DRAINING
-    robot = Robot(id=0, position=aisle.start_vertex)
-    assert not mgr.can_enter_aisle(robot, aisle, AisleDirection.FORWARD, 0)
-
+    index.rebuild([])
+    assert not mgr.can_enter_aisle(aisle)
 
 def test_direction_control_off_disables_all_constraints():
     wh, index, mgr, _ = setup()
@@ -283,37 +249,23 @@ def test_drain_commits_the_pending_direction_not_the_old_one():
     assert mgr.update_aisle_direction(aisle, 20.0, 1.0, 6) is AisleDirection.REVERSE
 
 
-# ----------------------------------------------- capacity admission (H3)
-def test_capacity_admission_works_without_aisle_direction_control():
-    """`reservations` used to be a silent no-op unless aisles chose direction.
+# ----------------------------------------------- capacity admission
+def test_an_aisle_admits_robots_until_it_is_full():
+    """The one admission rule left: room, and nothing else.
 
-    `AisleManager.enabled` gated the whole reservation layer, and the variant
-    built to isolate reservations sets `direction_control="robot"`, so the
-    isolated cell was a bit-identical copy of its own control.
+    Entry used to also require a permit, priced into the movement score.
+    Removing it raised throughput by 34%, so the permits, their tables and
+    their time-to-live are gone; the occupancy cap stays, because over-filling
+    a single-file corridor is what builds a queue that cannot drain.
     """
     wh, index, mgr, _ = setup()
-    mgr.params = Params(
-        direction_control="robot", reservations=True, directional_aisle_min_length=1
-    )
-    assert not mgr.enabled
-    assert mgr.active
-
     aisle = long_aisle(wh)
     aisle.state = AisleState.OPEN
-    aisle.capacity = 2
-    robot = Robot(id=99, position=aisle.start_vertex)
-    index.rebuild([Robot(id=i, position=aisle.vertices[i]) for i in range(2)])
-    assert not mgr.can_enter_aisle(robot, aisle, AisleDirection.FORWARD, 0)
-
-
-def test_open_aisle_needs_room_but_not_a_ticket():
-    wh, index, mgr, _ = setup()
-    aisle = long_aisle(wh)
-    aisle.state = AisleState.OPEN
-    robot = Robot(id=0, position=aisle.start_vertex)
     index.rebuild([])
-    assert mgr.can_enter_aisle(robot, aisle, AisleDirection.FORWARD, 0)
-    assert not mgr.has_valid_reservation(robot, aisle, 0)
+    assert mgr.can_enter_aisle(aisle)
+
+    index.aisle_occupancy[aisle.id] = aisle.capacity
+    assert not mgr.can_enter_aisle(aisle)
 
 
 # --------------------------------------------------- head-on conflict metric

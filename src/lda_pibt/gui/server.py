@@ -26,42 +26,40 @@ from ..warehouse import Warehouse
 
 STATIC = Path(__file__).parent / "static"
 
-#: Fields the GUI exposes as live sliders / inputs.
+#: Fields the GUI exposes as live sliders / inputs. Plain names, because the
+#: Greek was never doing the reader a favour -- see docs/03-the-math.md for
+#: the formal symbols.
 TUNABLE = [
-    ("alpha_progress", "α progress", 0.0, 20.0, 0.5),
-    ("zeta_counterflow", "ζ counterflow", 0.0, 20.0, 0.5),
-    ("zeta_reservation", "ζ no-ticket", 0.0, 20.0, 0.5),
-    ("beta_strong", "β direction", 0.0, 10.0, 0.5),
-    ("gamma_strong", "γ aisle", 0.0, 10.0, 0.5),
-    ("lambda_turn", "λ turn", 0.0, 5.0, 0.1),
-    ("mu_congestion", "μ congestion", 0.0, 5.0, 0.1),
-    ("omega_local", "ω local density", 0.0, 5.0, 0.1),
-    ("xi_bottleneck", "ξ bottleneck", 0.0, 5.0, 0.1),
-    ("r_near", "R_near", 0, 20, 1),
-    ("r_far", "R_far", 1, 40, 1),
-    ("minimum_aisle_lock_time", "T_min lock (min green)", 1, 60, 1),
-    ("maximum_aisle_lock_time", "T_max lock (max green)", 2, 400, 1),
-    ("direction_switch_threshold", "τ switch", 0.0, 30.0, 0.5),
+    ("progress_reward", "progress reward", 0.0, 20.0, 0.5),
+    ("aisle_bonus", "stay-in-aisle bonus", 0.0, 10.0, 0.5),
+    ("aisle_bonus_near", "  ...near the waypoint", 0.0, 10.0, 0.5),
+    ("turn_penalty", "turn penalty", 0.0, 5.0, 0.1),
+    ("reverse_multiplier", "reverse costs N turns", 1.0, 6.0, 0.5),
+    ("crowding_penalty", "crowding penalty", 0.0, 5.0, 0.1),
+    ("local_congestion_radius", "crowding radius", 1, 10, 1),
+    ("r_near", "near distance", 0, 20, 1),
+    ("r_far", "far distance", 1, 40, 1),
+    ("minimum_aisle_lock_time", "minimum green", 1, 60, 1),
+    ("maximum_aisle_lock_time", "maximum green", 2, 400, 1),
+    ("direction_switch_threshold", "flip threshold", 0.0, 30.0, 0.5),
     ("aisle_capacity", "aisle capacity", 1, 30, 1),
-    ("max_drain_time", "max drain", 1, 120, 1),
-    ("t_blocked", "T_blocked", 1, 60, 1),
-    ("reservation_ttl", "reservation TTL", 1, 60, 1),
-    ("assign_gamma_congestion", "γ assign congestion", 0.0, 40.0, 1.0),
+    ("max_drain_time", "max drain time", 1, 120, 1),
+    ("route_direction_penalty", "detour to avoid wrong-way", 0.0, 30.0, 0.5),
+    ("priority_class_spread", "priority class spread", 0.0, 400.0, 10.0),
+    ("waiting_weight", "rank per step waited", 0.0, 40.0, 0.5),
+    ("stall_steps", "steps before stalled", 1, 60, 1),
+    ("recovery_max_level", "recovery ladder depth", 0, 5, 1),
+    ("cost_congestion", "assignment: crowding", 0.0, 40.0, 1.0),
 ]
 
 TOGGLES = [
     ("hysteresis", "hysteresis"),
-    ("reservations", "entry admission"),
-    ("congestion_scoring", "congestion in movement"),
-    ("congestion_assignment", "congestion in matching"),
-    ("congestion_normalisation", "normalise congestion"),
+    ("congestion_scoring", "crowding in movement"),
+    ("congestion_assignment", "crowding in matching"),
     ("recovery", "deadlock recovery"),
     ("require_deadlock_corroboration", "corroborated deadlocks"),
     ("turning_cost", "turning cost"),
-    ("hard_direction_constraints", "direction as hard rule"),
-    ("coordinate_aisle_directions", "coordinate aisle directions"),
-    ("demand_spread", "route-spread demand"),
-    ("direction_aware_routing", "direction-aware routing"),
+    ("direction_aware_routing", "route around one-way aisles"),
     ("park_when_idle", "park when idle"),
 ]
 
@@ -239,7 +237,6 @@ class SimulationSession:
                     "direction": int(aisle.current_direction),
                     "occupancy": aisle.occupancy,
                     "capacity": aisle.capacity,
-                    "reservations": sorted(aisle.reservations),
                     "lock_until": aisle.lock_until,
                     "switches": aisle.direction_switches,
                     "manageable": aisle.manageable,
@@ -330,7 +327,7 @@ class SimulationSession:
                 "mechanism": "entry capacity admission",
                 "metric": "head-on conflicts",
                 "value": report.head_on_conflicts,
-                "active": params.reservations,
+                "active": params.direction_control == "aisle",
                 "better": "lower",
             },
             {
@@ -371,7 +368,7 @@ class SimulationSession:
             "id": robot.id,
             "candidates": sim.planner.explain_candidates(robot, timestep),
             "direction_weight": round(robot.direction_weight, 3),
-            "aisle_weight": round(robot.aisle_weight, 3),
+            "aisle_bonus": round(robot.aisle_bonus, 3),
             "route_distance": (
                 None
                 if robot.route_distance_to_waypoint == float("inf")
@@ -387,8 +384,10 @@ class SimulationSession:
             for v in wh.graph.vertices:
                 grid[v[0]][v[1]] = float(sim.index.local_density(v))
         elif kind == "counterflow":
-            # Where robots are currently paying the counterflow penalty: the
-            # cells whose aisle direction opposes the traffic wanting them.
+            # Cells whose aisle direction opposes the traffic that wants
+            # them. Nothing charges a robot for entering one any more -- routes
+            # are planned to avoid them instead -- so this shows where the
+            # routing detour is being spent.
             for robot in sim.robots:
                 for candidate in wh.graph.neighbors(robot.position):
                     if sim.aisles.violates_aisle_direction(

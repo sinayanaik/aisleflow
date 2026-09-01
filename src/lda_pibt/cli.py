@@ -31,7 +31,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="KEY=VALUE",
-        help="override any Params field, e.g. --set alpha_progress=8",
+        help="override any Params field, e.g. --set progress_reward=8",
     )
 
 

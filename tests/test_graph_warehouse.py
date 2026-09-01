@@ -146,13 +146,14 @@ def test_bridge_carrying_aisles_are_never_made_one_way():
     assert all(not a.manageable for a in bridging)
 
 
-def test_capacity_models():
-    length = make(CORRIDOR, aisle_capacity_model="length").aisles[0].capacity
-    throughput = make(
-        CORRIDOR, aisle_capacity_model="throughput", minimum_aisle_lock_time=5
-    ).aisles[0].capacity
-    assert length == 5
-    assert throughput == 1
+def test_capacity_is_bounded_by_what_can_drain():
+    """A corridor holds no more robots than it can empty in `max_drain_time`.
+
+    The last robot in must still cross the whole aisle to leave, and every
+    robot ahead of it adds a step, so the cap is `max_drain_time - length`.
+    """
+    assert make(CORRIDOR, max_drain_time=30).aisles[0].capacity == 5
+    assert make(CORRIDOR, max_drain_time=8).aisles[0].capacity == 3
 
 
 def test_summary_keys():
@@ -194,7 +195,7 @@ def test_aisles_partition_the_non_intersection_cells():
 
 def test_drain_capacity_keeps_an_aisle_emptiable():
     """Capacity must not exceed what can clear the aisle inside max_drain_time."""
-    params = Params(aisle_capacity_model="drain", max_drain_time=30, aisle_capacity=99)
+    params = Params(max_drain_time=30, aisle_capacity=99)
     warehouse = Warehouse.from_file(MAPS / "warehouse_corridors.map", params)
     for aisle in warehouse.aisles.values():
         if aisle.manageable:

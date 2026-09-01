@@ -134,16 +134,14 @@ def test_waiting_is_always_a_candidate():
     [
         "pibt_baseline",
         "lifelong_pibt",
-        "directional_pibt",
         "hysteresis_pibt",
-        "aisle_managed_pibt",
         "full_lda_pibt",
         "turning_cost_only",
-        "direction_control_only",
         "aisle_direction_only",
-        "reservations_only",
+        "aisle_direction_no_routing",
         "congestion_only",
         "recovery_only",
+        "recovery_full_ladder",
     ],
 )
 def test_every_variant_is_collision_free(variant):
@@ -193,7 +191,6 @@ def _directional_corridor(**overrides):
     params = Params(
         direction_control="aisle",
         hysteresis=True,
-        reservations=False,
         directional_aisle_min_length=1,
         **overrides,
     )
@@ -213,38 +210,50 @@ def _directional_corridor(**overrides):
 
 
 def test_aisle_direction_does_not_shrink_the_candidate_set():
-    """The invariant the aisle layer used to break.
+    """The invariant the aisle layer must never break.
 
     Priority inheritance works because a robot can always be pushed into an
     adjacent cell. Deleting counterflow moves from the candidate set removes
-    exactly that freedom, so inheritance chains dead-end. Direction is priced
-    instead: the move survives the filter, carrying a penalty.
+    exactly that freedom, so inheritance chains dead-end. Nothing in the
+    movement layer looks at aisle direction at all now -- routes are planned
+    to avoid wrong-way aisles instead -- so the move stays available, and
+    stays unpenalised.
     """
     sim, aisle, robot, against = _directional_corridor()
     assert sim.aisles.violates_aisle_direction(robot, robot.position, against, 1)
 
     candidates = sim.planner.feasible_candidates(robot, None, 1)
-    assert against in candidates, "a legal move was deleted, not deprioritised"
-    assert sim.scorer.aisle_penalty(robot, against) == sim.params.zeta_counterflow
+    assert against in candidates, "a legal move was deleted from the candidate set"
 
+    # Against the flow and with it must score identically: the score has no
+    # opinion about direction any more.
     with_flow = aisle.vertices[7]
-    assert sim.scorer.aisle_penalty(robot, with_flow) == 0.0
-
-
-def test_hard_constraints_flag_restores_the_old_rejection():
-    sim, _aisle, robot, against = _directional_corridor(
-        hard_direction_constraints=True
+    robot.waypoint = aisle.vertices[0]
+    assert sim.scorer.score(robot, against) > sim.scorer.score(robot, with_flow), (
+        "progress, not direction, must decide"
     )
-    assert against not in sim.planner.feasible_candidates(robot, None, 1)
-    # In that mode the planner rejects the move, so the score must not also
-    # charge for it -- otherwise the penalty is counted twice.
-    assert sim.scorer.aisle_penalty(robot, against) == 0.0
 
 
-def test_progress_still_outranks_the_counterflow_penalty():
-    """zeta must sit below alpha, or direction becomes a constraint again."""
-    params = Params()
-    assert params.zeta_counterflow < params.alpha_progress
-    assert params.zeta_reservation < params.alpha_progress
-    assert params.zeta_counterflow > params.beta_strong
-    assert params.zeta_counterflow > params.gamma_strong
+def test_routing_avoids_aisles_flowing_the_other_way():
+    """Direction acts on the route, which is the only place it acts now."""
+    sim, aisle, robot, _against = _directional_corridor()
+    penalty = sim.router.edge_penalty(aisle.vertices[7], aisle.vertices[6])
+    assert penalty == sim.params.route_direction_penalty
+    assert sim.router.edge_penalty(aisle.vertices[6], aisle.vertices[7]) == 0.0
+
+
+def test_the_score_has_exactly_the_terms_the_documents_claim():
+    """A guard on the simplification: four terms, and progress dominates.
+
+    Progress is -1, 0 or +1 and is worth `progress_reward`, so the other three
+    terms can only reorder candidates that make equal progress. If a new term
+    is ever added that can outweigh a step of progress, the tier structure the
+    documentation explains stops being true.
+    """
+    p = Params()
+    tie_breaks = (
+        p.aisle_bonus
+        + p.turn_penalty * p.reverse_multiplier
+        + p.crowding_penalty
+    )
+    assert tie_breaks < p.progress_reward

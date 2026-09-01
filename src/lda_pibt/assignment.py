@@ -78,7 +78,7 @@ class TaskAssigner:
         # dwarfs distance and congestion within ~100 steps and the match
         # degenerates to oldest-task-first, which is why congestion-aware
         # assignment could never show an effect.
-        waiting = min(float(task.waiting_time(timestep)), p.assign_waiting_cap)
+        waiting = min(float(task.waiting_time(timestep)), p.cost_waiting_cap)
         directional = (
             self.directional_delay(robot.position, task.pickup)
             if p.congestion_assignment or p.direction_control == "aisle"
@@ -89,12 +89,12 @@ class TaskAssigner:
         )
 
         return (
-            p.assign_alpha_to_pickup * d_to_pickup
-            + p.assign_beta_pickup_to_delivery * d_pickup_to_delivery
-            + p.assign_gamma_congestion * congestion
-            + p.assign_delta_waiting * waiting
-            + p.assign_eta_direction * directional
-            + p.assign_zeta_blocking * blocking
+            p.cost_to_pickup * d_to_pickup
+            + p.cost_pickup_to_delivery * d_pickup_to_delivery
+            + p.cost_congestion * congestion
+            + p.cost_waiting * waiting
+            + p.cost_direction * directional
+            + p.cost_blocking * blocking
         )
 
     def assignment_is_feasible(self, robot: Robot, task: Task) -> bool:

@@ -1,7 +1,7 @@
 """High-level aisle traffic controller.
 
 Implements spec sections 10 (aisle states), 11-12 (directional demand),
-16 (hysteresis), 17 (drain-before-reverse), 18 (entry reservations) and
+16 (hysteresis), 17 (drain-before-reverse) and
 27 (aisle-direction constraints on candidate moves).
 
 Design principle (spec 42): *robots generate directional requests, but aisles
@@ -20,14 +20,13 @@ from .types import (
     INF,
     AisleDirection,
     AisleState,
-    Reservation,
     Vertex,
 )
 from .warehouse import Aisle, Warehouse
 
 
 class AisleManager:
-    """Owns aisle direction, queues and reservations."""
+    """Decides which way each aisle flows, and when it may change."""
 
     def __init__(self, warehouse: Warehouse, index: OccupancyIndex, params: Params):
         self.warehouse = warehouse
@@ -36,8 +35,7 @@ class AisleManager:
         self.direction_switches = 0
         self.starvation_flips = 0
         self.requests: Dict[int, Tuple[int, AisleDirection]] = {}
-        #: robot id -> [(aisle id, direction, weight)], populated only when
-        #: `demand_spread` is on; see `update_aisle_queues`
+        #: robot id -> [(aisle id, direction, weight)]
         self.route_requests: Dict[int, List[Tuple[int, AisleDirection, float]]] = {}
         self._robot_lookup: Dict[int, Robot] = {}
 
@@ -50,17 +48,22 @@ class AisleManager:
     def active(self) -> bool:
         """True when the aisle layer does anything at all this run.
 
-        Entry admission is a capacity mechanism and makes sense whatever decides
-        direction, so `reservations` alone is enough to keep the layer running.
-        Gating it on `enabled` is what made `reservations=True` a silent no-op
-        under `direction_control="robot"`.
+        Only aisle-level direction control gives this layer anything to do
+        now that entry permits are gone.
         """
-        return self.enabled or self.params.reservations
+        return self.enabled
 
     # ------------------------------------------------------ robot requests
     def requested_direction(self, robot: Robot, aisle: Aisle) -> AisleDirection:
-        """Direction in which `robot` intends to traverse `aisle` (spec 12)."""
-        route = robot.route or [robot.position]
+        """Which way this robot wants to traverse this aisle.
+
+        Read from `demand_route`, the path the robot would take if no aisle
+        had a direction, not from the path it is actually following: a robot
+        that has been detoured around a wrong-way aisle still wants that aisle
+        to turn, and is exactly the traffic the maximum-green rule exists to
+        stop starving.
+        """
+        route = robot.demand_route or robot.route or [robot.position]
         indices = [
             aisle.position_index(v)
             for v in route
@@ -82,44 +85,15 @@ class AisleManager:
             return AisleDirection.NONE
         return aisle.entry_direction(first_inside)
 
-    def route_direction_requests(
-        self, robot: Robot
-    ) -> List[Tuple[int, AisleDirection, float]]:
-        """Every aisle the robot's route touches, with the direction it needs.
-
-        Spec 12 aggregates demand over "the aisles along its route"; charging a
-        robot to its next aisle alone hides two things an aisle needs to know:
-        the robots already inside it that want to keep flowing, and the traffic
-        heading for it from more than one aisle away.  Weight decays as
-        1/(1 + steps to the entry) so imminent demand still dominates.
-        """
-        route = robot.route or [robot.position]
-        spans: Dict[int, Tuple[int, int, int]] = {}
-        for step, vertex in enumerate(route):
+    def _next_demanded_aisle(self, robot: Robot) -> Optional[int]:
+        """First manageable aisle on the robot's direction-agnostic route."""
+        for vertex in robot.demand_route or robot.route or ():
             aisle_id = self.warehouse.aisle_id(vertex)
-            if aisle_id is None:
+            if aisle_id is None or aisle_id == robot.current_aisle:
                 continue
-            index = self.warehouse.aisles[aisle_id].position_index(vertex)
-            if index is None:
-                continue
-            # Keep the first index the route touches and the last, so a route
-            # that leaves and re-enters the aisle is still one span.
-            first, _last, entry_step = spans.get(aisle_id, (index, index, step))
-            spans[aisle_id] = (first, index, entry_step)
-
-        requests: List[Tuple[int, AisleDirection, float]] = []
-        for aisle_id, (first, last, entry_step) in spans.items():
-            aisle = self.warehouse.aisles[aisle_id]
-            if last > first:
-                direction = AisleDirection.FORWARD
-            elif last < first:
-                direction = AisleDirection.REVERSE
-            else:
-                direction = aisle.entry_direction(route[entry_step])
-            if direction is AisleDirection.NONE:
-                continue
-            requests.append((aisle_id, direction, 1.0 / (1.0 + entry_step)))
-        return requests
+            if self.warehouse.aisles[aisle_id].manageable:
+                return aisle_id
+        return robot.next_aisle
 
     def update_aisle_queues(self, robots: Iterable[Robot], timestep: int) -> None:
         """Refresh entrance queues and the per-robot direction request (30.6)."""
@@ -132,7 +106,7 @@ class AisleManager:
         self._robot_lookup = {r.id: r for r in robots}
 
         for robot in robots:
-            aisle_id = robot.next_aisle
+            aisle_id = self._next_demanded_aisle(robot)
             if aisle_id is None:
                 aisle_id = robot.current_aisle
             aisle = self.warehouse.get_aisle(aisle_id)
@@ -144,9 +118,7 @@ class AisleManager:
                 if direction is not AisleDirection.NONE:
                     self.requests[robot.id] = (aisle.id, direction)
 
-            if self.params.demand_spread:
-                entries = self.route_direction_requests(robot)
-            elif robot.id in self.requests:
+            if robot.id in self.requests:
                 next_aisle_id, next_direction = self.requests[robot.id]
                 entries = [(next_aisle_id, next_direction, 1.0)]
             else:
@@ -165,9 +137,14 @@ class AisleManager:
 
     # ---------------------------------------------------- directional demand
     def _robot_demand(self, robot: Robot, aisle: Aisle, timestep: int) -> float:
-        r"""w_u U_i + w_w W_i + w_p P_i - w_l L_i - w_c C_i (spec 12)."""
+        """How badly this robot wants the aisle to flow its way.
+
+        Waiting and nearness push the vote up; a long remaining route and an
+        already-crowded aisle push it down. A task-urgency term used to sit
+        here too, but tasks in this simulator carry no deadline, so it was
+        always exactly zero.
+        """
         p = self.params
-        urgency = robot.task.urgency(timestep) if robot.task else 0.0
         # A robot that shuffles in place still starves, so stalled route
         # progress counts as waiting (this is what lets an aisle flip).
         waiting = float(
@@ -185,11 +162,10 @@ class AisleManager:
         )
         congestion = self.index.aisle_load(aisle.id)
         return (
-            p.w_urgency * urgency
-            + p.w_waiting * waiting
-            + p.w_proximity * proximity
-            - p.w_route_length * route_length
-            - p.w_congestion * congestion
+            p.demand_waiting * waiting
+            + p.demand_proximity * proximity
+            - p.demand_route_length * route_length
+            - p.demand_congestion * congestion
         )
 
     def compute_directional_demand(
@@ -230,8 +206,6 @@ class AisleManager:
         that gap: past it, any opposing demand at all forces a drain and a flip.
         """
         imbalance = forward_demand - reverse_demand
-        if self.params.parity_bias and (forward_demand or reverse_demand):
-            imbalance += self.params.parity_bias * (1 if aisle.id % 2 == 0 else -1)
         threshold = (
             aisle.switch_threshold if self.params.hysteresis else 0.0
         )
@@ -275,11 +249,18 @@ class AisleManager:
         # Robots are still inside: hold the direction, possibly start draining.
         if occupancy > 0 and aisle.current_direction is not AisleDirection.NONE:
             forward = aisle.current_direction is AisleDirection.FORWARD
+            # `!= 0` rather than `> 0`: the demand score is signed -- a long
+            # remaining route and a crowded aisle subtract from it -- so real
+            # traffic routinely votes negative. It is exactly zero only when
+            # nobody asked for that direction at all. Testing `> 0` let an
+            # aisle hold its direction against robots that plainly wanted
+            # through, and liveness must not depend on how enthusiastic the
+            # starved traffic is.
             opposing_demand = reverse_demand if forward else forward_demand
             opposing_imbalance = -imbalance if forward else imbalance
             starved = (
                 timestep - aisle.direction_since >= aisle.maximum_lock_time
-                and opposing_demand > 0.0
+                and opposing_demand != 0.0
             )
             if opposing_imbalance > threshold or starved:
                 self._begin_drain(aisle, timestep, forced=starved)
@@ -351,207 +332,28 @@ class AisleManager:
             )
             proposals.append((abs(forward - reverse), aisle.id, aisle, forward, reverse))
 
-        if not self.params.coordinate_aisle_directions:
-            for _, _, aisle, forward, reverse in proposals:
-                self.update_aisle_direction(aisle, forward, reverse, timestep)
-            return
-
-        # Decide the directions as a *set*: strongest demand commits first, and
-        # any commit that would leave some vertex unreachable from another is
-        # rolled back, so the directed graph always stays strongly connected.
-        proposals.sort(key=lambda entry: (-entry[0], entry[1]))
-        assignment = {a.id: a.current_direction for a in self.warehouse.aisles.values()}
-        for _, aisle_id, aisle, forward, reverse in proposals:
-            before = assignment[aisle_id]
-            snapshot = (
-                aisle.current_direction,
-                aisle.previous_direction,
-                aisle.state,
-                aisle.lock_until,
-                aisle.draining_since,
-                aisle.direction_since,
-                aisle.pending_direction,
-            )
-            proposed = self.update_aisle_direction(aisle, forward, reverse, timestep)
-            assignment[aisle_id] = proposed
-            if proposed is before or proposed is AisleDirection.NONE:
-                continue
-            if self._strongly_connected(assignment):
-                continue
-            (
-                aisle.current_direction,
-                aisle.previous_direction,
-                aisle.state,
-                aisle.lock_until,
-                aisle.draining_since,
-                aisle.direction_since,
-                aisle.pending_direction,
-            ) = snapshot
-            assignment[aisle_id] = before
-
-    def _strongly_connected(self, assignment: Dict[int, AisleDirection]) -> bool:
-        """Is every vertex still reachable from every other under `assignment`?"""
-        graph = self.warehouse.graph
-        vertices = graph.vertices
-        if not vertices:
-            return True
-
-        def passable(source: Vertex, target: Vertex) -> bool:
-            aisle_id = self.warehouse.aisle_id(target)
-            if aisle_id is None:
-                return True
-            direction = assignment.get(aisle_id, AisleDirection.NONE)
-            if direction is AisleDirection.NONE:
-                return True
-            return self.warehouse.traversal_direction(source, target) is direction
-
-        def reachable(forward: bool) -> int:
-            start = vertices[0]
-            seen = {start}
-            stack = [start]
-            while stack:
-                current = stack.pop()
-                for neighbor in graph.neighbors(current):
-                    ok = (
-                        passable(current, neighbor)
-                        if forward
-                        else passable(neighbor, current)
-                    )
-                    if ok and neighbor not in seen:
-                        seen.add(neighbor)
-                        stack.append(neighbor)
-            return len(seen)
-
-        return reachable(True) == len(vertices) and reachable(False) == len(vertices)
-
-    # -------------------------------------------------------- reservations
-    def update_aisle_reservations(
-        self, ordered_robots: List[Robot], timestep: int
-    ) -> None:
-        """Expire stale reservations, then grant new ones (spec 18).
-
-        Gated on `reservations` alone.  Admission control caps how many robots
-        may be inside a narrow aisle at once, which is a claim about capacity,
-        not about direction -- gating it on `direction_control == "aisle"` made
-        the flag a silent no-op in every robot-level configuration.
-        """
-        if not self.params.reservations:
-            return
-        for aisle in self.warehouse.aisles.values():
-            expired = [
-                rid
-                for rid, res in aisle.reservations.items()
-                if not res.is_valid(timestep)
-            ]
-            for rid in expired:
-                aisle.reservations.pop(rid, None)
-
-        for robot in ordered_robots:
-            entry = self.requests.get(robot.id)
-            if entry is None:
-                continue
-            aisle_id, direction = entry
-            aisle = self.warehouse.get_aisle(aisle_id)
-            if aisle is None or robot.current_aisle == aisle_id:
-                continue
-            if not aisle.manageable:
-                continue
-            if aisle.state in (AisleState.DRAINING,):
-                continue
-            if (
-                aisle.current_direction is not AisleDirection.NONE
-                and direction is not aisle.current_direction
-            ):
-                continue
-            if robot.id in aisle.reservations:
-                continue
-            occupancy = self.index.aisle_occupancy.get(aisle.id, 0)
-            pending = sum(
-                1
-                for rid in aisle.reservations
-                if self._robot_outside(rid, aisle)
-            )
-            if occupancy + pending >= aisle.capacity:
-                continue
-            travel = float(aisle.length)
-            if not self._at_entrance(robot, aisle):
-                continue
-            reservation = Reservation(
-                robot_id=robot.id,
-                aisle_id=aisle.id,
-                direction=direction,
-                entry_time=timestep,
-                expected_exit_time=timestep + int(travel) + 1,
-                expiry_time=timestep + self.params.reservation_ttl,
-            )
-            aisle.reservations[robot.id] = reservation
-            robot.aisle_reservation = reservation
+        for _, _, aisle, forward, reverse in proposals:
+            self.update_aisle_direction(aisle, forward, reverse, timestep)
 
     def _robot_outside(self, robot_id: int, aisle: Aisle) -> bool:
         robot = self._robot_lookup.get(robot_id)
         return robot is None or robot.current_aisle != aisle.id
 
-    def consume_reservations(self, robots: Iterable[Robot]) -> None:
-        """Drop reservations once the robot is inside or past its target aisle."""
-        for robot in robots:
-            res = robot.aisle_reservation
-            if res is None:
-                continue
-            aisle = self.warehouse.get_aisle(res.aisle_id)
-            if aisle is None:
-                robot.aisle_reservation = None
-                continue
-            if robot.current_aisle == aisle.id or robot.next_aisle != aisle.id:
-                aisle.reservations.pop(robot.id, None)
-                robot.aisle_reservation = None
+    def can_enter_aisle(self, aisle: Aisle) -> bool:
+        """Is there room in this aisle for one more robot?
 
-    def _at_entrance(self, robot: Robot, aisle: Aisle, radius: int = 3) -> bool:
-        """Only robots queued at an entrance may hold a reservation."""
-        graph = self.warehouse.graph
-        return min(
-            graph.route_distance(robot.position, aisle.start_vertex),
-            graph.route_distance(robot.position, aisle.end_vertex),
-        ) <= radius
-
-    def has_valid_reservation(
-        self, robot: Robot, aisle: Aisle, timestep: int
-    ) -> bool:
-        res = aisle.reservations.get(robot.id)
-        return res is not None and res.is_valid(timestep)
-
-    def release_reservations(self, robot: Robot) -> None:
-        for aisle in self.warehouse.aisles.values():
-            aisle.reservations.pop(robot.id, None)
-        robot.aisle_reservation = None
-
-    def can_enter_aisle(
-        self,
-        robot: Robot,
-        aisle: Aisle,
-        direction: AisleDirection,
-        timestep: int,
-    ) -> bool:
-        """Spec section 18.1.
-
-        Two separate gates, because they answer different questions:
-
-        * the **occupancy cap** applies to every managed aisle, OPEN included.
-          Over-filling a single-file corridor is what builds a queue that
-          cannot drain, and that is true whether or not the corridor currently
-          has a direction.  This is the mechanism H3 is about.
-        * the **ticket** is required only once the aisle is directional, per
-          spec 18. Demanding one to enter an OPEN aisle would throttle every
-          crossing on a map whose aisles are mostly short and mostly open.
+        The occupancy cap applies to every managed aisle, whether or not it
+        currently has a direction: over-filling a single-file corridor is what
+        builds a queue that cannot drain. There used to be a second gate here,
+        an entry permit a robot had to hold before entering a directional
+        aisle, priced into the movement score. It measured as the single most
+        expensive mechanism in the planner -- removing it alone raised
+        throughput by 34% -- so it is gone, along with the permit tables, their
+        time-to-live and the recovery level that existed to release them.
         """
         if aisle.state is AisleState.DRAINING:
             return False
-        if aisle.state is not AisleState.OPEN and direction is not aisle.current_direction:
-            return False
-        if self.index.aisle_occupancy.get(aisle.id, 0) >= aisle.capacity:
-            return False
-        if not self.params.reservations or aisle.state is AisleState.OPEN:
-            return True
-        return self.has_valid_reservation(robot, aisle, timestep)
+        return self.index.aisle_occupancy.get(aisle.id, 0) < aisle.capacity
 
     # ------------------------------------------------ movement legality (27)
     def violates_aisle_direction(
@@ -564,11 +366,12 @@ class AisleManager:
         move toward the nearer endpoint is always kept available so that the
         DRAINING state can actually terminate.
 
-        The name is historical: this is a *predicate*, not a veto.  Its answer
-        is priced by `CandidateScorer.aisle_penalty` rather than used to drop
-        the candidate -- see the note there for why deleting the move instead
-        breaks PIBT's progress argument.  It becomes a rejection again only
-        under `hard_direction_constraints`.
+        This is a *predicate*, not a veto. Nothing rejects a move because of
+        it and nothing charges the robot for it any more; the answer is used
+        by `routing.Router` to plan a path that avoids the situation, and by
+        the GUI to explain what a robot is doing. Making it a veto breaks
+        PIBT's progress argument, and making it a score penalty measured
+        strongly negative -- see `docs/05-results.md`.
         """
         if not self.enabled:
             return False
@@ -604,28 +407,6 @@ class AisleManager:
             return True  # leaving the aisle entirely
         last = aisle.length - 1
         return min(ni, last - ni) < min(ci, last - ci)
-
-    def violates_aisle_reservation(
-        self, robot: Robot, current: Vertex, candidate: Vertex, timestep: int
-    ) -> bool:
-        """Entering a managed aisle needs a ticket and room (spec 18).
-
-        Independent of `direction_control`: this is the capacity mechanism, and
-        an over-filled corridor jams the same way whichever layer chose its
-        direction.
-        """
-        if not self.params.reservations:
-            return False
-        if timestep <= robot.ignore_direction_until:
-            return False
-        candidate_aisle_id = self.warehouse.aisle_id(candidate)
-        if candidate_aisle_id is None or candidate_aisle_id == robot.current_aisle:
-            return False
-        aisle = self.warehouse.aisles[candidate_aisle_id]
-        if not aisle.manageable:
-            return False
-        direction = self.warehouse.traversal_direction(current, candidate)
-        return not self.can_enter_aisle(robot, aisle, direction, timestep)
 
     # ----------------------------------------------------------- statistics
     def state_counts(self) -> Dict[str, int]:

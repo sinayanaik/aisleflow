@@ -25,8 +25,7 @@ from .routing import Router
 from .scoring import (
     CandidateScorer,
     apply_direction_hysteresis,
-    compute_aisle_weight,
-    compute_direction_weight,
+    compute_aisle_bonus,
     compute_proximity_mode,
     compute_route_direction,
 )
@@ -141,7 +140,6 @@ class Simulator:
                 completed = update_task_state(robot, t)
                 if completed is not None:
                     self.metrics.record_completion(completed)
-                    self.aisles.release_reservations(robot)
 
         # 3. assign tasks to free robots --------------------------------------
         if self.params.lifelong:
@@ -160,26 +158,28 @@ class Simulator:
             robot.mode = compute_proximity_mode(
                 robot.route_distance_to_waypoint, self.params
             )
-            robot.direction_weight = compute_direction_weight(
-                robot.route_distance_to_waypoint, self.params
-            )
-            robot.aisle_weight = compute_aisle_weight(robot.mode, self.params)
+            robot.aisle_bonus = compute_aisle_bonus(robot.mode, self.params)
             robot.current_aisle = self.warehouse.aisle_id(robot.position)
 
         # 5. compute routes and directional requests ---------------------------
         for robot in self.robots:
             robot.route = self.router.route(robot.position, robot.waypoint)
+            # What the robot wants, before direction-aware routing detours it.
+            robot.demand_route = (
+                self.warehouse.graph.shortest_route(robot.position, robot.waypoint)
+                if self.params.direction_aware_routing
+                else robot.route
+            )
             robot.next_aisle = self._find_next_critical_aisle(robot)
             proposed = compute_route_direction(self.warehouse, robot)
             robot.preferred_direction = apply_direction_hysteresis(
                 robot, proposed, t, self.params
             )
 
-        # 6-8. aisle queues, direction decisions, reservations ------------------
+        # 6-7. aisle queues and direction decisions ---------------------------
         if self.aisles.active:
             self.aisles.update_aisle_queues(self.robots, t)
             self.aisles.step_directions(self.robots_by_id, t)
-            self.aisles.consume_reservations(self.robots)
 
         # 9. detect and recover from deadlocks (using last step's wait graph) ---
         if self.params.recovery:
@@ -191,17 +191,15 @@ class Simulator:
             robot.priority = compute_priority(robot, t, self.params)
         ordered = order_by_priority(self.robots)
 
-        if self.aisles.active:
-            self.aisles.update_aisle_reservations(ordered, t)
 
         # 11-12. clear step state and run PIBT ---------------------------------
         self.planner.plan_step(ordered, t)
 
-        # 12b. hypothesis-level counters, read before execution clears the plan.
-        # Counted for every variant, not only when the aisle layer is running:
-        # head-on encounters and aisle flow are properties of the map and the
-        # routes, so the variants with no aisle layer are the controls the
-        # hypotheses are measured against.
+        # 12b. hypothesis-level counters, read before execution clears the
+        # plan. Counted for every variant, not only when the aisle layer is
+        # running: head-on encounters and aisle flow are properties of the map
+        # and the routes, so the variants with no aisle layer are the controls
+        # these are measured against.
         self.head_on_conflicts += self.aisles.count_head_on_conflicts(self.robots)
         record = getattr(self.planner, "record_counterflow", None)
         if record is not None:
@@ -230,8 +228,6 @@ class Simulator:
                 robot.position, robot.waypoint
             )
             self.deadlocks.update_progress(robot, t)
-            if robot.current_aisle is None:
-                self.aisles.release_reservations(robot)
 
         self.aisles.record_aisle_exits(self.robots)
 
