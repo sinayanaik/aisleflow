@@ -73,16 +73,16 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 158 tests, ~15s
-pytest -m slow               # the wide baseline sweep, 12 more, ~14s
-pytest -m ""                 # everything, ~27s
+pytest                       # 167 tests
+pytest -m slow               # the wide baseline sweep, 12 more
+pytest -m ""                 # everything
 ```
 
-The default run deselects `slow`, which is the baseline planners re-checked on
-four extra maps. Those planners re-solve a space-time A\* per robot per
-timestep, so that sweep alone cost more than the rest of the suite; the three
-maps the default run keeps cover the same three failure modes. CI should run
-`pytest -m ""`.
+The default run deselects `slow`, which is the three published baselines
+re-checked on four extra maps. Those planners run a space-time search per
+agent per task or per replanning window, so that sweep alone costs more than
+the rest of the suite; the three maps the default run keeps cover the same
+three failure modes. CI should run `pytest -m ""`.
 
 Python 3.10+.
 

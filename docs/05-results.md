@@ -97,10 +97,12 @@ configuration is not the best on any of them**:
 mechanism. If more were always better, the green "best here" marker would sit
 on the bottom rung of all four panels. It sits there on none of them.
 
-On `bottleneck` and `corridors` the extra terms buy 16–50% over plain PIBT.
-Both have a chokepoint every route crosses: one six-cell corridor joining the
-halves, or five 22-cell single-file runs. On `narrow` and `medium` there is
-more than one way round, plain PIBT wins by 20–30%, and every addition costs.
+On `bottleneck` and `corridors` the best rung buys 22% and 50% over plain
+PIBT. Both have a chokepoint every route crosses: one six-cell corridor
+joining the halves, or five 22-cell single-file runs. On `narrow` and `medium`
+there is more than one way round, plain PIBT is itself the best rung — by 13%
+and 15% over the best configuration that adds anything — and every addition
+costs.
 
 This is not a defect to hide; it is the most useful thing the study produced.
 It says the machinery is *congestion machinery*, and it earns its keep exactly
@@ -214,6 +216,19 @@ is better without it.
 
 ### Caveats worth stating
 
+- **Every scenario is saturated.** Jobs arrive faster than any of these
+  planners can deliver them — `corridors` releases about 390 jobs in 400 steps
+  and the best planner clears about 60 — so throughput measures the *capacity*
+  of the floor, not responsiveness, and the queue grows without bound behind
+  every planner. Service time under saturation is a function of how long the
+  run was, so it is recorded but not compared across planners.
+- **The published baselines are measured outside their design envelope, and
+  that is stated rather than scored.** Token Passing and TPTS assume a
+  well-formed MAPD instance (see [page 06](06-the-maps.md)); RHCR does not,
+  and it is competitive everywhere and ahead of aisleflow on `medium`. Read
+  the density figure before reading anything into the bar chart: on a quiet
+  floor all four planners are level, which is what says the implementations
+  are right.
 - **Four maps.** Every conclusion here is about `warehouse_bottleneck`,
   `warehouse_corridors`, `warehouse_narrow` and `warehouse_medium` at the
   robot counts and arrival rates in the dataset's `meta.scenarios`. A knob

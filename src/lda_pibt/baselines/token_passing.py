@@ -282,7 +282,11 @@ class TokenPassingPlanner:
             # separate searches, so this is the normal way it reaches its
             # delivery. For TP it only happens if a leg failed earlier.
             remaining = self._remaining_goals(robot)
-            path = self._plan(robot, remaining, table, timestep)
+            path = (
+                self._plan(robot, remaining, table, timestep)
+                if all(goal in reachable for goal in remaining)
+                else None
+            )
             self.paths[robot.id] = path if path is not None else [robot.position]
             return None
 
