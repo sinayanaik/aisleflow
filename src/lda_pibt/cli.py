@@ -31,7 +31,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="KEY=VALUE",
-        help="override any Params field, e.g. --set alpha_progress=8",
+        help="override any Params field, e.g. --set progress_reward=8",
     )
 
 
@@ -102,7 +102,7 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     for aisle in warehouse.aisles.values():
         print(
             f"{aisle.id:8d}  {aisle.length:6d}  {aisle.capacity:8d}  "
-            f"{aisle.axis or '-':4s}  {str(aisle.manageable):7s}  "
+            f"{aisle.axis or '-':4s}  "
             f"{aisle.start_vertex} -> {aisle.end_vertex}"
         )
     bent = [a.id for a in warehouse.aisles.values() if a.length > 1 and not a.axis]
@@ -175,7 +175,6 @@ def _format_table(rows: List[dict]) -> str:
             f"{row['variant']:22s} {row['throughput']:7.3f} "
             f"{row['mean_service_time']:8.1f} {row['p95_service_time']:8.1f} "
             f"{row['total_travel_distance']:8.0f} "
-            f"{row['direction_switches_per_1000']:7.2f} "
             f"{row['deadlocks_detected']:6.0f} {row['jain_fairness']:6.3f} "
             f"{row['mean_runtime_ms_per_step']:6.2f}"
         )

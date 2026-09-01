@@ -8,7 +8,7 @@ counters, entrance-queue counters and a spatial hash for local robot density.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 from .config import Params
 from .robot import Robot
@@ -86,11 +86,9 @@ class OccupancyIndex:
     ) -> float:
         """`local_density` as a fraction of the passable cells in range.
 
-        `C_aisle` and `C_downstream` are already ratios in [0, 1]; mixing a raw
-        count with them makes `C_local` the whole mixture and lets `mu * C`
-        reach the scale of `alpha * Delta`, which inverts the intended ordering
-        of the score terms.  Dividing by the reachable cell count puts all
-        three terms on one scale.
+        Aisle load is already a ratio; a raw robot count mixed with it would
+        dominate the mean and let crowding reach the scale of the progress
+        reward, inverting the intended ordering of the score terms.
         """
         radius = self.params.local_congestion_radius
         cells = 0
@@ -105,70 +103,45 @@ class OccupancyIndex:
 
 
 class CongestionModel:
-    """Computes C_i(v) = w1*C_local + w2*C_aisle + w3*C_downstream (spec 23.1)."""
+    """How crowded a cell is, as one number in [0, 1].
+
+    Two signals, averaged:
+
+    * **local** -- what fraction of the cells within `local_congestion_radius`
+      hold a robot;
+    * **aisle** -- how full the candidate's aisle is, against its capacity.
+
+    Both are already fractions, so the mean is one too, and `crowding_penalty`
+    can be read directly as "how many points of score a completely jammed cell
+    costs". There used to be a third signal (mean occupancy of the next few
+    route cells) and three weights to mix them: the sensitivity study found
+    that changing the third signal's horizon -- including switching it off
+    entirely -- left every run bit-identical, because at a tenth of the
+    progress reward it never once broke a tie. See `docs/04-parameters.md`.
+    """
 
     def __init__(self, warehouse: Warehouse, index: OccupancyIndex, params: Params):
         self.warehouse = warehouse
         self.index = index
         self.params = params
-        self._downstream_cache: Dict[Tuple[Vertex, Vertex], float] = {}
 
     def begin_timestep(self) -> None:
-        self._downstream_cache.clear()
+        """Kept for the simulator's call order; nothing is cached per step now."""
 
-    def downstream(self, v: Vertex, waypoint: Optional[Vertex]) -> float:
-        """Mean occupancy of the next K route vertices beyond `v` (spec 23.1)."""
-        if waypoint is None:
-            return 0.0
-        key = (v, waypoint)
-        cached = self._downstream_cache.get(key)
-        if cached is not None:
-            return cached
-        horizon = self.params.downstream_horizon
-        route = self.warehouse.graph.shortest_route(v, waypoint, horizon=horizon)
-        tail = route[1:]
-        if not tail:
-            value = 0.0
-        else:
-            value = sum(1.0 for u in tail if self.index.is_occupied(u)) / len(tail)
-        self._downstream_cache[key] = value
-        return value
-
-    def congestion(self, robot: Robot, candidate: Vertex) -> float:
-        r"""C_i(v) = w1 C_local + w2 C_aisle + w3 C_downstream (spec 23.1).
-
-        With `congestion_normalisation` on, `C_local` is an occupancy ratio and
-        the weights are normalised to sum to 1, so `C_i(v)` lies in [0, 1] and
-        `mu * C` cannot outrank `alpha * Delta`.
-        """
+    def crowding(self, robot: Robot, candidate: Vertex) -> float:
+        """Mean of the local and aisle crowding fractions, in [0, 1]."""
         if not self.params.congestion_scoring:
             return 0.0
-        p = self.params
-        aisle = self.index.aisle_load(self.warehouse.aisle_id(candidate))
-        down = self.downstream(candidate, robot.waypoint)
-        if not p.congestion_normalisation:
-            local = float(self.index.local_density(candidate, exclude=robot))
-            return (
-                p.omega_local * local
-                + p.omega_aisle * aisle
-                + p.omega_downstream * down
-            )
         local = self.index.local_occupancy_ratio(candidate, exclude=robot)
-        weight = p.omega_local + p.omega_aisle + p.omega_downstream
-        if weight <= 0.0:
-            return 0.0
-        return (
-            p.omega_local * local
-            + p.omega_aisle * aisle
-            + p.omega_downstream * down
-        ) / weight
+        aisle = self.index.aisle_load(self.warehouse.aisle_id(candidate))
+        return 0.5 * (local + aisle)
 
     def route_congestion(self, source: Vertex, goal: Vertex) -> float:
-        """Congestion estimate along a whole route, for task assignment (19).
+        """Crowding along a whole route, for task assignment.
 
-        Both halves are per-cell / per-aisle means, so the result stays in
-        roughly [0, 2] whatever the route length -- a long route through empty
-        aisles must not look more congested than a short jammed one.
+        Both halves are means -- per cell, and per aisle -- so a long route
+        through empty aisles does not look busier than a short jammed one
+        simply for being long.
         """
         route = self.warehouse.graph.shortest_route(source, goal)
         if len(route) <= 1:

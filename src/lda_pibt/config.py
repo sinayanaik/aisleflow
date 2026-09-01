@@ -3,160 +3,148 @@
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+
+
+#: Old parameter name -> new one. Renaming Greek to plain English was the
+#: point; keeping these means saved configs and `--set` flags still load.
+LEGACY_NAMES: Dict[str, str] = {
+    # score
+    "alpha_progress": "progress_reward",
+    "gamma_strong": "aisle_bonus",
+    "gamma_weak": "aisle_bonus_near",
+    "lambda_turn": "turn_penalty",
+    "lambda_reverse": "reverse_multiplier",
+    "mu_congestion": "crowding_penalty",
+    # deadlock
+    "t_blocked": "stall_steps",
+    "t_deadlock": "deadlock_steps",
+    # assignment
+    "assign_alpha_to_pickup": "cost_to_pickup",
+    "assign_beta_pickup_to_delivery": "cost_pickup_to_delivery",
+    "assign_gamma_congestion": "cost_congestion",
+    "assign_delta_waiting": "cost_waiting",
+    "assign_waiting_cap": "cost_waiting_cap",
+    "assign_zeta_blocking": "cost_blocking",
+}
+
+#: Parameters whose term was deleted outright. Loading one is a warning, not
+#: an error: the config predates the simplification rather than being wrong.
+REMOVED_NAMES: frozenset = frozenset({
+    "beta_strong", "beta_weak", "nu_wait", "xi_bottleneck",
+    "zeta_counterflow", "zeta_reservation", "progress_normalization",
+    "omega_local", "omega_aisle", "omega_downstream", "downstream_horizon",
+    "congestion_normalisation", "priority_emergency", "priority_loaded",
+    "priority_pickup", "priority_repositioning", "priority_free",
+    "blocked_weight", "urgency_weight", "w_urgency", "reservation_ttl",
+    "aisle_capacity_model", "aisle_capacity_ratio", "parity_bias",
+    "demand_spread", "coordinate_aisle_directions",
+    "hard_direction_constraints", "reservations",
+    # -- the aisle-direction layer, removed after it measured -0.3% (p = 0.95)
+    "direction_control", "hysteresis", "direction_aware_routing",
+    "route_direction_penalty", "minimum_aisle_lock_time",
+    "maximum_aisle_lock_time", "direction_switch_threshold",
+    "directional_aisle_min_length", "w_waiting", "w_proximity",
+    "w_route_length", "w_congestion", "demand_waiting", "demand_proximity",
+    "demand_route_length", "demand_congestion", "assign_eta_direction",
+    "cost_direction",
+})
 
 
 @dataclass
 class Params:
-    # ---- candidate scoring (spec 23, 24, 33) -------------------------------
-    alpha_progress: float = 10.0
-    beta_strong: float = 3.0
-    beta_weak: float = 1.0
-    gamma_strong: float = 2.0
-    gamma_weak: float = 0.5
-    lambda_turn: float = 0.5
-    lambda_reverse: float = 2.0  # eta_reverse multiplier on the turn penalty
-    mu_congestion: float = 1.0
-    nu_wait: float = 0.2
-    xi_bottleneck: float = 1.0
-    #: Penalty for a move that opposes the aisle's committed direction, and for
-    #: entering a directional aisle without a valid ticket.  These replace the
-    #: hard rejections that used to delete such moves from the candidate set.
-    #: The design principle is that the high level *ranks* candidates and never
-    #: decides safety, so both must sit strictly between the other soft terms
-    #: and `alpha_progress`: a robot takes a counterflow move only when it is
-    #: the only way to make progress, or when nothing else is left.
-    zeta_counterflow: float = 8.0
-    zeta_reservation: float = 8.0
-    #: "step" -> Delta in {-1,0,+1}; "route" -> spec 23 normalisation
-    progress_normalization: str = "step"
+    """Every tunable in the planner.
 
-    # congestion mixture weights (spec 23.1)
-    omega_local: float = 1.0
-    omega_aisle: float = 1.0
-    omega_downstream: float = 1.0
+    Each number here survived `experiments/run_sensitivity.py`, which runs the
+    planner with one knob neutralised at a time and measures what that costs.
+    Knobs that changed nothing were deleted rather than defaulted to zero;
+    `docs/04-parameters.md` records the measured effect of the ones that
+    remain, and `LEGACY_NAMES` maps the old names onto the new ones.
+    """
+
+    # ---- candidate score: see scoring.CandidateScorer.score ----------------
+    #: Reward per cell of progress towards the waypoint. Progress is -1, 0 or
+    #: +1, so this sets the tier spacing every other term is measured against:
+    #: a term smaller than this can only reorder moves that make equal
+    #: progress. Removing it costs 89% of throughput -- it is the algorithm.
+    progress_reward: float = 10.0
+    #: Reward for staying in the aisle the robot is already travelling down,
+    #: at full strength while in transit.
+    aisle_bonus: float = 2.0
+    #: The same reward once the robot is near its waypoint, where it needs to
+    #: be free to turn off.
+    aisle_bonus_near: float = 0.5
+    #: Cost of turning a corner rather than carrying straight on.
+    turn_penalty: float = 0.5
+    #: Reversing costs this many times a turn.
+    reverse_multiplier: float = 2.0
+    #: Cost of moving into a fully crowded cell (crowding is a fraction in
+    #: [0, 1], so this is the worst case).
+    crowding_penalty: float = 1.0
+
+    # ---- crowding: see congestion.CongestionModel -------------------------
+    #: Manhattan radius of the "how full is it around here" measurement.
     local_congestion_radius: int = 3
-    downstream_horizon: int = 5
-    #: Report local density as a ratio in [0, 1] rather than a raw robot count,
-    #: and normalise the omega mixture to sum to 1.  Without this C_local is a
-    #: count of up to ~13 mixed with two ratios, so mu*C reaches the same scale
-    #: as alpha*Delta and the intended ordering alpha >> beta > mu breaks down.
-    congestion_normalisation: bool = True
 
-    # ---- proximity (spec 13) ---------------------------------------------
+    # ---- proximity: how close counts as near ------------------------------
     r_near: int = 2
     r_far: int = 8
 
-    # ---- aisle management (spec 12, 16, 17, 18) --------------------------
-    minimum_aisle_lock_time: int = 20
-    #: Maximum green.  Hysteresis gives an aisle a *minimum* time in one
-    #: direction; without a maximum, an aisle facing symmetric demand (the
-    #: normal case when pickups are on one side and deliveries on the other)
-    #: keeps a direction half its traffic cannot use, forever.  A direction
-    #: held this long with any opposing demand must drain and flip.
-    maximum_aisle_lock_time: int = 40
-    direction_switch_threshold: float = 5.0
+    # ---- aisle geometry ---------------------------------------------------
+    #: Hard ceiling on robots inside one aisle, whatever its length.
     aisle_capacity: int = 10
-    #: capacity model. "length" = spec 9.2 (ratio * number of cells).
-    #: "throughput" = cells a robot train can clear before the aisle must
-    #: flip, i.e. ceil(ratio * length / minimum_lock_time) - a single-file
-    #: corridor is gated by its exit, not by how many robots fit inside.
-    #: "drain" (default) sits between the two: as many robots as fit, but
-    #: never more than can clear the aisle inside `max_drain_time`.
-    aisle_capacity_model: str = "drain"
-    aisle_capacity_ratio: float = 1.0
-    reservation_ttl: int = 15
-    #: an aisle that cannot drain within this many steps is reopened
+    #: An aisle that cannot drain within this many steps is reopened. Also
+    #: caps capacity: the last robot in must still traverse the whole aisle to
+    #: leave, and every robot ahead of it adds a step.
     max_drain_time: int = 30
-    #: aisles shorter than this stay bidirectional (short links are not
-    #: worth a one-way rule and making them one-way fragments the network)
-    directional_aisle_min_length: int = 4
-    #: route around aisles flowing the other way instead of queueing
-    direction_aware_routing: bool = False
-    route_direction_penalty: float = 6.0
-    #: extension (0.0 = spec behaviour): persistent per-aisle bias that makes
-    #: neighbouring parallel aisles prefer opposite directions, so they do not
-    #: all flip together
-    parity_bias: float = 0.0
-    #: Assign directions as a set rather than one aisle at a time: commit in
-    #: descending |imbalance| and roll back any commit that would break strong
-    #: connectivity of the directed residual graph.  Measured effect on the
-    #: bundled maps is nil (a single one-way aisle never disconnects a ladder),
-    #: so this is off by default and kept as a reportable ablation cell.
-    coordinate_aisle_directions: bool = False
-    #: Aggregate directional demand over every aisle a robot's route touches,
-    #: decayed by distance to the entry, instead of charging the robot to its
-    #: next aisle alone.  Spec 12 describes this; it measures net negative on
-    #: the bundled maps, so it ships off by default and is reported.
-    demand_spread: bool = False
-    #: Apply aisle direction and reservations as hard candidate rejections
-    #: (pre-2026 behaviour) instead of score penalties.  Deleting legal moves
-    #: breaks PIBT's progress argument, so this is off; it stays runnable
-    #: because the soft-vs-hard comparison is a headline result.
-    hard_direction_constraints: bool = False
 
-    # directional demand weights (spec 12)
-    w_urgency: float = 1.0
-    w_waiting: float = 0.5
-    w_proximity: float = 2.0
-    w_route_length: float = 0.05
-    w_congestion: float = 0.5
 
-    # ---- priority (spec 21) ----------------------------------------------
-    priority_emergency: float = 400.0
-    priority_loaded: float = 300.0
-    priority_pickup: float = 200.0
-    priority_repositioning: float = 100.0
-    priority_free: float = 0.0
+    # ---- priority: see priority.compute_priority --------------------------
+    #: Gap between adjacent task classes. Five hand-set constants collapsed to
+    #: this: only their ordering ever mattered.
+    priority_class_spread: float = 100.0
+    #: Bonus for a robot already inside an aisle, so narrow parts clear first.
     priority_inside_aisle: float = 50.0
+    #: Rank bought per step of waiting. This is the anti-starvation guarantee:
+    #: `priority.fairness_horizon` is 80 steps at these defaults. Removing it
+    #: costs 16% of throughput.
     waiting_weight: float = 5.0
-    blocked_weight: float = 10.0
-    urgency_weight: float = 1.0
 
-    # ---- deadlock (spec 28, 29, 33) --------------------------------------
-    t_blocked: int = 10
-    t_deadlock: int = 20
+    # ---- deadlock detection and recovery: see deadlock.DeadlockMonitor ----
+    #: Steps without progress before a robot counts as stalled.
+    stall_steps: int = 10
+    #: Steps before a group is treated as deadlocked rather than slow.
+    deadlock_steps: int = 20
     config_history_length: int = 8
-    #: Spec 28 names three stall signals: no progress, a repeated joint
-    #: configuration, and a cycle in the wait-for graph.  With this on, no
-    #: progress is only a *precondition* - a group must also show a cycle or a
-    #: repeated configuration before recovery escalates.  Without it, ordinary
-    #: queueing in dense traffic trips recovery, and levels 5-7 (temporary
-    #: reverse, escape vertices, waypoint hijack) then destroy throughput.
+    #: Require a wait-for cycle or a repeated configuration before escalating,
+    #: not merely a lack of progress. Without this, ordinary queueing trips
+    #: recovery and throughput drops by 31%.
     require_deadlock_corroboration: bool = True
+    #: How many of the recovery remedies may run. The levels fire strictly in
+    #: order, so this is the only way to measure what each is worth; the two
+    #: strongest ones measured *negative* and were removed, which is why the
+    #: ladder is five long rather than seven.
+    recovery_max_level: int = 5
 
-    # ---- task assignment (spec 19) ---------------------------------------
-    assign_alpha_to_pickup: float = 1.0
-    assign_beta_pickup_to_delivery: float = 0.5
-    #: `route_congestion` is now a per-cell density in roughly [0, 2], so this
-    #: has to be on the order of the distance term for congestion to influence
-    #: the match at all.  At the old value of 2.0 the whole congestion term was
-    #: worth ~4 cost units against distances of 10-40.
-    assign_gamma_congestion: float = 12.0
-    assign_delta_waiting: float = -0.5  # negative -> older tasks preferred
-    #: Cap on the waiting term.  `waiting_time` grows without bound in a
-    #: lifelong run, so uncapped it swamps distance, congestion and everything
-    #: else after ~100 steps and the match degenerates to oldest-task-first.
-    assign_waiting_cap: float = 60.0
-    assign_eta_direction: float = 1.0
-    assign_zeta_blocking: float = 1.0
+    # ---- task assignment: see assignment.TaskAssigner.assignment_cost -----
+    cost_to_pickup: float = 1.0
+    cost_pickup_to_delivery: float = 0.5
+    cost_congestion: float = 12.0
+    cost_waiting: float = -0.5  # negative -> older tasks preferred
+    #: Cap on the waiting term. `waiting_time` grows without bound in a
+    #: lifelong run, so uncapped it swamps everything else after ~100 steps
+    #: and the match degenerates to oldest-task-first.
+    cost_waiting_cap: float = 60.0
+    cost_blocking: float = 1.0
     assignment_candidate_limit: int = 32
 
-    # ---- ablation switches (spec 34) -------------------------------------
+    # ---- mechanism switches -----------------------------------------------
     lifelong: bool = True
-    direction_control: str = "aisle"  # "none" | "robot" | "aisle"
-    hysteresis: bool = True
-    #: `congestion_aware` used to switch three mechanisms at once: the movement
-    #: score's mu*C penalty, the assignment cost's congestion term, and the
-    #: assignment blocking term.  H4 is a claim about *assignment* only, so the
-    #: two halves are separate flags now.  `congestion_aware` survives as a
-    #: read/write alias that sets and reads both (see the properties below), so
-    #: existing presets, CLI flags and saved configs keep working.
     congestion_scoring: bool = True
     congestion_assignment: bool = True
-    reservations: bool = True
     recovery: bool = True
     turning_cost: bool = True
 
@@ -167,25 +155,44 @@ class Params:
     validate_every_step: bool = True
 
     # ---- baseline planners (Token Passing, RHCR) --------------------------
-    #: unused by PIBT/SPAR-PIBT; only consumed by baselines.rhcr.RHCRPlanner
+    #: unused by PIBT; only consumed by baselines.rhcr.RHCRPlanner
     baseline_window: int = 10
     baseline_replan_period: int = 5
 
-    # -- compatibility alias for the flag that used to bundle three mechanisms
-    @property
-    def congestion_aware(self) -> bool:
-        """True only when both congestion mechanisms are on (see the fields)."""
-        return self.congestion_scoring and self.congestion_assignment
-
     @staticmethod
     def _expand_aliases(values: Dict[str, Any]) -> Dict[str, Any]:
-        """Rewrite `congestion_aware` into the two flags it used to bundle."""
-        if "congestion_aware" not in values:
+        """Accept the pre-simplification parameter names.
+
+        Renames map straight onto their replacement. Names in `REMOVED_NAMES`
+        are dropped with a warning rather than an error, so a saved config or
+        a script written against the old planner still loads -- but silently
+        honouring a weight whose term no longer exists would be worse than
+        saying so.
+        """
+        if not any(
+            k in LEGACY_NAMES or k in REMOVED_NAMES or k == "congestion_aware"
+            for k in values
+        ):
             return values
         values = dict(values)
-        bundled = bool(values.pop("congestion_aware"))
-        values.setdefault("congestion_scoring", bundled)
-        values.setdefault("congestion_assignment", bundled)
+        if "congestion_aware" in values:
+            bundled = bool(values.pop("congestion_aware"))
+            values.setdefault("congestion_scoring", bundled)
+            values.setdefault("congestion_assignment", bundled)
+        for old, new in LEGACY_NAMES.items():
+            if old in values:
+                values.setdefault(new, values.pop(old))
+        for gone in REMOVED_NAMES:
+            if gone in values:
+                values.pop(gone)
+                warnings.warn(
+                    f"parameter {gone!r} no longer exists: the term it weighted "
+                    f"was removed after the sensitivity study measured it as "
+                    f"having no effect or a negative one. See "
+                    f"docs/04-parameters.md.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
         return values
 
     def merged(self, **overrides: Any) -> "Params":
@@ -212,196 +219,61 @@ class Params:
         return cls.from_dict(json.loads(Path(path).read_text()))
 
 
-#: Ablation variants of the table in spec section 34.
+#: The ladder of variants, from plain PIBT up to the full planner. Each rung
+#: switches on one more mechanism, so a throughput difference between adjacent
+#: rungs is attributable to that mechanism. Every rung here earns its place in
+#: `docs/data/sensitivity.json`; the rungs that did not (aisle direction,
+#: entry permits) were removed rather than left switchable.
 ABLATIONS: Dict[str, Dict[str, Any]] = {
     "pibt_baseline": dict(
-        lifelong=False,
-        direction_control="none",
-        hysteresis=False,
-        congestion_scoring=False,
-        congestion_assignment=False,
-        reservations=False,
-        recovery=False,
-        turning_cost=False,
+        lifelong=False, congestion_scoring=False, congestion_assignment=False,
+        recovery=False, turning_cost=False, aisle_bonus=0.0, aisle_bonus_near=0.0,
     ),
     "lifelong_pibt": dict(
-        lifelong=True,
-        direction_control="none",
-        hysteresis=False,
-        congestion_scoring=False,
-        congestion_assignment=False,
-        reservations=False,
-        recovery=False,
-        turning_cost=False,
+        lifelong=True, congestion_scoring=False, congestion_assignment=False,
+        recovery=False, turning_cost=False, aisle_bonus=0.0, aisle_bonus_near=0.0,
     ),
-    "directional_pibt": dict(
-        lifelong=True,
-        direction_control="robot",
-        hysteresis=False,
-        congestion_scoring=False,
-        congestion_assignment=False,
-        reservations=False,
-        recovery=False,
-        turning_cost=True,
+    "turning_cost_only": dict(
+        lifelong=True, congestion_scoring=False, congestion_assignment=False,
+        recovery=False, turning_cost=True, aisle_bonus=0.0, aisle_bonus_near=0.0,
     ),
-    "hysteresis_pibt": dict(
-        lifelong=True,
-        direction_control="robot",
-        hysteresis=True,
-        congestion_scoring=False,
-        congestion_assignment=False,
-        reservations=False,
-        recovery=False,
-        turning_cost=True,
+    "lane_bonus_only": dict(
+        lifelong=True, congestion_scoring=False, congestion_assignment=False,
+        recovery=False, turning_cost=True,
     ),
-    "aisle_managed_pibt": dict(
-        lifelong=True,
-        direction_control="aisle",
-        hysteresis=True,
-        congestion_scoring=False,
-        congestion_assignment=False,
-        reservations=True,
-        recovery=False,
-        turning_cost=True,
+    "congestion_only": dict(
+        lifelong=True, congestion_scoring=True, congestion_assignment=True,
+        recovery=False, turning_cost=True,
+    ),
+    "recovery_only": dict(
+        lifelong=True, congestion_scoring=False, congestion_assignment=False,
+        recovery=True, turning_cost=True,
     ),
     "full_lda_pibt": dict(
-        lifelong=True,
-        direction_control="aisle",
-        hysteresis=True,
-        congestion_scoring=True,
-        congestion_assignment=True,
-        reservations=True,
-        recovery=True,
-        turning_cost=True,
+        lifelong=True, congestion_scoring=True, congestion_assignment=True,
+        recovery=True, turning_cost=True,
     ),
 }
 
-#: Params flags for the external baseline planners (Token Passing, RHCR) --
-#: identical to `lifelong_pibt`'s "every PIBT/LDA-specific mechanism off"
-#: state, since neither baseline scores candidates or manages aisle
-#: direction. `recovery` is deliberately not fixed here: the baseline
-#: variant registry (`experiments.BASELINE_PLANNERS`) sets it per-variant
-#: (e.g. `token_passing` vs `token_passing_recovery`), since whether a
-#: baseline gets the same deadlock-recovery safety net as the PIBT variants
-#: is itself part of what is being compared.
+#: Recovery variants: without the corroboration requirement, and with the two
+#: remedies this pass deleted put back. Both measured strongly, in opposite
+#: directions, so both stay runnable as reportable comparisons.
+ABLATIONS["recovery_uncorroborated"] = dict(
+    ABLATIONS["recovery_only"], require_deadlock_corroboration=False
+)
+ABLATIONS["recovery_full_ladder"] = dict(
+    ABLATIONS["full_lda_pibt"], recovery_max_level=4
+)
+
+#: Params flags for the external baseline planners (Token Passing, RHCR):
+#: identical to `lifelong_pibt`'s all-mechanisms-off state, since neither
+#: baseline scores candidates. `recovery` is deliberately not fixed here --
+#: `experiments.BASELINE_PLANNERS` sets it per variant, since whether a
+#: baseline gets the same deadlock safety net as the PIBT variants is itself
+#: part of what is being compared.
 BASELINE_PARAMS_PRESET: Dict[str, Any] = dict(
-    lifelong=True,
-    direction_control="none",
-    hysteresis=False,
-    congestion_scoring=False,
-    congestion_assignment=False,
-    reservations=False,
-    turning_cost=False,
-)
-
-
-#: Single-flag isolation variants. The headline ladder above changes two
-#: flags at once on three of its steps (lifelong_pibt -> directional_pibt,
-#: hysteresis_pibt -> aisle_managed_pibt, aisle_managed_pibt -> full_lda_pibt),
-#: so a throughput delta on those steps cannot be attributed to either flag
-#: alone. Each variant here flips exactly one of the two flags relative to
-#: the same base, so it forms a clean 2x2 factorial with its sibling and the
-#: two ladder rungs that bracket it (see FACTORIAL_DESIGNS).
-ABLATIONS.update(
-    {
-        "turning_cost_only": dict(
-            lifelong=True,
-            direction_control="none",
-            hysteresis=False,
-            congestion_scoring=False,
-            congestion_assignment=False,
-            reservations=False,
-            recovery=False,
-            turning_cost=True,
-        ),
-        "direction_control_only": dict(
-            lifelong=True,
-            direction_control="robot",
-            hysteresis=False,
-            congestion_scoring=False,
-            congestion_assignment=False,
-            reservations=False,
-            recovery=False,
-            turning_cost=False,
-        ),
-        "aisle_direction_only": dict(
-            lifelong=True,
-            direction_control="aisle",
-            hysteresis=True,
-            congestion_scoring=False,
-            congestion_assignment=False,
-            reservations=False,
-            recovery=False,
-            turning_cost=True,
-        ),
-        "reservations_only": dict(
-            lifelong=True,
-            direction_control="robot",
-            hysteresis=True,
-            congestion_scoring=False,
-            congestion_assignment=False,
-            reservations=True,
-            recovery=False,
-            turning_cost=True,
-        ),
-        "congestion_only": dict(
-            lifelong=True,
-            direction_control="aisle",
-            hysteresis=True,
-            congestion_scoring=True,
-            congestion_assignment=True,
-            reservations=True,
-            recovery=False,
-            turning_cost=True,
-        ),
-        "recovery_only": dict(
-            lifelong=True,
-            direction_control="aisle",
-            hysteresis=True,
-            congestion_scoring=False,
-            congestion_assignment=False,
-            reservations=True,
-            recovery=True,
-            turning_cost=True,
-        ),
-    }
-)
-
-
-#: Variants that isolate the mechanisms this pass repaired.  Each one differs
-#: from a variant above by exactly one of the new flags, so the pair is a clean
-#: single-factor comparison.
-ABLATIONS.update(
-    {
-        # -- D0: direction as a hard rejection vs. a score penalty ----------
-        "aisle_direction_hard": dict(
-            ABLATIONS["aisle_direction_only"], hard_direction_constraints=True
-        ),
-        "aisle_managed_hard": dict(
-            ABLATIONS["aisle_managed_pibt"], hard_direction_constraints=True
-        ),
-        # -- D2: with and without a bounded maximum green -------------------
-        "aisle_direction_no_max_green": dict(
-            ABLATIONS["aisle_direction_only"], maximum_aisle_lock_time=10**6
-        ),
-        # -- D8: the two halves of the old `congestion_aware` flag ----------
-        "congestion_scoring_only": dict(
-            ABLATIONS["aisle_managed_pibt"], congestion_scoring=True
-        ),
-        "congestion_assignment_only": dict(
-            ABLATIONS["aisle_managed_pibt"], congestion_assignment=True
-        ),
-        # -- D10: recovery on corroborated signals vs. on no-progress alone --
-        "recovery_uncorroborated": dict(
-            ABLATIONS["recovery_only"], require_deadlock_corroboration=False
-        ),
-        # -- the robot-level direction term, switched off entirely. Its decay
-        # (r_near/r_far) turns out to be inert -- beta only ever breaks ties
-        # among candidates with equal progress, and the decay lowers it in
-        # exactly the regime where progress already decides -- so the weight,
-        # not its schedule, is the thing worth ablating.
-        "no_direction_term": dict(ABLATIONS["aisle_direction_only"], beta_strong=0.0),
-    }
+    lifelong=True, congestion_scoring=False, congestion_assignment=False,
+    turning_cost=False, aisle_bonus=0.0, aisle_bonus_near=0.0,
 )
 
 
@@ -410,88 +282,134 @@ class FactorialDesign:
     """A 2x2 factorial that de-confounds one bundled step of the ladder."""
 
     name: str
-    base: str  #: neither flag
-    factor_a: str  #: flag A alone
-    factor_b: str  #: flag B alone
-    both: str  #: both flags (the ladder's next rung)
+    base: str
+    factor_a: str
+    factor_b: str
+    both: str
     label_a: str
     label_b: str
 
 
-#: The three factorials that resolve the ladder's confounded steps.
 FACTORIAL_DESIGNS: Dict[str, FactorialDesign] = {
-    "direction_vs_turning_cost": FactorialDesign(
-        name="direction_vs_turning_cost",
-        base="lifelong_pibt",
-        factor_a="direction_control_only",
-        factor_b="turning_cost_only",
-        both="directional_pibt",
-        label_a="direction_control=robot",
-        label_b="turning_cost",
-    ),
-    # This design was unreadable until `reservations` was decoupled from
-    # `direction_control`: `reservations_only` sets direction_control="robot",
-    # and the reservation layer used to be gated on direction_control=="aisle",
-    # so factor B was a bit-identical copy of the base and its main effect was
-    # necessarily zero.  With entry admission now working under any direction
-    # mode, all four corners are distinct and the 2x2 is meaningful.
-    "aisle_direction_vs_reservations": FactorialDesign(
-        name="aisle_direction_vs_reservations",
-        base="hysteresis_pibt",
-        factor_a="aisle_direction_only",
-        factor_b="reservations_only",
-        both="aisle_managed_pibt",
-        label_a="direction_control=aisle",
-        label_b="reservations",
-    ),
     "congestion_vs_recovery": FactorialDesign(
         name="congestion_vs_recovery",
-        base="aisle_managed_pibt",
+        base="lane_bonus_only",
         factor_a="congestion_only",
         factor_b="recovery_only",
         both="full_lda_pibt",
-        label_a="congestion_scoring+assignment",
-        label_b="recovery",
-    ),
-    # `congestion_aware` itself bundled two mechanisms, so the design above
-    # cannot say which half of it acts.  This splits them.
-    "congestion_scoring_vs_assignment": FactorialDesign(
-        name="congestion_scoring_vs_assignment",
-        base="aisle_managed_pibt",
-        factor_a="congestion_scoring_only",
-        factor_b="congestion_assignment_only",
-        both="congestion_only",
-        label_a="congestion_scoring (movement)",
-        label_b="congestion_assignment (matching)",
+        label_a="crowding in scoring + matching",
+        label_b="deadlock recovery",
     ),
 }
 
-#: Single-factor comparisons: `(treatment, control, what it isolates)`.  These
-#: are pairs rather than 2x2 designs because the second factor is only defined
-#: when the first is on (there is no "hard constraint" cell without aisle
-#: direction, and no "corroboration" cell without recovery).
+#: Single-factor comparisons: `(treatment, control, what it isolates)`.
 PAIRED_DESIGNS: Dict[str, Dict[str, str]] = {
-    "soft_vs_hard_direction": dict(
-        treatment="aisle_direction_only",
-        control="aisle_direction_hard",
-        label="direction ranks candidates (vs. rejects them)",
-    ),
-    "soft_vs_hard_direction_managed": dict(
-        treatment="aisle_managed_pibt",
-        control="aisle_managed_hard",
-        label="direction + reservations rank (vs. reject)",
-    ),
-    "max_green": dict(
-        treatment="aisle_direction_only",
-        control="aisle_direction_no_max_green",
-        label="bounded maximum green (starvation freedom)",
-    ),
     "recovery_corroboration": dict(
         treatment="recovery_only",
         control="recovery_uncorroborated",
         label="recovery needs a cycle or a repeated configuration",
     ),
+    "recovery_ladder_depth": dict(
+        treatment="full_lda_pibt",
+        control="recovery_full_ladder",
+        label="stopping the recovery ladder before the escape-vertex remedy",
+    ),
 }
+
+
+@dataclass(frozen=True)
+class SensitivityVariant:
+    """One knob of one model, neutralised against the full planner.
+
+    `overrides` are applied on top of `ABLATIONS["full_lda_pibt"]`, so every
+    entry differs from that control by exactly one decision.  `knob` names the
+    parameter in the terms the documentation uses; `family` is the model it
+    belongs to, so the study reports per-model as well as per-knob.
+    """
+
+    name: str
+    family: str
+    knob: str
+    overrides: Dict[str, Any]
+
+
+#: The control every sensitivity variant is measured against.
+SENSITIVITY_BASE = "full_lda_pibt"
+
+#: A leave-one-out sweep over every live tunable in the planner.  The point is
+#: to replace "these weights were chosen by hand and never questioned" with a
+#: measured cost per knob, so the ones that buy nothing can be deleted and the
+#: ones that survive can be documented with a number beside them.
+#:
+#: Neutralising means "make this term stop acting", which is not always zero:
+#: `reverse_multiplier` is a multiplier whose neutral value is 1.0, capacity models
+#: are a choice rather than a magnitude, and the recovery ladder is a set of
+#: code paths that can only be truncated (see `recovery_max_level`).
+SENSITIVITY: Tuple[SensitivityVariant, ...] = (
+    # -- 1. candidate score S_i(v) (scoring.py) ----------------------------
+    SensitivityVariant("score_no_progress", "score", "progress_reward", dict(progress_reward=0.0)),
+    SensitivityVariant("score_no_aisle_continuity", "score", "aisle_bonus/aisle_bonus_near", dict(aisle_bonus=0.0, aisle_bonus_near=0.0)),
+    SensitivityVariant("score_no_turn_penalty", "score", "turn_penalty", dict(turn_penalty=0.0)),
+    SensitivityVariant("score_no_reverse_extra", "score", "reverse_multiplier", dict(reverse_multiplier=1.0)),
+    SensitivityVariant("score_no_crowding", "score", "crowding_penalty", dict(crowding_penalty=0.0)),
+    #: The three terms this pass was asked to remove, cut together. Terms can
+    #: be jointly redundant while individually load-bearing (and the reverse),
+    #: so the combination has to be run, not inferred by summing the singles.
+
+    # -- 2. congestion mixture C_i(v) (congestion.py) -----------------------
+    SensitivityVariant("cong_radius_1", "congestion", "local_congestion_radius=1", dict(local_congestion_radius=1)),
+    SensitivityVariant("cong_radius_5", "congestion", "local_congestion_radius=5", dict(local_congestion_radius=5)),
+
+    # -- 3. priority p_i(t) (priority.py) -----------------------------------
+    SensitivityVariant("prio_no_waiting", "priority", "waiting_weight", dict(waiting_weight=0.0)),
+    SensitivityVariant("prio_no_inside_aisle", "priority", "priority_inside_aisle", dict(priority_inside_aisle=0.0)),
+    #: Does the five-way job-class ranking do anything, or is it only the
+    #: waiting clock that ever decides the order?
+    SensitivityVariant("prio_flat_classes", "priority", "priority_class_spread", dict(priority_class_spread=0.0)),
+    #: Does the five-way task class ranking do anything, or is it only the
+    #: waiting/blocked terms that ever decide the order?
+
+    # -- 4. aisle directional demand S_a^+/- (aisle_manager.py) -------------
+
+    # -- 5. aisle signal timing and capacity --------------------------------
+
+    # -- 6. assignment cost J(i, tau) (assignment.py) -----------------------
+    SensitivityVariant("assign_no_pickup_distance", "assignment", "cost_to_pickup", dict(cost_to_pickup=0.0)),
+    SensitivityVariant("assign_no_delivery_distance", "assignment", "cost_pickup_to_delivery", dict(cost_pickup_to_delivery=0.0)),
+    SensitivityVariant("assign_no_congestion", "assignment", "cost_congestion", dict(cost_congestion=0.0)),
+    SensitivityVariant("assign_no_waiting", "assignment", "cost_waiting", dict(cost_waiting=0.0)),
+    SensitivityVariant("assign_uncapped_waiting", "assignment", "cost_waiting_cap", dict(cost_waiting_cap=1e9)),
+    SensitivityVariant("assign_no_blocking", "assignment", "cost_blocking", dict(cost_blocking=0.0)),
+
+    # -- 7. deadlock detection and the recovery ladder (deadlock.py) --------
+    #: Truncation, not leave-one-out: the levels fire strictly in order, so
+    #: `recovery_max_level=k` measures what levels k+1..7 are worth.
+    SensitivityVariant("recovery_max_0", "recovery", "recovery_max_level=0", dict(recovery_max_level=0)),
+    SensitivityVariant("recovery_max_1", "recovery", "recovery_max_level=1", dict(recovery_max_level=1)),
+    SensitivityVariant("recovery_max_2", "recovery", "recovery_max_level=2", dict(recovery_max_level=2)),
+    SensitivityVariant("recovery_max_3", "recovery", "recovery_max_level=3", dict(recovery_max_level=3)),
+    SensitivityVariant("recovery_max_4", "recovery", "recovery_max_level=4", dict(recovery_max_level=4)),
+    SensitivityVariant("recovery_off", "recovery", "recovery", dict(recovery=False)),
+    SensitivityVariant("recovery_uncorroborated", "recovery", "require_deadlock_corroboration", dict(require_deadlock_corroboration=False)),
+    SensitivityVariant("recovery_stall_threshold_short", "recovery", "stall_steps", dict(stall_steps=5)),
+)
+
+#: Families in report order.
+SENSITIVITY_FAMILIES = (
+    "score",
+    "congestion",
+    "priority",
+    "aisle demand",
+    "aisle timing",
+    "assignment",
+    "recovery",
+)
+
+
+def sensitivity_params(variant: SensitivityVariant, base: Params | None = None) -> Params:
+    """`Params` for one sensitivity variant: the full planner, one knob off."""
+    control = ablation(SENSITIVITY_BASE, base)
+    return control.merged(**variant.overrides)
 
 
 def ablation(name: str, base: Params | None = None, **overrides: Any) -> Params:
@@ -510,4 +428,9 @@ __all__ = [
     "FACTORIAL_DESIGNS",
     "PAIRED_DESIGNS",
     "ablation",
+    "SensitivityVariant",
+    "SENSITIVITY",
+    "SENSITIVITY_BASE",
+    "SENSITIVITY_FAMILIES",
+    "sensitivity_params",
 ]

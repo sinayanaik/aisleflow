@@ -134,16 +134,12 @@ def test_waiting_is_always_a_candidate():
     [
         "pibt_baseline",
         "lifelong_pibt",
-        "directional_pibt",
-        "hysteresis_pibt",
-        "aisle_managed_pibt",
         "full_lda_pibt",
         "turning_cost_only",
-        "direction_control_only",
-        "aisle_direction_only",
-        "reservations_only",
+        "lane_bonus_only",
         "congestion_only",
         "recovery_only",
+        "recovery_full_ladder",
     ],
 )
 def test_every_variant_is_collision_free(variant):
@@ -188,63 +184,18 @@ def test_moves_are_to_a_neighbour_or_the_same_cell():
 CORRIDOR_GRID = "\n".join([".........", ".@@@@@@@.", "........."])
 
 
-def _directional_corridor(**overrides):
-    """One 9-cell aisle locked FORWARD, one robot inside it at index 6."""
-    params = Params(
-        direction_control="aisle",
-        hysteresis=True,
-        reservations=False,
-        directional_aisle_min_length=1,
-        **overrides,
-    )
-    warehouse = Warehouse.from_string(CORRIDOR_GRID, params)
-    sim = build_simulator(warehouse, 1, params, task_generator=None)
-    aisle = max(warehouse.aisles.values(), key=lambda a: a.length)
-    sim.index.rebuild(sim.robots)
-    sim.aisles.update_aisle_direction(aisle, 20.0, 0.0, 0)
+def test_the_score_has_exactly_the_terms_the_documents_claim():
+    """A guard on the simplification: four terms, and progress dominates.
 
-    robot = sim.robots[0]
-    robot.position = aisle.vertices[6]
-    robot.current_aisle = aisle.id
-    robot.waypoint = aisle.vertices[0]
-    sim.index.rebuild(sim.robots)
-    # Moving to index 5 is neither with the flow nor an egress move.
-    return sim, aisle, robot, aisle.vertices[5]
-
-
-def test_aisle_direction_does_not_shrink_the_candidate_set():
-    """The invariant the aisle layer used to break.
-
-    Priority inheritance works because a robot can always be pushed into an
-    adjacent cell. Deleting counterflow moves from the candidate set removes
-    exactly that freedom, so inheritance chains dead-end. Direction is priced
-    instead: the move survives the filter, carrying a penalty.
+    Progress is -1, 0 or +1 and is worth `progress_reward`, so the other three
+    terms can only reorder candidates that make equal progress. If a new term
+    is ever added that can outweigh a step of progress, the tier structure the
+    documentation explains stops being true.
     """
-    sim, aisle, robot, against = _directional_corridor()
-    assert sim.aisles.violates_aisle_direction(robot, robot.position, against, 1)
-
-    candidates = sim.planner.feasible_candidates(robot, None, 1)
-    assert against in candidates, "a legal move was deleted, not deprioritised"
-    assert sim.scorer.aisle_penalty(robot, against) == sim.params.zeta_counterflow
-
-    with_flow = aisle.vertices[7]
-    assert sim.scorer.aisle_penalty(robot, with_flow) == 0.0
-
-
-def test_hard_constraints_flag_restores_the_old_rejection():
-    sim, _aisle, robot, against = _directional_corridor(
-        hard_direction_constraints=True
+    p = Params()
+    tie_breaks = (
+        p.aisle_bonus
+        + p.turn_penalty * p.reverse_multiplier
+        + p.crowding_penalty
     )
-    assert against not in sim.planner.feasible_candidates(robot, None, 1)
-    # In that mode the planner rejects the move, so the score must not also
-    # charge for it -- otherwise the penalty is counted twice.
-    assert sim.scorer.aisle_penalty(robot, against) == 0.0
-
-
-def test_progress_still_outranks_the_counterflow_penalty():
-    """zeta must sit below alpha, or direction becomes a constraint again."""
-    params = Params()
-    assert params.zeta_counterflow < params.alpha_progress
-    assert params.zeta_reservation < params.alpha_progress
-    assert params.zeta_counterflow > params.beta_strong
-    assert params.zeta_counterflow > params.gamma_strong
+    assert tie_breaks < p.progress_reward

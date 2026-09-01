@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .simulator import StepSnapshot
-from .types import AisleState, RobotState
+from .types import RobotState
 from .warehouse import Warehouse
 
 RGB = Tuple[int, int, int]
@@ -67,11 +67,8 @@ PICKUP: RGB = (206, 234, 212)
 DELIVERY: RGB = (250, 226, 202)
 PARKING: RGB = (224, 228, 236)
 
-#: aisle tint by `AisleState`, matching the GUI's overlay colours
+#: retained so the legend keeps its shape; nothing tints an aisle now
 AISLE_TINT: Dict[str, RGB] = {
-    AisleState.FORWARD.value: (196, 222, 255),
-    AisleState.REVERSE.value: (255, 224, 196),
-    AisleState.DRAINING.value: (232, 208, 255),
 }
 
 #: robot fill by `RobotState` -- deliberately *not* using red for any of them
@@ -159,8 +156,6 @@ class Panel:
     history: List[StepSnapshot]
     #: robot ids stalled at each recorded index, filled in by `_mark_stalls`
     stalled: List[frozenset] = field(default_factory=list)
-    #: cumulative aisle direction commits up to each index, by `_count_flips`
-    flips: List[int] = field(default_factory=list)
 
     @property
     def completed(self) -> int:
@@ -201,7 +196,6 @@ def run_panel(
         title=title, subtitle=subtitle, warehouse=sim.warehouse, history=sim.history
     )
     _mark_stalls(panel, stall_window)
-    _count_flips(panel)
     return panel
 
 
@@ -225,36 +219,6 @@ def _mark_stalls(panel: Panel, window: int) -> None:
                 if past.get(rid) == pos
             )
         )
-
-
-def _count_flips(panel: Panel) -> None:
-    """Running count of aisle direction *reversals*, from the recorded states.
-
-    A flip is an aisle committing the opposite of the direction it last
-    committed, ignoring the OPEN and DRAINING states it passes through on the
-    way -- the same event `AisleManager` counts as a `direction_switch`, and
-    deliberately not the same as "committed a direction", since an aisle that
-    releases and re-commits the *same* direction has not flipped. Reading it
-    off the recorded states rather than from the simulator keeps the number
-    defined for any planner and identical to what the frame shows.
-    """
-    total = 0
-    committed: Dict[int, str] = {}
-    panel.flips = []
-    for snapshot in panel.history:
-        for aisle_id, state in snapshot.aisle_states.items():
-            if state not in (AisleState.FORWARD.value, AisleState.REVERSE.value):
-                continue
-            previous = committed.get(aisle_id)
-            if previous is not None and previous != state:
-                total += 1
-            committed[aisle_id] = state
-        panel.flips.append(total)
-
-
-# --------------------------------------------------------------------------
-# narration
-# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -370,29 +334,6 @@ def _fill_cell(draw, vertex, cell: int, colour: RGB) -> None:
     )
 
 
-def _draw_aisles(draw, warehouse: Warehouse, states: Dict[int, str], cell: int) -> None:
-    """Tint every committed aisle and point an arrow the way it is flowing."""
-    for aisle_id, state in states.items():
-        tint = AISLE_TINT.get(state)
-        if tint is None:
-            continue
-        aisle = warehouse.aisles.get(aisle_id)
-        if aisle is None:
-            continue
-        for vertex in aisle.vertices:
-            _fill_cell(draw, vertex, cell, tint)
-        if state == AisleState.DRAINING.value or len(aisle.vertices) < 3:
-            continue
-        first, last = aisle.vertices[0], aisle.vertices[-1]
-        if state == AisleState.REVERSE.value:
-            first, last = last, first
-        # an arrow every few cells rather than one in the middle: on a long
-        # aisle a single glyph is easy to miss, and the direction of flow is
-        # the whole point of the tint
-        for position in range(1, len(aisle.vertices), 3):
-            _draw_arrow(draw, aisle.vertices[position], first, last, cell)
-
-
 def _draw_arrow(draw, at, first, last, cell: int) -> None:
     """A small triangle at `at`, pointing from `first` towards `last`."""
     dr = (last[0] > first[0]) - (last[0] < first[0])
@@ -493,13 +434,10 @@ def _draw_timeline(draw, layout: Layout, width: int, y: int, index: int,
 #: what the shared chart plots, by name: a label and a per-panel accessor
 CHART_SERIES: Dict[str, Tuple[str, str]] = {
     "delivered": ("TASKS DELIVERED", "by the end"),
-    "flips": ("AISLE DIRECTION FLIPS", "by the end"),
 }
 
 
 def _series_values(panel: Panel, series: str) -> List[int]:
-    if series == "flips":
-        return panel.flips or [0] * len(panel.history)
     return [snapshot.completed_tasks for snapshot in panel.history]
 
 
@@ -688,7 +626,6 @@ def render_frame(
 
         cell_image = statics[column].copy()
         cell_draw = ImageDraw.Draw(cell_image)
-        _draw_aisles(cell_draw, panel.warehouse, snapshot.aisle_states, layout.cell)
         _draw_robots(cell_draw, snapshot, stalled, layout.cell)
         grid_top = top + layout.panel_header
         frame.paste(cell_image, (left, grid_top))
@@ -734,9 +671,6 @@ def render_frame(
                        tiny_bold, GOOD)
 
         right_lines = [f"{len(stalled)} of {total} stalled"]
-        if show_aisles:
-            flips = panel.flips[min(index, len(panel.flips) - 1)] if panel.flips else 0
-            right_lines.insert(0, f"{flips} direction flips")
         for line_no, line in enumerate(right_lines):
             is_stall_line = line_no == len(right_lines) - 1
             draw.text(
@@ -773,9 +707,6 @@ _RECOVERY_LEGEND = (
     (ROBOT_TINT[RobotState.RECOVERY.value], "in recovery", "dot"),
 )
 _AISLE_LEGEND = (
-    (AISLE_TINT[AisleState.FORWARD.value], "aisle one-way >", "box"),
-    (AISLE_TINT[AisleState.REVERSE.value], "aisle one-way <", "box"),
-    (AISLE_TINT[AisleState.DRAINING.value], "draining to flip", "box"),
 )
 
 #: the strapline that ends the legend, and the whole argument for these GIFs
@@ -896,12 +827,10 @@ def save_comparison(
     # only key the aisle colours when some aisle actually commits a direction:
     # on `warehouse_bottleneck` none ever does, and a legend for something the
     # picture never shows is worse than no legend
-    show_aisles = any(
-        state != AisleState.OPEN.value
-        for panel in panels
-        for snapshot in panel.history
-        for state in snapshot.aisle_states.values()
-    )
+    # The aisle-direction layer this used to key colours for was removed after
+    # it measured -0.3% (p = 0.95), so there is never a committed direction to
+    # show. The plumbing stays so the legend keeps its shape.
+    show_aisles = False
     show_recovery = any(
         state == RobotState.RECOVERY.value
         for panel in panels

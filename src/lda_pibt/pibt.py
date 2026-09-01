@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Set
 
-from .aisle_manager import AisleManager
 from .config import Params
 from .congestion import OccupancyIndex
 from .robot import Robot
@@ -27,23 +26,17 @@ class PIBTPlanner:
         warehouse: Warehouse,
         index: OccupancyIndex,
         scorer: CandidateScorer,
-        aisle_manager: AisleManager,
         params: Params,
     ):
         self.warehouse = warehouse
         self.index = index
         self.scorer = scorer
-        self.aisles = aisle_manager
         self.params = params
-        self.scorer.bind(aisle_manager)
 
         self.reserved_vertices: Set[Vertex] = set()
         self.recursive_calls = 0
         self.backtracks = 0
         self.invalid_results = 0
-        #: moves actually taken against a committed aisle direction -- the
-        #: price of making direction a ranking term rather than a constraint
-        self.counterflow_moves = 0
 
     # ------------------------------------------------------------ per-step
     def plan_step(self, ordered_robots: Sequence[Robot], timestep: int) -> None:
@@ -69,34 +62,21 @@ class PIBTPlanner:
     def feasible_candidates(
         self, robot: Robot, parent: Optional[Robot], timestep: int
     ) -> List[Vertex]:
-        """Apply the hard rejection rules of spec 22.1.
+        """The moves that are actually legal, best first.
 
-        Only rules that concern *safety* or physical possibility reject a move:
-        off-graph, kinematics, vertex conflict, swap conflict.  Aisle direction
-        and reservations are priced by `CandidateScorer.aisle_penalty` instead,
-        so they reorder this list without shortening it -- PIBT keeps every
-        escape move its progress argument depends on.
-
-        `hard_direction_constraints` restores the older behaviour, where the
-        aisle layer deleted those moves outright.  It is kept only so the
-        comparison can be run.
+        Only *safety* or physical impossibility rejects a move: off-graph,
+        kinematics, vertex conflict, swap conflict. Nothing about aisle
+        direction appears here, and that is deliberate -- PIBT's progress
+        argument rests on a robot always being pushable into an adjacent cell,
+        and a one-way rule takes exactly that freedom away. Direction is
+        handled a layer up, in the route the robot is following.
         """
         current = robot.position
-        hard_aisles = self.params.hard_direction_constraints
         feasible: List[Vertex] = []
         for candidate in self.candidates(robot):
             if not self.warehouse.graph.contains(candidate):
                 continue
             if self.violates_kinematics(robot, current, candidate):
-                continue
-            if hard_aisles and (
-                self.aisles.violates_aisle_direction(
-                    robot, current, candidate, timestep
-                )
-                or self.aisles.violates_aisle_reservation(
-                    robot, current, candidate, timestep
-                )
-            ):
                 continue
             if self.creates_vertex_conflict(robot, candidate):
                 continue
@@ -108,19 +88,6 @@ class PIBTPlanner:
         feasible.sort(key=lambda c: self.scorer.sort_key(robot, c))
         return feasible
 
-    def record_counterflow(self, robots: Sequence[Robot], timestep: int) -> None:
-        """Count the moves that were taken against an aisle's direction."""
-        if not self.aisles.enabled:
-            return
-        for robot in robots:
-            target = robot.next_position
-            if target is None or target == robot.position:
-                continue
-            if self.aisles.violates_aisle_direction(
-                robot, robot.position, target, timestep
-            ):
-                self.counterflow_moves += 1
-
     def explain_candidates(
         self, robot: Robot, timestep: int
     ) -> List[Dict[str, object]]:
@@ -131,42 +98,23 @@ class PIBTPlanner:
         ordering.  This is the diagnostic behind the GUI's robot inspector: a
         stalled robot is almost always explained by one repeated reason.
 
-        Rules are reported in two groups.  `reasons` are the hard rejections
-        that removed the move from consideration.  `penalties` are the aisle
-        terms that only made it expensive -- a candidate can carry those and
-        still be chosen, which is exactly the point of pricing direction
-        instead of enforcing it.
+        `reasons` are the rejections that removed the move from consideration.
+        `notes` are observations that did not -- chiefly that the move runs
+        against the aisle's committed direction, which is legal but is what
+        the robot's route was planned to avoid.
         """
         current = robot.position
         previous_timestep = self.scorer.timestep
         self.scorer.timestep = timestep
-        hard_aisles = self.params.hard_direction_constraints
         rows: List[Dict[str, object]] = []
         for candidate in self.candidates(robot):
             reasons: List[str] = []
-            penalties: List[str] = []
+            notes: List[str] = []
             if not self.warehouse.graph.contains(candidate):
                 reasons.append("off-graph")
             if self.violates_kinematics(robot, current, candidate):
                 reasons.append("kinematics")
-            for rule, violated in (
-                (
-                    "aisle-direction",
-                    self.aisles.violates_aisle_direction(
-                        robot, current, candidate, timestep
-                    ),
-                ),
-                (
-                    "no-reservation",
-                    self.aisles.violates_aisle_reservation(
-                        robot, current, candidate, timestep
-                    ),
-                ),
-            ):
-                if not violated:
-                    continue
-                (reasons if hard_aisles else penalties).append(rule)
-            # A robot's own reservation is not a conflict with itself; without
+            # A robot's own claim is not a conflict with itself; without
             # this the cell it actually moved into looks blocked afterwards.
             if candidate != robot.next_position and self.creates_vertex_conflict(
                 robot, candidate
@@ -177,8 +125,7 @@ class PIBTPlanner:
                 {
                     "vertex": list(candidate),
                     "reasons": reasons,
-                    "penalties": penalties,
-                    "penalty": round(self.scorer.aisle_penalty(robot, candidate), 4),
+                    "notes": notes,
                     "legal": not reasons,
                     "score": round(self.scorer.score(robot, candidate), 4),
                     "occupied_by": None
@@ -280,7 +227,6 @@ class PIBTPlanner:
             "pibt_backtracks": self.backtracks,
             "pibt_invalid_results": self.invalid_results,
             "candidate_evaluations": self.scorer.evaluations,
-            "counterflow_moves": self.counterflow_moves,
         }
 
 

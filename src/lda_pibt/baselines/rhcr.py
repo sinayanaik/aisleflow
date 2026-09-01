@@ -66,8 +66,8 @@ class _CBSNode:
 class RHCRPlanner:
     """Drop-in low-level planner satisfying `Simulator`'s `plan_step`/`stats` contract.
 
-    Accepts the same 5-argument constructor as `PIBTPlanner`; `scorer` and
-    `aisle_manager` are unused. `window`/`replan_period` default from
+    Accepts the same constructor as `PIBTPlanner`; `scorer` is unused.
+    `window`/`replan_period` default from
     `params.baseline_window`/`params.baseline_replan_period`.
     """
 
@@ -80,7 +80,6 @@ class RHCRPlanner:
         warehouse: Warehouse,
         index: OccupancyIndex,
         scorer: CandidateScorer,
-        aisle_manager: Any,
         params: Params,
     ):
         self.graph = warehouse.graph

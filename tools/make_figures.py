@@ -93,27 +93,18 @@ MAP_LABEL = {
 DESIGNED_FOR = {"warehouse_bottleneck", "warehouse_corridors"}
 
 VARIANT_LABEL = {
+    "pibt_baseline": "one-shot PIBT",
     "lifelong_pibt": "plain lifelong PIBT",
-    "full_lda_pibt": "SPAR (full)",
-    "aisle_direction_only": "SPAR (aisle direction)",
-    "hysteresis_pibt": "PIBT + hysteresis",
-    "aisle_managed_pibt": "SPAR (aisle managed)",
-    "directional_pibt": "PIBT + robot direction",
+    "turning_cost_only": "+ turning cost",
+    "lane_bonus_only": "+ stay-in-lane bonus",
+    "congestion_only": "+ crowding",
+    "recovery_only": "+ deadlock recovery",
+    "full_lda_pibt": "aisleflow (full)",
+    "recovery_full_ladder": "recovery, full ladder",
+    "recovery_uncorroborated": "recovery, uncorroborated",
     "token_passing": "Token Passing",
     "token_passing_recovery": "Token Passing + recovery",
     "rhcr": "RHCR",
-    "turning_cost_only": "PIBT + turning cost",
-    "reservations_only": "PIBT + entry admission",
-    "aisle_direction_hard": "aisle direction, enforced",
-    "recovery_uncorroborated": "recovery, uncorroborated",
-    "no_direction_term": "aisle direction, beta = 0",
-    "aisle_direction_no_max_green": "aisle direction, no max green",
-    "congestion_only": "PIBT + congestion",
-    "recovery_only": "PIBT + recovery",
-    "congestion_scoring_only": "congestion in movement",
-    "congestion_assignment_only": "congestion in matching",
-    "direction_control_only": "PIBT + direction control",
-    "aisle_managed_hard": "aisle managed, enforced",
 }
 
 
@@ -185,7 +176,7 @@ def provenance(payload: Dict[str, Any]) -> str:
     meta = payload["meta"]
     return (
         f"{meta['seeds']} seeds x {meta['timesteps']} timesteps, Poisson "
-        f"arrivals, generated {meta['generated_utc']} from SPAR "
+        f"arrivals, generated {meta['generated_utc']} from aisleflow "
         f"@ {meta['git_sha']} by {meta['generator']}"
     )
 
@@ -275,10 +266,10 @@ def save(fig, name: str) -> List[Path]:
 # Everything else in this directory explains *why*. This one answers "is it
 # better than the alternatives, and where?", once per opponent per map, in the
 # only form that needs no arithmetic from the reader: how many times as much
-# work SPAR-PIBT gets done.
+# work aisleflow gets done.
 # --------------------------------------------------------------------------
 
-#: the opponents, in the order the argument meets them: the planner SPAR
+#: the opponents, in the order the argument meets them: the planner aisleflow
 #: extends, then the two published lifelong baselines.
 RIVALS = [
     ("lifelong_pibt", "plain lifelong\nPIBT"),
@@ -302,7 +293,7 @@ def _throughput_seeds(map_name: str, variant: str, ablation, baselines):
 
 
 def figure_scorecard():
-    """SPAR against every rival, on every map, as a ratio and a verdict."""
+    """aisleflow against every rival, on every map, as a ratio and a verdict."""
     import matplotlib.pyplot as plt
     import statistics
 
@@ -349,11 +340,11 @@ def figure_scorecard():
                     color=ink, fontweight="bold", zorder=3,
                     linespacing=1.15)
             if ratio == float("inf"):
-                verdict = "SPAR wins"
+                verdict = "aisleflow wins"
             elif ratio >= 1.0:
-                verdict = "SPAR ahead" if significant else "ahead, not significant"
+                verdict = "aisleflow ahead" if significant else "ahead, not significant"
             else:
-                verdict = "SPAR behind" if significant else "behind, not significant"
+                verdict = "aisleflow behind" if significant else "behind, not significant"
             ax.text(x + 0.5, y + 0.55, verdict, ha="center", va="center",
                     fontsize=8, color=ink, zorder=3,
                     fontweight="bold" if significant else "normal")
@@ -381,10 +372,10 @@ def figure_scorecard():
 
     top = header(
         fig,
-        "Is SPAR-PIBT better? One cell per rival per map",
-        "Each cell is SPAR-PIBT's throughput divided by that rival's on that "
-        "map: above 1.00x SPAR delivers more, below 1.00x it delivers less.\n"
-        "Against both published baselines SPAR wins everywhere by 13x to 315x. "
+        "Is aisleflow better? One cell per rival per map",
+        "Each cell is aisleflow's throughput divided by that rival's on that "
+        "map: above 1.00x aisleflow delivers more, below 1.00x it delivers less.\n"
+        "Against both published baselines aisleflow wins everywhere by 13x to 315x. "
         "Against the plain PIBT it extends it is ahead on the two "
         "aisle-constrained maps\nand behind on the two open ones -- and at five "
         "seeds only the two losses clear p < 0.05.",
@@ -400,11 +391,11 @@ def figure_scorecard():
 
 HEADLINE_VARIANTS = ["lifelong_pibt", "full_lda_pibt", "token_passing", "rhcr"]
 
-#: SPAR configurations eligible for the headline. The ladder's full
+#: aisleflow configurations eligible for the headline. The ladder's full
 #: variant is not always its best one -- on `warehouse_corridors` aisle
 #: direction alone beats it -- and a headline that always picked `full` would
 #: understate the method exactly where its own argument is strongest.
-AISLEFLOW_CANDIDATES = ["full_lda_pibt", "aisle_direction_only", "aisle_managed_pibt"]
+AISLEFLOW_CANDIDATES = ["full_lda_pibt", "congestion_only", "lane_bonus_only"]
 
 
 def wrap_label(text: str, width: int = 14) -> str:
@@ -422,14 +413,14 @@ def wrap_label(text: str, width: int = 14) -> str:
 
 
 def best_spar(map_name: str, ablation: Dict[str, Any]) -> Optional[Tuple[str, float]]:
-    """The best-throughput SPAR configuration on this map, if any."""
+    """The best-throughput aisleflow configuration on this map, if any."""
     rows = {r["variant"]: r for r in ablation["maps"][map_name]["rows"]}
     scored = [(v, rows[v]["throughput"]) for v in AISLEFLOW_CANDIDATES if v in rows]
     return max(scored, key=lambda pair: pair[1]) if scored else None
 
 
 def figure_headline():
-    """Throughput per map for SPAR, plain PIBT and both baselines."""
+    """Throughput per map for aisleflow, plain PIBT and both baselines."""
     import matplotlib.pyplot as plt
 
     sys.path.insert(0, str(ROOT / "src"))
@@ -448,7 +439,7 @@ def figure_headline():
     for ax, map_name in zip(axes, maps):
         rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
         variants = [v for v in HEADLINE_VARIANTS if v in rows]
-        # swap the ladder's full variant for whichever SPAR configuration
+        # swap the ladder's full variant for whichever aisleflow configuration
         # is actually best here; both suites ran the same scenario and seeds
         chosen = best_spar(map_name, ablation)
         if chosen and chosen[0] != "full_lda_pibt":
@@ -526,10 +517,10 @@ def figure_headline():
     axes[0].set_ylabel(THROUGHPUT_UNIT, color=INK_2)
     top = header(
         fig,
-        "Throughput: SPAR wins where aisles are scarce, and loses where they are not",
+        "Throughput: aisleflow wins where aisles are scarce, and loses where they are not",
         "Taller is better: tasks delivered per 1000 timesteps, so 149 means "
         "149 tasks out of every 1000 steps of simulated time.\nEach map shows "
-        "the best SPAR configuration on that map, named under its bar, with a "
+        "the best aisleflow configuration on that map, named under its bar, with a "
         "permutation test against plain PIBT. The two wins are ahead by "
         "21-27%\nbut land at p = 0.06 on five seeds; the two losses are "
         "significant. Both baselines are far behind everywhere.",
@@ -621,13 +612,11 @@ def figure_forest():
 
 MATRIX_VARIANTS = [
     "full_lda_pibt",
-    "aisle_direction_only",
-    "aisle_managed_pibt",
-    "hysteresis_pibt",
-    "directional_pibt",
+    "congestion_only",
+    "lane_bonus_only",
+    "recovery_only",
     "turning_cost_only",
-    "reservations_only",
-    "aisle_direction_hard",
+    "recovery_full_ladder",
     "recovery_uncorroborated",
 ]
 REFERENCE = "lifelong_pibt"
@@ -971,10 +960,11 @@ def figure_censoring():
 # --------------------------------------------------------------------------
 
 LADDER = [
+    "pibt_baseline",
     "lifelong_pibt",
-    "directional_pibt",
-    "hysteresis_pibt",
-    "aisle_managed_pibt",
+    "turning_cost_only",
+    "lane_bonus_only",
+    "congestion_only",
     "full_lda_pibt",
 ]
 

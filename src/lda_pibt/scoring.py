@@ -1,12 +1,30 @@
-"""Candidate scoring: proximity modes, direction weights, turning cost.
+"""Candidate scoring: how a robot ranks the cells it could move into next.
 
-Implements spec sections 13 (proximity), 14 (preferred route direction),
-23 (proximity-dependent candidate score) and 24 (scoring pseudocode).
+Every timestep, each robot has at most five options -- its four neighbours and
+staying put -- and this module puts a single number on each one.  The planner
+(`pibt.py`) then tries them in descending order.  Scoring never decides
+safety; it only decides preference.
+
+The score has four terms::
+
+    S(v) = progress_reward * progress          # did we get closer?
+         + aisle_bonus     * same_aisle        # keep flowing down one aisle
+         - turn_penalty    * turn              # corners are slow
+         - crowding_penalty * crowding         # avoid the jam
+
+`progress` is -1, 0 or +1, and `progress_reward` is 10, so candidates fall
+into three tiers ten points apart and the other three terms only ever reorder
+*within* a tier.  That is the whole design: getting closer is what matters,
+and everything else is a tie-break.  It is also why this file is much shorter
+than it used to be -- a term worth less than a tie-break is worth nothing, and
+the sensitivity study (`experiments/run_sensitivity.py`,
+`docs/data/sensitivity.json`) showed five of the old nine terms were exactly
+that.  See `docs/04-parameters.md` for the measured cost of each.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from .config import Params
 from .congestion import CongestionModel
@@ -14,12 +32,13 @@ from .robot import Robot
 from .types import INF, Compass, ProximityMode, Vertex, movement_direction
 from .warehouse import Warehouse
 
-if TYPE_CHECKING:  # pragma: no cover - import cycle only matters to type checkers
-    from .aisle_manager import AisleManager
-
 
 def compute_proximity_mode(route_distance: float, params: Params) -> ProximityMode:
-    """Spec 13.1-13.3."""
+    """How close the robot is to its waypoint: TRANSIT, APPROACH or ARRIVAL.
+
+    Only `compute_aisle_bonus` reads this. A robot far from its target should
+    stay in its lane; one that has nearly arrived needs to be free to turn off.
+    """
     if route_distance > params.r_far:
         return ProximityMode.TRANSIT
     if route_distance > params.r_near:
@@ -27,42 +46,21 @@ def compute_proximity_mode(route_distance: float, params: Params) -> ProximityMo
     return ProximityMode.ARRIVAL
 
 
-def compute_direction_weight(route_distance: float, params: Params) -> float:
-    r"""Smooth direction weight (spec 13.4).
+def compute_aisle_bonus(mode: ProximityMode, params: Params) -> float:
+    """Reward for staying in the aisle the robot is already in.
 
-    .. math::
-        \beta_i = \beta_{\max}\min\left(1,
-            \frac{\max(0, r_i - R_{near})}{\max(1, R_{far} - R_{near})}\right)
+    Full strength in TRANSIT, half at APPROACH, weakest at ARRIVAL, so a robot
+    commits to a lane while travelling and is free to leave it near its target.
     """
-    if params.direction_control == "none":
-        return 0.0
-    if route_distance == INF:
-        return params.beta_strong
-    numerator = max(0.0, route_distance - params.r_near)
-    denominator = max(1.0, float(params.r_far - params.r_near))
-    return params.beta_strong * min(1.0, numerator / denominator)
-
-
-def compute_aisle_weight(mode: ProximityMode, params: Params) -> float:
-    """Aisle-continuity weight gamma_i, weakened near the waypoint (spec 23)."""
-    if params.direction_control == "none":
-        return 0.0
     if mode is ProximityMode.TRANSIT:
-        return params.gamma_strong
+        return params.aisle_bonus
     if mode is ProximityMode.APPROACH:
-        return 0.5 * (params.gamma_strong + params.gamma_weak)
-    return params.gamma_weak
+        return 0.5 * (params.aisle_bonus + params.aisle_bonus_near)
+    return params.aisle_bonus_near
 
 
-def turning_cost(
-    previous: Compass, movement: Compass, params: Params
-) -> float:
-    r"""Spec 23.
-
-    .. math::
-        P^{turn}_i(v) = 0 \text{ (straight)}, 1 \text{ (turn)},
-        \eta_{reverse} \text{ (reversal)}
-    """
+def turning_cost(previous: Compass, movement: Compass, params: Params) -> float:
+    """0 to carry straight on, 1 to turn a corner, `reverse_multiplier` to reverse."""
     if not params.turning_cost:
         return 0.0
     if movement is Compass.STAY or previous is Compass.STAY:
@@ -70,70 +68,31 @@ def turning_cost(
     if movement is previous:
         return 0.0
     if movement is previous.opposite():
-        return params.lambda_reverse
-    return 1.0
-
-
-def wait_penalty(robot: Robot, candidate: Vertex) -> float:
-    """P^wait: waiting in place is only free when already at the waypoint."""
-    if candidate != robot.position:
-        return 0.0
-    if robot.waypoint is not None and robot.position == robot.waypoint:
-        return 0.0
+        return params.reverse_multiplier
     return 1.0
 
 
 class CandidateScorer:
-    """Ranks legal PIBT candidates (spec section 24)."""
+    """Ranks the cells a robot could move into this timestep."""
 
     def __init__(
         self,
         warehouse: Warehouse,
         congestion: CongestionModel,
         params: Params,
-        aisles: Optional["AisleManager"] = None,
     ):
         self.warehouse = warehouse
         self.congestion = congestion
         self.params = params
-        #: Set by the planner so the score can price counterflow moves.  The
-        #: aisle layer used to *reject* them instead; see `aisle_penalty`.
-        self.aisles = aisles
         self.timestep = 0
         self.evaluations = 0
 
-    def bind(self, aisles: "AisleManager") -> None:
-        self.aisles = aisles
-
-    def aisle_penalty(self, robot: Robot, candidate: Vertex) -> float:
-        r"""zeta terms: the cost of a move the aisle layer would rather not see.
-
-        The high level ranks candidates and never decides safety, so opposing
-        the aisle direction, or entering a directional aisle without a ticket,
-        is *expensive* rather than impossible.  Deleting those moves outright
-        is what breaks PIBT's progress argument: priority inheritance works
-        because a robot can always be pushed into an adjacent cell, and a
-        one-way rule takes exactly that freedom away.
-
-        Returns 0 when direction control is off, when the move is with the
-        flow, or when `hard_direction_constraints` is set (the planner rejects
-        those moves itself in that mode, so pricing them again would
-        double-count).
-        """
-        aisles = self.aisles
-        p = self.params
-        if aisles is None or p.hard_direction_constraints:
-            return 0.0
-        penalty = 0.0
-        t = self.timestep
-        if aisles.violates_aisle_direction(robot, robot.position, candidate, t):
-            penalty += p.zeta_counterflow
-        if aisles.violates_aisle_reservation(robot, robot.position, candidate, t):
-            penalty += p.zeta_reservation
-        return penalty
-
     def progress(self, robot: Robot, candidate: Vertex) -> float:
-        r"""Normalised route progress (spec 23)."""
+        """-1, 0 or +1: does this move take the robot closer to its waypoint?
+
+        Measured on route distance, not straight-line distance, so a wall
+        between the robot and its target counts as the detour it really is.
+        """
         waypoint = robot.waypoint
         if waypoint is None:
             return 0.0
@@ -142,116 +101,45 @@ class CandidateScorer:
         candidate_distance = graph.route_distance(candidate, waypoint)
         if current_distance == INF or candidate_distance == INF:
             return -1.0 if candidate_distance == INF else 0.0
-        delta = current_distance - candidate_distance
-        if self.params.progress_normalization == "route":
-            # Spec 23 verbatim: normalised by the remaining route length.
-            return delta / max(1.0, current_distance)
-        # Default: per-step progress in {-1, 0, +1}, which is what makes the
-        # recommended relation alpha > beta_strong > lambda_turn meaningful.
-        return delta
+        return current_distance - candidate_distance
 
     def score(self, robot: Robot, candidate: Vertex) -> float:
-        """Complete candidate score S_i(v) (spec 23.2 / 24)."""
+        """The complete candidate score `S(v)`; higher is better."""
         self.evaluations += 1
         p = self.params
         wh = self.warehouse
 
         progress = self.progress(robot, candidate)
 
-        movement = movement_direction(robot.position, candidate)
-        direction_match = (
-            1.0
-            if (
-                p.direction_control != "none"
-                and movement is not Compass.STAY
-                and movement is robot.preferred_direction
-            )
-            else 0.0
-        )
-
         same_aisle = (
             1.0 if wh.aisle_id(candidate) == robot.current_aisle
             and robot.current_aisle is not None
             else 0.0
         )
+        # At an intersection there is no aisle to continue along, so the bonus
+        # would just favour an arbitrary one of the branches.
         if wh.is_intersection(robot.position):
             same_aisle = 0.0
 
+        movement = movement_direction(robot.position, candidate)
         turn_penalty = turning_cost(robot.previous_direction, movement, p)
-        congestion = self.congestion.congestion(robot, candidate)
-        wait = wait_penalty(robot, candidate)
-        bottleneck = 1.0 if wh.is_bottleneck(candidate) else 0.0
+        crowding = self.congestion.crowding(robot, candidate)
 
         return (
-            p.alpha_progress * progress
-            + robot.direction_weight * direction_match
-            + robot.aisle_weight * same_aisle
-            - p.lambda_turn * turn_penalty
-            - p.mu_congestion * congestion
-            - p.nu_wait * wait
-            - p.xi_bottleneck * bottleneck
-            - self.aisle_penalty(robot, candidate)
+            p.progress_reward * progress
+            + robot.aisle_bonus * same_aisle
+            - p.turn_penalty * turn_penalty
+            - p.crowding_penalty * crowding
         )
 
     def sort_key(self, robot: Robot, candidate: Vertex):
-        """Deterministic ordering key: score desc, then vertex asc."""
+        """Deterministic ordering key: score descending, then vertex ascending."""
         return (-self.score(robot, candidate), candidate)
-
-
-def compute_route_direction(
-    warehouse: Warehouse, robot: Robot
-) -> Compass:
-    """Preferred compass direction = orientation of the first route edge (14)."""
-    route = robot.route
-    if len(route) >= 2:
-        return movement_direction(route[0], route[1])
-    waypoint = robot.waypoint
-    if waypoint is None or waypoint == robot.position:
-        return Compass.STAY
-    graph = warehouse.graph
-    best: Optional[Vertex] = None
-    best_delta = 0.0
-    base = graph.route_distance(robot.position, waypoint)
-    for n in graph.neighbors(robot.position):
-        delta = base - graph.route_distance(n, waypoint)
-        if best is None or delta > best_delta:
-            best = n
-            best_delta = delta
-    if best is None:
-        return Compass.STAY
-    return movement_direction(robot.position, best)
-
-
-def apply_direction_hysteresis(
-    robot: Robot, proposed: Compass, timestep: int, params: Params
-) -> Compass:
-    """Keep the previous preference unless the robot is at a decision point.
-
-    Spec 15/16: a robot retains its route request until its waypoint changes,
-    the route becomes invalid, it reaches an intersection, or it is blocked.
-    """
-    if not params.hysteresis:
-        return proposed
-    previous = robot.preferred_direction
-    if previous is Compass.STAY or proposed is previous:
-        return proposed
-    if robot.blocked_time >= params.t_blocked:
-        return proposed
-    if robot.mode is not ProximityMode.TRANSIT:
-        return proposed
-    # Only re-commit to a new direction at an intersection.
-    if robot.current_aisle is None:
-        return proposed
-    return previous
 
 
 __all__ = [
     "CandidateScorer",
     "compute_proximity_mode",
-    "compute_direction_weight",
-    "compute_aisle_weight",
+    "compute_aisle_bonus",
     "turning_cost",
-    "wait_penalty",
-    "compute_route_direction",
-    "apply_direction_hysteresis",
 ]

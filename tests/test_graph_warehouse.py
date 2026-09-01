@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from lda_pibt import GridGraph, Params, Warehouse
-from lda_pibt.types import INF, AisleDirection
+from lda_pibt.types import INF
 
 MAPS = Path(__file__).resolve().parents[1] / "maps"
 
@@ -121,38 +121,14 @@ def test_every_non_intersection_cell_belongs_to_exactly_one_aisle():
         assert wh.is_intersection(v) or v in owners
 
 
-def test_traversal_direction_follows_aisle_order():
-    wh = make(CORRIDOR)
-    aisle = wh.aisles[0]
-    first, second = aisle.vertices[0], aisle.vertices[1]
-    assert wh.traversal_direction(first, second) is AisleDirection.FORWARD
-    assert wh.traversal_direction(second, first) is AisleDirection.REVERSE
+def test_capacity_is_bounded_by_what_can_drain():
+    """A corridor holds no more robots than it can empty in `max_drain_time`.
 
-
-def test_short_aisles_are_not_directionally_managed():
-    wh = make(CORRIDOR, directional_aisle_min_length=99)
-    assert all(not a.manageable for a in wh.aisles.values())
-
-
-def test_bridge_carrying_aisles_are_never_made_one_way():
-    """Making a cut edge one-way would disconnect the graph (spec 9.3, 38.2)."""
-    wh = make(TWO_ROOMS, directional_aisle_min_length=1)
-    bridging = [
-        a
-        for a in wh.aisles.values()
-        if any(v == (2, 3) for v in a.vertices)
-    ]
-    assert bridging
-    assert all(not a.manageable for a in bridging)
-
-
-def test_capacity_models():
-    length = make(CORRIDOR, aisle_capacity_model="length").aisles[0].capacity
-    throughput = make(
-        CORRIDOR, aisle_capacity_model="throughput", minimum_aisle_lock_time=5
-    ).aisles[0].capacity
-    assert length == 5
-    assert throughput == 1
+    The last robot in must still cross the whole aisle to leave, and every
+    robot ahead of it adds a step, so the cap is `max_drain_time - length`.
+    """
+    assert make(CORRIDOR, max_drain_time=30).aisles[0].capacity == 5
+    assert make(CORRIDOR, max_drain_time=8).aisles[0].capacity == 3
 
 
 def test_summary_keys():
@@ -192,10 +168,3 @@ def test_aisles_partition_the_non_intersection_cells():
     assert set(owned) == expected
 
 
-def test_drain_capacity_keeps_an_aisle_emptiable():
-    """Capacity must not exceed what can clear the aisle inside max_drain_time."""
-    params = Params(aisle_capacity_model="drain", max_drain_time=30, aisle_capacity=99)
-    warehouse = Warehouse.from_file(MAPS / "warehouse_corridors.map", params)
-    for aisle in warehouse.aisles.values():
-        if aisle.manageable:
-            assert aisle.length + aisle.capacity <= params.max_drain_time + 1

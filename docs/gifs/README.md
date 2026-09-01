@@ -5,7 +5,9 @@ Every panel is a real run of the simulator in this repository, and the two
 panels of a frame share a map, a seed, a robot count, an arrival rate and a
 task stream -- they differ in the planner and nothing else.
 
-Regenerate them all with:
+These were rendered before the aisle-direction layer was removed, so any
+one-way tinting they show describes a mechanism the planner no longer has;
+the planner comparison each one makes still stands. Regenerate them with:
 
 ```bash
 python3 tools/make_gifs.py            # needs pillow: pip install -e ".[viz]"
@@ -24,10 +26,8 @@ last to read the outcome.
 | Grey dot | a robot with no task yet |
 | **Red dot** | that robot has not moved for 15 timesteps |
 | **Red frame + GRIDLOCKED** | most of that panel's robots are stuck |
-| Blue / orange aisle tint | the aisle has committed a one-way direction; the arrows show which way |
-| Purple aisle tint | the aisle is DRAINING: emptying before it reverses |
 | Big number | tasks delivered so far, green on whichever side is ahead |
-| Chart | the quantity named at its left -- tasks delivered, or aisle direction flips -- over the whole run, drawn as it plays |
+| Chart | tasks delivered over the whole run, drawn as it plays |
 | Band along the bottom | what is happening in this part of the run, and why |
 
 One colour rule carries most of the argument: **red means stuck**, and

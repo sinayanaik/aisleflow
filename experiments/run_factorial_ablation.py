@@ -28,12 +28,6 @@ from lda_pibt.experiments import run_factorial_table  # noqa: E402
 #: Matches the (robots, rate) used for the same maps in run_ablation.py so
 #: results are comparable to the original ladder table.
 RUNS = [
-    ("direction_vs_turning_cost", "warehouse_bottleneck", 16, 0.8),
-    ("direction_vs_turning_cost", "warehouse_corridors", 35, 1.0),
-    ("direction_vs_turning_cost", "warehouse_medium", 40, 1.5),
-    ("aisle_direction_vs_reservations", "warehouse_bottleneck", 16, 0.8),
-    ("aisle_direction_vs_reservations", "warehouse_corridors", 35, 1.0),
-    ("aisle_direction_vs_reservations", "warehouse_medium", 40, 1.5),
     ("congestion_vs_recovery", "warehouse_bottleneck", 16, 0.8),
     ("congestion_vs_recovery", "warehouse_corridors", 35, 1.0),
     ("congestion_vs_recovery", "warehouse_medium", 40, 1.5),

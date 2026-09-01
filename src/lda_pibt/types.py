@@ -33,30 +33,6 @@ def movement_direction(u: Vertex, v: Vertex) -> Compass:
     return Compass((v[0] - u[0], v[1] - u[1]))
 
 
-class AisleDirection(IntEnum):
-    """Traversal direction relative to an aisle's own vertex ordering."""
-
-    REVERSE = -1
-    NONE = 0
-    FORWARD = 1
-
-    def opposite(self) -> "AisleDirection":
-        if self is AisleDirection.FORWARD:
-            return AisleDirection.REVERSE
-        if self is AisleDirection.REVERSE:
-            return AisleDirection.FORWARD
-        return AisleDirection.NONE
-
-
-class AisleState(Enum):
-    """Spec section 10."""
-
-    OPEN = "OPEN"
-    FORWARD = "FORWARD"
-    REVERSE = "REVERSE"
-    DRAINING = "DRAINING"
-
-
 class RobotState(Enum):
     """Spec section 7.1."""
 
@@ -89,21 +65,6 @@ class PIBTResult(Enum):
     INVALID = "INVALID"
 
 
-@dataclass
-class Reservation:
-    """Aisle-entry reservation (spec section 18)."""
-
-    robot_id: int
-    aisle_id: int
-    direction: AisleDirection
-    entry_time: int
-    expected_exit_time: int
-    expiry_time: int
-
-    def is_valid(self, timestep: int) -> bool:
-        return timestep <= self.expiry_time
-
-
 class PlanningError(RuntimeError):
     """Raised when the executed joint move is not collision free (spec 31)."""
 
@@ -113,13 +74,10 @@ __all__ = [
     "INF",
     "Compass",
     "movement_direction",
-    "AisleDirection",
-    "AisleState",
     "RobotState",
     "TaskStatus",
     "ProximityMode",
     "PIBTResult",
-    "Reservation",
     "PlanningError",
     "Optional",
 ]

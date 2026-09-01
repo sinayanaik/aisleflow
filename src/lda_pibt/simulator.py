@@ -12,7 +12,6 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol, Sequence
 
-from .aisle_manager import AisleManager
 from .assignment import TaskAssigner, update_task_state, update_waypoint
 from .config import Params
 from .congestion import CongestionModel, OccupancyIndex
@@ -21,14 +20,10 @@ from .metrics import MetricsCollector, MetricsReport, TimestepRecord
 from .pibt import PIBTPlanner
 from .priority import compute_priority, order_by_priority
 from .robot import Robot
-from .routing import Router
 from .scoring import (
     CandidateScorer,
-    apply_direction_hysteresis,
-    compute_aisle_weight,
-    compute_direction_weight,
+    compute_aisle_bonus,
     compute_proximity_mode,
-    compute_route_direction,
 )
 from .task import Task, TaskGenerator, TaskQueue
 from .types import INF, Compass, PlanningError, RobotState, Vertex
@@ -50,10 +45,10 @@ class Planner(Protocol):
 
 
 #: Builds a planner from the same five components `PIBTPlanner` takes.
-#: Baseline planners accept and ignore `scorer`/`aisle_manager` so every
+#: Baseline planners accept and ignore `scorer` so every
 #: planner can be constructed through this one uniform call site.
 PlannerFactory = Callable[
-    [Warehouse, OccupancyIndex, CandidateScorer, AisleManager, Params], Planner
+    [Warehouse, OccupancyIndex, CandidateScorer, Params], Planner
 ]
 
 
@@ -64,7 +59,6 @@ class StepSnapshot:
     timestep: int
     positions: Dict[int, Vertex]
     states: Dict[int, str]
-    aisle_states: Dict[int, str]
     completed_tasks: int
 
 
@@ -96,13 +90,11 @@ class Simulator:
         self.index = OccupancyIndex(warehouse, self.params)
         self.congestion = CongestionModel(warehouse, self.index, self.params)
         self.scorer = CandidateScorer(warehouse, self.congestion, self.params)
-        self.aisles = AisleManager(warehouse, self.index, self.params)
-        self.router = Router(warehouse, self.params)
         self.assigner = TaskAssigner(warehouse, self.congestion, self.params)
         self.planner: Planner = (planner_factory or PIBTPlanner)(
-            warehouse, self.index, self.scorer, self.aisles, self.params
+            warehouse, self.index, self.scorer, self.params
         )
-        self.deadlocks = DeadlockMonitor(warehouse, self.index, self.aisles, self.params)
+        self.deadlocks = DeadlockMonitor(warehouse, self.index, self.params)
         self.metrics = MetricsCollector()
 
         self.timestep = 0
@@ -141,7 +133,6 @@ class Simulator:
                 completed = update_task_state(robot, t)
                 if completed is not None:
                     self.metrics.record_completion(completed)
-                    self.aisles.release_reservations(robot)
 
         # 3. assign tasks to free robots --------------------------------------
         if self.params.lifelong:
@@ -160,26 +151,15 @@ class Simulator:
             robot.mode = compute_proximity_mode(
                 robot.route_distance_to_waypoint, self.params
             )
-            robot.direction_weight = compute_direction_weight(
-                robot.route_distance_to_waypoint, self.params
-            )
-            robot.aisle_weight = compute_aisle_weight(robot.mode, self.params)
+            robot.aisle_bonus = compute_aisle_bonus(robot.mode, self.params)
             robot.current_aisle = self.warehouse.aisle_id(robot.position)
 
         # 5. compute routes and directional requests ---------------------------
         for robot in self.robots:
-            robot.route = self.router.route(robot.position, robot.waypoint)
-            robot.next_aisle = self._find_next_critical_aisle(robot)
-            proposed = compute_route_direction(self.warehouse, robot)
-            robot.preferred_direction = apply_direction_hysteresis(
-                robot, proposed, t, self.params
+            robot.route = self.warehouse.graph.shortest_route(
+                robot.position, robot.waypoint
             )
 
-        # 6-8. aisle queues, direction decisions, reservations ------------------
-        if self.aisles.active:
-            self.aisles.update_aisle_queues(self.robots, t)
-            self.aisles.step_directions(self.robots_by_id, t)
-            self.aisles.consume_reservations(self.robots)
 
         # 9. detect and recover from deadlocks (using last step's wait graph) ---
         if self.params.recovery:
@@ -191,21 +171,13 @@ class Simulator:
             robot.priority = compute_priority(robot, t, self.params)
         ordered = order_by_priority(self.robots)
 
-        if self.aisles.active:
-            self.aisles.update_aisle_reservations(ordered, t)
 
         # 11-12. clear step state and run PIBT ---------------------------------
         self.planner.plan_step(ordered, t)
 
-        # 12b. hypothesis-level counters, read before execution clears the plan.
-        # Counted for every variant, not only when the aisle layer is running:
-        # head-on encounters and aisle flow are properties of the map and the
-        # routes, so the variants with no aisle layer are the controls the
-        # hypotheses are measured against.
-        self.head_on_conflicts += self.aisles.count_head_on_conflicts(self.robots)
-        record = getattr(self.planner, "record_counterflow", None)
-        if record is not None:
-            record(self.robots, t)
+        # 12b. hypothesis-level counters, read before execution clears the
+        # plan: head-on encounters are a property of the map and the routes,
+        # so every variant is comparable on them.
 
         # 13. validate the joint plan ------------------------------------------
         if self.params.validate_every_step:
@@ -230,10 +202,7 @@ class Simulator:
                 robot.position, robot.waypoint
             )
             self.deadlocks.update_progress(robot, t)
-            if robot.current_aisle is None:
-                self.aisles.release_reservations(robot)
 
-        self.aisles.record_aisle_exits(self.robots)
 
         self.index.rebuild(self.robots)
 
@@ -249,7 +218,6 @@ class Simulator:
                 ),
                 idle_robots=sum(1 for r in self.robots if r.is_idle),
                 blocked_robots=sum(1 for r in self.robots if self.deadlocks.is_blocked(r)),
-                aisle_states=self.aisles.state_counts(),
                 runtime_ms=elapsed_ms,
             )
         )
@@ -259,9 +227,6 @@ class Simulator:
                     timestep=t,
                     positions={r.id: r.position for r in self.robots},
                     states={r.id: r.state.value for r in self.robots},
-                    aisle_states={
-                        a.id: a.state.value for a in self.warehouse.aisles.values()
-                    },
                     completed_tasks=len(self.metrics.completed),
                 )
             )
@@ -357,7 +322,6 @@ class Simulator:
         extra: Dict[str, object] = {}
         extra.update(self.planner.stats())
         extra.update(self.deadlocks.stats())
-        extra.update(self.aisles.stats())
         extra["head_on_conflicts"] = self.head_on_conflicts
         extra["collision_free"] = self.collision_free
         return self.metrics.build(

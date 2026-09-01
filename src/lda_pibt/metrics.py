@@ -45,7 +45,6 @@ class TimestepRecord:
     moving_robots: int
     idle_robots: int
     blocked_robots: int
-    aisle_states: Dict[str, int] = field(default_factory=dict)
     runtime_ms: float = 0.0
 
 
@@ -66,26 +65,32 @@ class MetricsReport:
     mean_travel_distance: float = 0.0
     total_waiting_steps: int = 0
     max_waiting_time: int = 0
-    direction_switches: int = 0
-    direction_switches_per_1000: float = 0.0
-    # -- hypothesis-level counters ------------------------------------------
+    #: pairs facing each other in one single-file aisle, neither able to pass
     #: pairs facing each other in one single-file aisle, neither able to pass
     #: (H3 claims entry admission reduces these; nothing measured them before)
     head_on_conflicts: int = 0
-    #: moves actually taken against a committed aisle direction -- the price of
-    #: ranking direction rather than enforcing it
-    counterflow_moves: int = 0
-    #: robots cleared by managed aisles, and the same per aisle per 1000 steps
-    #: (H1 is a claim about aisles, so it needs an aisle-level rate)
-    aisle_exits: int = 0
-    managed_aisles: int = 0
-    aisle_throughput_per_1000: float = 0.0
-    #: flips forced by the maximum-green rule rather than by a demand imbalance
-    starvation_flips: int = 0
     deadlocks_detected: int = 0
     deadlocks_recovered: int = 0
     deadlocks_unrecovered: int = 0
     mean_recovery_time: float = 0.0
+    #: Per-remedy counters for the seven-level recovery ladder: how often
+    #: each level ran, and how often the group cleared within `stall_steps`
+    #: steps of it. Reported by the sensitivity study, not by the standard
+    #: suites, so existing datasets keep their shape.
+    recovery_l1_fires: int = 0
+    recovery_l2_fires: int = 0
+    recovery_l3_fires: int = 0
+    recovery_l4_fires: int = 0
+    recovery_l5_fires: int = 0
+    recovery_l6_fires: int = 0
+    recovery_l7_fires: int = 0
+    recovery_l1_resolved: int = 0
+    recovery_l2_resolved: int = 0
+    recovery_l3_resolved: int = 0
+    recovery_l4_resolved: int = 0
+    recovery_l5_resolved: int = 0
+    recovery_l6_resolved: int = 0
+    recovery_l7_resolved: int = 0
     jain_fairness: float = 1.0
     pibt_recursive_calls: int = 0
     pibt_backtracks: int = 0
@@ -187,15 +192,6 @@ class MetricsCollector:
         for key, value in extra.items():
             if hasattr(report, key):
                 setattr(report, key, value)
-        report.direction_switches_per_1000 = (
-            1000.0 * report.direction_switches / max(1, timesteps)
-        )
-        report.aisle_throughput_per_1000 = (
-            1000.0
-            * report.aisle_exits
-            / max(1, timesteps)
-            / max(1, report.managed_aisles)
-        )
         return report
 
 

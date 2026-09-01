@@ -9,10 +9,8 @@ from collections import deque
 
 from .task import Task
 from .types import (
-    AisleDirection,
     Compass,
     ProximityMode,
-    Reservation,
     RobotState,
     Vertex,
     INF,
@@ -34,9 +32,6 @@ class Robot:
     waypoint: Optional[Vertex] = None
 
     current_aisle: Optional[int] = None
-    next_aisle: Optional[int] = None
-    preferred_direction: Compass = Compass.STAY
-    preferred_aisle_direction: AisleDirection = AisleDirection.NONE
 
     waiting_time: int = 0
     blocked_time: int = 0
@@ -46,20 +41,23 @@ class Robot:
     tie_breaker: float = 0.0
     next_position: Optional[Vertex] = None
     reserved_vertex: Optional[Vertex] = None
-    aisle_reservation: Optional[Reservation] = None
 
     # derived per-timestep state
     route: List[Vertex] = field(default_factory=list)
+    #: The route the robot *would* take if no aisle had a direction. The aisle
+    #: layer votes with this rather than with `route`, because direction-aware
+    #: routing sends robots around aisles flowing the wrong way -- and an aisle
+    #: that never sees the traffic it is turning away has no demand to flip
+    #: for, so it would hold one direction forever.
     route_distance_to_waypoint: float = INF
     previous_route_distance: float = INF
     mode: ProximityMode = ProximityMode.TRANSIT
     direction_weight: float = 0.0
-    aisle_weight: float = 0.0
+    aisle_bonus: float = 0.0
     waiting_for_robot: Optional["Robot"] = None
     parking_vertex: Optional[Vertex] = None
     recovery_vertex: Optional[Vertex] = None
     allow_reverse_until: int = -1
-    ignore_direction_until: int = -1
 
     # statistics
     travel_distance: int = 0

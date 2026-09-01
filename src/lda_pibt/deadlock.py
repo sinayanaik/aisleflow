@@ -9,12 +9,28 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from .aisle_manager import AisleManager
 from .config import Params
 from .congestion import OccupancyIndex
 from .robot import Robot
-from .types import INF, AisleDirection, AisleState, RobotState, Vertex
+from .types import INF, RobotState, Vertex
 from .warehouse import Warehouse
+
+#: The remedies, in escalation order. Two more used to sit above these --
+#: releasing entry permits, and dropping every directional constraint for the
+#: group -- and both are gone: the permits they released no longer exist, and
+#: truncating the ladder at this depth measured 6% *better* than running the
+#: full one, because the strongest remedy tore up routes faster than the jam
+#: was clearing.
+RECOVERY_LEVEL_COUNT = 4
+
+#: Human-readable names, in the same order, for the docs and the sensitivity
+#: study.  Index i here describes `recovery_l{i+1}_fires`.
+RECOVERY_LEVEL_NAMES = (
+    "recompute routes",
+    "raise blocked priorities",
+    "allow temporary reverse",
+    "assign escape vertices",
+)
 
 
 class DeadlockMonitor:
@@ -24,12 +40,10 @@ class DeadlockMonitor:
         self,
         warehouse: Warehouse,
         index: OccupancyIndex,
-        aisle_manager: AisleManager,
         params: Params,
     ):
         self.warehouse = warehouse
         self.index = index
-        self.aisles = aisle_manager
         self.params = params
 
         self.detected = 0
@@ -39,6 +53,15 @@ class DeadlockMonitor:
         self._group_start: Dict[frozenset, int] = {}
         self._group_level: Dict[frozenset, int] = {}
         self._unrecovered_keys: Set[frozenset] = set()
+        #: Which of the seven remedies actually run, and which of them are
+        #: followed by the group clearing.  A recovery level nothing ever fires,
+        #: or that never precedes a resolution, is a level the ladder does not
+        #: need -- and that cannot be measured by zeroing a weight, because the
+        #: levels are code paths rather than numbers.
+        self.level_fires: List[int] = [0] * RECOVERY_LEVEL_COUNT
+        self.level_resolved: List[int] = [0] * RECOVERY_LEVEL_COUNT
+        #: group key -> (level index last applied, timestep it was applied)
+        self._group_last: Dict[frozenset, Tuple[int, int]] = {}
 
     # ------------------------------------------------------------ tracking
     def update_progress(self, robot: Robot, timestep: int) -> None:
@@ -70,8 +93,8 @@ class DeadlockMonitor:
         if robot.state in (RobotState.FREE, RobotState.PARKED):
             return False
         return (
-            robot.no_progress_steps >= self.params.t_blocked
-            or robot.blocked_time >= self.params.t_blocked
+            robot.no_progress_steps >= self.params.stall_steps
+            or robot.blocked_time >= self.params.stall_steps
         )
 
     @staticmethod
@@ -141,7 +164,7 @@ class DeadlockMonitor:
         claimed: Set[int] = set()
 
         # Spec 28 lists three stall signals. No progress alone is the weakest:
-        # in dense lifelong traffic a robot queues for `t_blocked` steps as a
+        # in dense lifelong traffic a robot queues for `stall_steps` steps as a
         # matter of course, so treating that as a deadlock escalates recovery
         # on healthy traffic -- and levels 5-7 (temporary reverse, escape
         # vertices, waypoint hijack) then cost far more than they save. Require
@@ -198,6 +221,14 @@ class DeadlockMonitor:
                 self._group_level.pop(key, None)
                 self.recovery_time_total += max(0, timestep - start)
                 self.recovered += 1
+                last = self._group_last.pop(key, None)
+                # Credit the remedy only when the group cleared soon enough
+                # after it to plausibly be its doing; a group that limps on for
+                # another 50 steps was not fixed by that level.
+                if last is not None:
+                    level, applied_at = last
+                    if timestep - applied_at <= self.params.stall_steps:
+                        self.level_resolved[level] += 1
         for key in current_keys:
             if key not in self._group_start:
                 self._group_start[key] = timestep
@@ -207,7 +238,7 @@ class DeadlockMonitor:
 
     # ------------------------------------------------------------ recovery
     def group_has_progress(self, group: Sequence[Robot]) -> bool:
-        return any(r.no_progress_steps < self.params.t_blocked for r in group)
+        return any(r.no_progress_steps < self.params.stall_steps for r in group)
 
     def recover_from_deadlock(
         self, group: Sequence[Robot], timestep: int
@@ -219,24 +250,33 @@ class DeadlockMonitor:
         before the expensive ones run.
         """
         key = frozenset(r.id for r in group)
-        levels = (
+        all_levels = (
             self._recompute_routes,
-            self._recompute_affected_aisles,
-            self._release_stale_reservations,
             self._increase_blocked_priorities,
             self._allow_temporary_reverse_move,
             self._assign_escape_vertices,
-            self._run_local_fallback_planner,
         )
+        # `recovery_max_level` truncates the ladder so a sweep over 0..7
+        # measures each level's *marginal* value. Leaving one level out in the
+        # middle would measure nothing, because the levels only ever fire in
+        # order: level 5 is reached solely by levels 1-4 having failed first.
+        depth = max(0, min(self.params.recovery_max_level, len(all_levels)))
+        levels = all_levels[:depth]
         level = self._group_level.get(key, 0)
         if level >= len(levels):
             if key not in self._unrecovered_keys:
                 self._unrecovered_keys.add(key)
                 self.unrecovered += 1
+            if not levels:
+                return False  # recovery_max_level == 0: no remedy exists
             # Keep applying the strongest remedy.
             levels[-1](group, timestep)
+            self.level_fires[len(levels) - 1] += 1
+            self._group_last[key] = (len(levels) - 1, timestep)
             return False
         levels[level](group, timestep)
+        self.level_fires[level] += 1
+        self._group_last[key] = (level, timestep)
         self._group_level[key] = level + 1
         for robot in group:
             robot.recovery_events += 1
@@ -255,46 +295,22 @@ class DeadlockMonitor:
             )
 
     # Level 2
-    def _recompute_affected_aisles(
-        self, group: Sequence[Robot], timestep: int
-    ) -> None:
-        for robot in group:
-            for aisle_id in (robot.current_aisle, robot.next_aisle):
-                aisle = self.warehouse.get_aisle(aisle_id)
-                if aisle is None:
-                    continue
-                aisle.lock_until = timestep  # allow an immediate re-decision
-                if aisle.occupancy == 0:
-                    aisle.state = AisleState.OPEN
-                    aisle.current_direction = AisleDirection.NONE
-                elif aisle.state in (AisleState.FORWARD, AisleState.REVERSE):
-                    aisle.state = AisleState.DRAINING
-
-    # Level 3
-    def _release_stale_reservations(
-        self, group: Sequence[Robot], timestep: int
-    ) -> None:
-        for robot in group:
-            self.aisles.release_reservations(robot)
-
-    # Level 4
     def _increase_blocked_priorities(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
+        """Buy the stuck group rank, at the same rate waiting buys it."""
         for robot in group:
-            robot.priority += self.params.blocked_weight * robot.no_progress_steps
+            robot.priority += self.params.waiting_weight * robot.no_progress_steps
 
-    # Level 5
+    # Level 3
     def _allow_temporary_reverse_move(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
+        """Let the group back out of wherever it wedged itself."""
         for robot in group:
-            robot.allow_reverse_until = timestep + self.params.t_blocked
-            robot.ignore_direction_until = timestep + max(
-                1, self.params.t_blocked // 2
-            )
+            robot.allow_reverse_until = timestep + self.params.stall_steps
 
-    # Level 6
+    # Level 4
     def _assign_escape_vertices(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
@@ -326,26 +342,9 @@ class DeadlockMonitor:
             vertices = [v for v in wh.graph.vertices if wh.graph.degree(v) >= 3]
         return vertices
 
-    # Level 7
-    def _run_local_fallback_planner(
-        self, group: Sequence[Robot], timestep: int
-    ) -> bool:
-        """Last resort: drop all directional constraints for this group."""
-        for robot in group:
-            robot.ignore_direction_until = timestep + self.params.t_deadlock
-            robot.allow_reverse_until = timestep + self.params.t_deadlock
-            self.aisles.release_reservations(robot)
-            if robot.state is RobotState.RECOVERY and robot.task is not None:
-                robot.state = (
-                    RobotState.TO_DELIVERY
-                    if robot.task.pickup_time is not None
-                    else RobotState.TO_PICKUP
-                )
-        return True
-
     # ---------------------------------------------------------- statistics
     def stats(self) -> Dict[str, float]:
-        return {
+        out: Dict[str, float] = {
             "deadlocks_detected": self.detected,
             "deadlocks_recovered": self.recovered,
             "deadlocks_unrecovered": self.unrecovered,
@@ -353,6 +352,10 @@ class DeadlockMonitor:
                 self.recovery_time_total / self.recovered if self.recovered else 0.0
             ),
         }
+        for i in range(RECOVERY_LEVEL_COUNT):
+            out[f"recovery_l{i + 1}_fires"] = self.level_fires[i]
+            out[f"recovery_l{i + 1}_resolved"] = self.level_resolved[i]
+        return out
 
 
-__all__ = ["DeadlockMonitor"]
+__all__ = ["DeadlockMonitor", "RECOVERY_LEVEL_COUNT", "RECOVERY_LEVEL_NAMES"]

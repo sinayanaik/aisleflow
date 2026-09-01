@@ -51,49 +51,75 @@ def test_permutation_test_empty_group_returns_p_one():
 
 
 # ------------------------------------------------- congestion term calibration
-def test_normalised_congestion_cannot_outrank_progress():
-    """The ordering slide 11 claims, made true.
+def test_crowding_is_a_fraction_and_cannot_outrank_progress():
+    """The tier structure the whole score rests on, made true.
 
-    `C_local` used to be a raw robot count mixed with two ratios, so `mu * C`
-    reached the scale of `alpha * Delta` and congestion silently became the
-    second-largest term in the score.
+    Both signals crowding averages are already fractions, so crowding is one
+    too and `crowding_penalty` reads directly as "what a completely jammed
+    cell costs". The local signal used to be a raw robot count mixed with a
+    ratio, which let crowding reach the scale of a step of progress and
+    silently made it the second-largest term in the score.
     """
     from lda_pibt import Params, Robot, Warehouse
     from lda_pibt.congestion import CongestionModel, OccupancyIndex
 
-    params = Params(congestion_normalisation=True)
+    params = Params()
     grid = "\n".join(["." * 9 for _ in range(9)])
     warehouse = Warehouse.from_string(grid, params)
     index = OccupancyIndex(warehouse, params)
     model = CongestionModel(warehouse, index, params)
 
-    # Pack every cell: the worst congestion the model can ever report.
+    # Pack every cell: the worst crowding the model can ever report.
     robots = [
         Robot(id=i, position=v) for i, v in enumerate(warehouse.graph.vertices)
     ]
     index.rebuild(robots)
-    model.begin_timestep()
-    worst = max(
-        model.congestion(robots[0], v) for v in warehouse.graph.vertices
-    )
+    worst = max(model.crowding(robots[0], v) for v in warehouse.graph.vertices)
     assert worst <= 1.0
-    assert params.mu_congestion * worst < params.alpha_progress
+    assert params.crowding_penalty * worst < params.progress_reward
 
 
-def test_raw_congestion_mode_still_available():
-    from lda_pibt import Params, Robot, Warehouse
-    from lda_pibt.congestion import CongestionModel, OccupancyIndex
+def test_paired_test_beats_the_unpaired_one_on_matched_arms():
+    """Why the sensitivity suite uses the sign-flip test.
 
-    params = Params(congestion_normalisation=False)
-    grid = "\n".join(["." * 9 for _ in range(9)])
-    warehouse = Warehouse.from_string(grid, params)
-    index = OccupancyIndex(warehouse, params)
-    model = CongestionModel(warehouse, index, params)
-    robots = [
-        Robot(id=i, position=v) for i, v in enumerate(warehouse.graph.vertices)
-    ]
-    index.rebuild(robots)
-    model.begin_timestep()
-    centre = (4, 4)
-    # Unnormalised, the local term alone exceeds a whole step of progress.
-    assert model.congestion(robots[0], centre) > params.alpha_progress
+    The suites run every variant on the same seeds, so seed k is an identical
+    task stream in both arms. Pooling and relabelling throws that away: on a
+    perfectly consistent effect the unpaired test cannot even reach p < 0.05,
+    while the paired one reports p = 0.002.
+    """
+    from lda_pibt.stats import paired_permutation_test
+
+    a = [0.10, 0.12, 0.11, 0.13, 0.12, 0.11, 0.10, 0.12, 0.13, 0.11]
+    b = [x - 0.01 for x in a]
+    _, paired_p = paired_permutation_test(a, b)
+    _, pooled_p = permutation_test(a, b)
+    assert paired_p < 0.005
+    assert pooled_p > 0.05
+
+
+def test_paired_test_rejects_mismatched_arms():
+    from lda_pibt.stats import paired_permutation_test
+    import pytest
+
+    with pytest.raises(ValueError):
+        paired_permutation_test([1.0, 2.0], [1.0])
+
+
+def test_no_legacy_alias_shadows_a_live_parameter():
+    """A rename table entry keyed on a *current* field silently eats overrides.
+
+    `_expand_aliases` pops each legacy key it finds, so if a key were also a
+    real field name, setting that field would drop the value on the floor and
+    quietly hand back the default -- the worst failure mode a config layer
+    has, because nothing raises and the run looks fine.
+    """
+    from lda_pibt.config import LEGACY_NAMES, REMOVED_NAMES, Params
+
+    live = set(Params().to_dict())
+    assert not (set(LEGACY_NAMES) & live), "legacy alias shadows a live field"
+    assert not (REMOVED_NAMES & live), "a live field is listed as removed"
+    assert set(LEGACY_NAMES.values()) <= live, "alias points at a missing field"
+
+    # And the round trip actually works.
+    assert Params.from_dict({"lambda_turn": 1.5}).turn_penalty == 1.5
+    assert Params().merged(turn_penalty=1.5).turn_penalty == 1.5

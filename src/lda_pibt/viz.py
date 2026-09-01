@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Tuple
 
-from .types import AisleState
 
 if TYPE_CHECKING:  # pragma: no cover
     from .simulator import Simulator
@@ -38,10 +37,6 @@ def render_ascii_frames(sim: "Simulator", stride: int = 10) -> List[str]:
 
 
 _STATE_COLOURS: Dict[str, str] = {
-    AisleState.OPEN.value: "#f2f2f2",
-    AisleState.FORWARD.value: "#bcd9ff",
-    AisleState.REVERSE.value: "#ffd6bc",
-    AisleState.DRAINING.value: "#e8d0ff",
 }
 
 

@@ -78,10 +78,6 @@ BASELINE_REFERENCE = "lifelong_pibt"
 
 #: The 2x2 designs, on the maps whose structure makes their factors act.
 FACTORIAL_RUNS = [
-    ("direction_vs_turning_cost", "warehouse_corridors"),
-    ("direction_vs_turning_cost", "warehouse_medium"),
-    ("aisle_direction_vs_reservations", "warehouse_corridors"),
-    ("aisle_direction_vs_reservations", "warehouse_medium"),
     ("congestion_vs_recovery", "warehouse_corridors"),
     ("congestion_vs_recovery", "warehouse_medium"),
 ]

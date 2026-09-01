@@ -12,12 +12,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from .config import Params
 from .graph import GridGraph
-from .types import (
-    AisleDirection,
-    AisleState,
-    Reservation,
-    Vertex,
-)
+from .types import Vertex
 
 # Map legend ---------------------------------------------------------------
 OBSTACLE_CHARS = {"@", "#", "T"}
@@ -47,41 +42,24 @@ class VertexInfo:
 
 @dataclass
 class Aisle:
-    """An aisle: a maximal corridor segment between intersections (spec 9.2).
+    """A maximal straight corridor segment between two intersections.
 
-    `vertices` is ordered from `start_vertex` to `end_vertex`.  A movement that
-    increases the index is FORWARD; a movement that decreases it is REVERSE.
+    Aisles are geometry, not policy: they exist so the score can reward
+    staying in one lane, and so crowding can be measured per corridor rather
+    than per cell. A traffic-signal layer used to sit on top of this, giving
+    each aisle a committed direction and a green/drain cycle. Once the
+    counterflow penalty that enforced it was removed, the whole layer measured
+    -0.3% (p = 0.95), so it went too -- see `docs/05-results.md`.
     """
 
     id: int
     vertices: List[Vertex]
     capacity: int
     # runtime state
-    current_direction: AisleDirection = AisleDirection.NONE
-    previous_direction: AisleDirection = AisleDirection.NONE
-    state: AisleState = AisleState.OPEN
+    #: robots currently inside, refreshed by `OccupancyIndex.rebuild`
     occupancy: int = 0
-    forward_queue: Set[int] = field(default_factory=set)
-    reverse_queue: Set[int] = field(default_factory=set)
-    lock_until: int = 0
-    reservations: Dict[int, Reservation] = field(default_factory=dict)
+    #: `occupancy / capacity`, the crowding model's per-aisle signal
     congestion_cost: float = 0.0
-    direction_switches: int = 0
-    draining_since: Optional[int] = None
-    minimum_lock_time: int = 20
-    maximum_lock_time: int = 40
-    switch_threshold: float = 5.0
-    #: False -> this aisle is always OPEN (too short, or a cut edge)
-    manageable: bool = True
-    #: timestep the current direction was committed, for the maximum-green rule
-    direction_since: int = 0
-    #: direction to adopt once the aisle finishes draining
-    pending_direction: AisleDirection = AisleDirection.NONE
-    #: how many flips were forced by the maximum-green rule rather than by a
-    #: demand imbalance -- the signal that an aisle is being starved
-    starvation_flips: int = 0
-    #: robots that have left the aisle, for per-aisle throughput
-    exits: int = 0
 
     @property
     def axis(self) -> str:
@@ -129,22 +107,6 @@ class Aisle:
     def position_index(self, v: Vertex) -> Optional[int]:
         return self._index.get(v)
 
-    def is_exit(self, v: Vertex, direction: AisleDirection) -> bool:
-        """True when `v` is the endpoint a robot leaves through in `direction`."""
-        if direction is AisleDirection.FORWARD:
-            return v == self.end_vertex
-        if direction is AisleDirection.REVERSE:
-            return v == self.start_vertex
-        return v in (self.start_vertex, self.end_vertex)
-
-    def entry_direction(self, entry_vertex: Vertex) -> AisleDirection:
-        """Direction implied by entering the aisle at `entry_vertex`."""
-        idx = self._index.get(entry_vertex)
-        if idx is None:
-            return AisleDirection.NONE
-        if idx <= (self.length - 1) / 2:
-            return AisleDirection.FORWARD
-        return AisleDirection.REVERSE
 
 
 class Warehouse:
@@ -174,7 +136,6 @@ class Warehouse:
         self.aisles: Dict[int, Aisle] = {}
         self._segment_aisles()
         self._annotate_structure()
-        self._mark_manageable_aisles()
 
     # ------------------------------------------------------------- factories
     @classmethod
@@ -241,17 +202,10 @@ class Warehouse:
                 aisle_id += 1
 
     def _build_aisle(self, aisle_id: int, vertices: List[Vertex]) -> Aisle:
-        p = self.params
-        minimum_lock = max(2, min(p.minimum_aisle_lock_time, 2 * len(vertices)))
         return Aisle(
             id=aisle_id,
             vertices=vertices,
             capacity=self._aisle_capacity(len(vertices)),
-            minimum_lock_time=minimum_lock,
-            # A maximum green below the minimum green would be contradictory:
-            # the aisle would be due to flip before it is allowed to.
-            maximum_lock_time=max(minimum_lock, p.maximum_aisle_lock_time),
-            switch_threshold=p.direction_switch_threshold,
         )
 
     @staticmethod
@@ -259,17 +213,16 @@ class Warehouse:
         """Cut a corridor component into maximal straight runs.
 
         A component of non-intersection cells is not necessarily a straight
-        corridor: an L, U or T shape is one component too.  `AisleDirection`
-        means "index increasing" and only carries a physical meaning -- one
-        compass axis -- on a straight run, so giving a bend a traffic direction
-        makes the corner one-way in *both* senses and cuts the map in half.
-        Splitting at every turn keeps each aisle on a single axis.
+        corridor: an L, U or T shape is one component too. "Same aisle" only
+        means "same lane" if the run is straight, so an L-shaped aisle would
+        pay the stay-in-lane bonus for turning a corner -- exactly the move the
+        turn penalty exists to discourage. Splitting at every turn keeps each
+        aisle on one compass axis.
 
         The turn cell closes the run it is already part of, and the next run
         begins after it, so the runs partition the component and each stays on
-        one axis.  Runs of length 1 (a lone elbow) are kept: they fall below
-        `directional_aisle_min_length`, so they stay bidirectional and behave
-        like the intersections they sit between.
+        one axis. Runs of length 1 (a lone elbow) are kept; they behave like
+        the intersections they sit between.
         """
         if len(ordered) <= 1:
             return [list(ordered)] if ordered else []
@@ -294,30 +247,21 @@ class Warehouse:
         return [r for r in runs if r]
 
     def _aisle_capacity(self, length: int) -> int:
-        """Spec 9.2 `aisle.capacity`, plus two alternatives.
+        """How many robots may be inside an aisle of this many cells.
 
-        A single-file corridor is throttled by the robot at its exit, so packing
-        it to `length` robots just builds a queue that cannot drain.
+        A single-file corridor is throttled by the robot at its exit, so
+        packing it full just builds a queue that cannot drain. The last robot
+        in must still traverse `length` cells to leave and every robot ahead of
+        it adds a step, so a queue of k needs roughly `length + k` steps to
+        empty: capping k at `max_drain_time - length` keeps the aisle drainable
+        within its own timeout.
 
-        - ``"length"``     spec 9.2 verbatim: ``ratio * cells``.
-        - ``"throughput"`` what one train clears before the aisle must flip,
-          ``ratio * length / T_min``; correct in spirit, far too tight in
-          practice at the default lock time.
-        - ``"drain"``      the default, and between the two: as many robots as
-          fit, but never more than can clear the aisle within `max_drain_time`.
-          The last robot in must still traverse ``length`` cells to leave, and
-          every robot ahead of it adds a step, so a queue of ``k`` needs about
-          ``length + k`` steps to empty.
+        There used to be two other formulas behind an `aisle_capacity_model`
+        switch. Neither changed throughput measurably and the code comments
+        already called both wrong, so this is the only one now.
         """
         p = self.params
-        ratio = p.aisle_capacity_ratio
-        if p.aisle_capacity_model == "throughput":
-            lock = max(1, p.minimum_aisle_lock_time)
-            raw = math.ceil(ratio * length / lock)
-        elif p.aisle_capacity_model == "drain":
-            raw = min(math.ceil(ratio * length), p.max_drain_time - length)
-        else:
-            raw = math.ceil(ratio * length)
+        raw = min(length, p.max_drain_time - length)
         return max(1, min(p.aisle_capacity, int(raw)))
 
     def _order_component(
@@ -365,32 +309,6 @@ class Warehouse:
         for v in self.dead_ends:
             self.info[v].is_bottleneck = True
 
-    def _mark_manageable_aisles(self) -> None:
-        """Decide which aisles may be given a traffic direction.
-
-        An aisle is left permanently OPEN when it is too short to be worth a
-        one-way rule, or when it carries a bridge edge: making a cut edge
-        one-way disconnects the graph and destroys reachability (spec 9.3, 38.2).
-        """
-        bridges = self.graph.bridges
-        min_length = self.params.directional_aisle_min_length
-        for aisle in self.aisles.values():
-            if aisle.length < min_length:
-                aisle.manageable = False
-                continue
-            edges = [
-                tuple(sorted((aisle.vertices[i], aisle.vertices[i + 1])))
-                for i in range(aisle.length - 1)
-            ]
-            boundary = [
-                tuple(sorted((endpoint, neighbor)))
-                for endpoint in (aisle.start_vertex, aisle.end_vertex)
-                for neighbor in self.graph.neighbors(endpoint)
-                if self.aisle_id(neighbor) != aisle.id
-            ]
-            aisle.manageable = not any(e in bridges for e in edges + boundary)
-
-    # -------------------------------------------------------------- queries
     def aisle_id(self, v: Vertex) -> Optional[int]:
         info = self.info.get(v)
         return info.aisle_id if info else None
@@ -411,24 +329,6 @@ class Warehouse:
         info = self.info.get(v)
         return bool(info and info.is_bottleneck)
 
-    def traversal_direction(self, u: Vertex, v: Vertex) -> AisleDirection:
-        """Direction of the move u -> v relative to the aisle containing `v`."""
-        aisle = self.aisle_of(v)
-        if aisle is None:
-            return AisleDirection.NONE
-        vi = aisle.position_index(v)
-        ui = aisle.position_index(u)
-        if vi is None:
-            return AisleDirection.NONE
-        if ui is None:
-            # entering from an intersection: direction implied by entry point
-            return aisle.entry_direction(v)
-        if vi > ui:
-            return AisleDirection.FORWARD
-        if vi < ui:
-            return AisleDirection.REVERSE
-        return AisleDirection.NONE
-
     @property
     def waypoint_vertices(self) -> List[Vertex]:
         return list(
@@ -442,22 +342,10 @@ class Warehouse:
         self.graph.precompute_distance_maps(self.waypoint_vertices)
 
     def reset_runtime_state(self) -> None:
+        """Clear per-run aisle occupancy so a warehouse can be reused."""
         for aisle in self.aisles.values():
-            aisle.current_direction = AisleDirection.NONE
-            aisle.previous_direction = AisleDirection.NONE
-            aisle.state = AisleState.OPEN
             aisle.occupancy = 0
-            aisle.forward_queue.clear()
-            aisle.reverse_queue.clear()
-            aisle.lock_until = 0
-            aisle.reservations.clear()
             aisle.congestion_cost = 0.0
-            aisle.direction_switches = 0
-            aisle.draining_since = None
-            aisle.direction_since = 0
-            aisle.pending_direction = AisleDirection.NONE
-            aisle.starvation_flips = 0
-            aisle.exits = 0
 
     def summary(self) -> Dict[str, object]:
         return {

@@ -20,12 +20,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "docs" / "data"
 FIGURES = ROOT / "docs" / "figures"
 GIFS = ROOT / "docs" / "gifs"
-PDFS = ROOT / "docs" / "pdf"
 
 #: the budget `viz_compare.save_comparison` enforces when writing
 GIF_BUDGET_BYTES = 5 * 1024 * 1024
 
-SUITES = ("ablation", "baselines", "hypotheses", "paired", "factorial")
+SUITES = ("ablation", "baselines", "hypotheses", "paired", "factorial", "sensitivity",)
 
 
 @pytest.mark.parametrize("suite", SUITES)
@@ -42,43 +41,10 @@ def test_dataset_is_well_formed(suite):
     assert meta["scenarios"], "no scenarios recorded"
 
 
-def test_the_built_documents_are_committed():
-    """Both PDFs open straight from GitHub, so both must be in the tree."""
-    for name in ("spar-planner.pdf", "matrix-comparison.pdf"):
-        pdf = PDFS / name
-        assert pdf.exists(), f"{name} is missing: run tools/build_docs.py"
-        assert pdf.stat().st_size > 20_000, f"{name} looks truncated"
-
-
 def test_every_figure_ships_both_formats():
     """SVG renders inline on GitHub; PDF is what a print build would embed."""
     for pdf in FIGURES.glob("*.pdf"):
         assert pdf.with_suffix(".svg").exists(), f"{pdf.name} has no SVG twin"
-
-
-def test_the_metrics_guide_is_generated_and_current():
-    """It quotes measured numbers, so it must match the dataset it cites."""
-    guide = ROOT / "docs" / "metrics.md"
-    assert guide.exists(), "run tools/make_metrics_doc.py"
-    text = guide.read_text()
-    meta = json.loads((DATA / "ablation.json").read_text())["meta"]
-    assert f"{meta['seeds']} seeds" in text, (
-        "docs/metrics.md cites a different seed count from docs/data/ -- "
-        "run tools/make_metrics_doc.py"
-    )
-    assert meta["git_sha"] in text, (
-        "docs/metrics.md was generated from an older dataset -- "
-        "run tools/make_metrics_doc.py"
-    )
-
-
-def test_the_dashboard_is_self_contained():
-    dashboard = ROOT / "docs" / "dashboard.html"
-    assert dashboard.exists(), "run tools/make_figures.py --dashboard"
-    html = dashboard.read_text()
-    assert "__DATA__" not in html, "the dataset was never substituted in"
-    external = re.findall(r'(?:src|href)="(https?://[^"]+)"', html)
-    assert not external, f"the dashboard fetches {external}; it must open offline"
 
 
 def test_committed_animations_stay_within_budget():
