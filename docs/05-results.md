@@ -22,23 +22,28 @@ Three published lifelong (MAPD) planners, each implemented from its paper in
 | Planner | bottleneck | corridors | narrow | medium |
 | --- | ---: | ---: | ---: | ---: |
 | **Aisleflow (shipped configuration)** | 0.147 | 0.153 | 0.291 | 0.416 |
-| Token Passing (Ma et al. 2017, Alg. 1) | 0.093 | 0.000 | 0.028 | 0.085 |
-| TP + task swaps (Ma et al. 2017, Alg. 2) | 0.050 | 0.000 | 0.018 | 0.045 |
-| RHCR (Li et al. 2021, PBS) | 0.100 | 0.128 | 0.178 | 0.478 |
+| Token Passing (Ma et al. 2017, Alg. 1) | 0.099 | 0.000 | 0.023 | 0.068 |
+| TP + task swaps (Ma et al. 2017, Alg. 2) | 0.051 | 0.000 | 0.018 | 0.040 |
+| RHCR (Li et al. 2021, PBS) | 0.158 | 0.093 | 0.210 | 0.484 |
 | Plain lifelong PIBT (ablation reference) | 0.127 | 0.131 | 0.354 | 0.502 |
 
-*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `ef0910e`.*
+*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `0930d9a`.*
 <!-- /generated:headline -->
 
-**What to look for:** aisleflow leads on three of the four floors, and **RHCR
-beats it on `medium`** — 478 tasks per 1000 timesteps against 416. Token
-Passing delivers nothing at all
-on `corridors`, which is a fact about that map rather than about the
-algorithm: it has no parking bays, so with 35 agents every one of its five
-single-file runs has an idle agent standing in it before the first task is
-handed out.
+**What to look for:** this is a split decision, not a sweep. **RHCR beats
+aisleflow on two of the four floors** — 484 tasks per 1000 timesteps against
+416 on `medium`, and 158 against 147 on `bottleneck`. Aisleflow is ahead on
+the two floors where a robot that meets another one has the least room to
+manoeuvre: `corridors`, five 22-cell single-file runs, and `narrow`, whose
+aisles are seven cells deep with one cross-lane.
 
-That whole chart is a weaker claim than it looks, and the next figure is why.
+Token Passing delivers nothing at all on `corridors`, which is a fact about
+that map rather than about the algorithm: it has no parking bays, so with 35
+agents every one of its five single-file runs has an idle agent standing in it
+before the first task is handed out.
+
+Even this split decision is a weaker claim than it looks, and the next figure
+is why.
 
 ## …and what that comparison is worth
 

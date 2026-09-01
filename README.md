@@ -14,8 +14,9 @@ changed nothing was deleted rather than left at a default. The evidence is in
 
 Aisleflow is measured against three published lifelong planners, each
 implemented from its paper: **Token Passing** and **Token Passing with Task
-Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). It leads on
-three of the four floors and **loses to RHCR on `warehouse_medium`**.
+Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). The verdict
+is a split decision: aisleflow leads on the two floors with the least room to
+manoeuvre, and **RHCR beats it on the other two**.
 Token Passing falls away as the floor fills, for a reason its own paper
 gives: it is complete only on *well-formed* MAPD instances — one parking
 endpoint per agent — and none of these maps provides that at these robot
