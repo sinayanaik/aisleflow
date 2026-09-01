@@ -445,8 +445,8 @@ def figure_density():
     if len(maps) == 1:
         axes = [axes]
 
-    peaks: List[str] = []
     for ax, map_name in zip(axes, maps):
+        peaks: List[str] = []
         counts = payload["maps"][map_name]["robot_counts"]
         rows = payload["maps"][map_name]["rows"]
         for (variant, label), colour, marker in zip(series, colours, markers):
@@ -464,41 +464,71 @@ def figure_density():
             ax.errorbar(xs, ys, yerr=es, color=colour, marker=marker,
                         markersize=4.5, linewidth=1.8, capsize=2.5,
                         elinewidth=0.9, label=label, zorder=3)
+            # where each line turns over, collected rather than annotated at
+            # the point: two planners that peak at the same robot count put
+            # their labels on top of each other, and the robot count is the
+            # number this figure is actually about
             best = max(points, key=lambda p: p[1])
-            if variant == AISLEFLOW:
-                peaks.append(f"{short_map(map_name)} at {best[0]} robots")
-            # name the turnover where it happens, not in a caption
-            ax.annotate(
-                f"{best[1]:.0f}", (best[0], best[1]),
-                textcoords="offset points", xytext=(0, 7), ha="center",
-                fontsize=7.6, color=colour, fontweight="bold",
-            )
+            peaks.append(f"{label}: {best[0]}")
         ax.set_xticks(counts)
         ax.set_xlabel("robots on the floor", color=INK_2, fontsize=8.6)
         ax.set_title(f"{short_map(map_name)}\n{MAP_CLASS[map_name]}",
-                     fontsize=9.4, color=INK, loc="left", pad=8)
+                     fontsize=9.4, color=INK, loc="left", pad=32)
+        # where each line turns over, two per line so it fits the panel it
+        # describes rather than running into the next one
+        rows = ["   ·   ".join(peaks[i:i + 2]) for i in range(0, len(peaks), 2)]
+        ax.text(0, 1.02, "peak throughput at " + "\n".join(rows) + " robots",
+                transform=ax.transAxes, fontsize=7.4, color=INK_2,
+                va="bottom", linespacing=1.5)
         ax.set_ylim(bottom=0)
         strip_frame(ax)
         value_grid(ax, axis="y")
 
     axes[0].set_ylabel(THROUGHPUT_UNIT, color=INK_2)
-    axes[0].legend(loc="upper left", fontsize=8.4)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=len(series),
+               fontsize=8.6, bbox_to_anchor=(0.5, 0.035))
+
+    # who actually leads on the quietest floor, computed rather than asserted
+    sparse = min(payload["maps"][maps[0]]["robot_counts"])
+    leader, leader_map = None, None
+    for map_name in maps:
+        best = max(
+            (
+                (row["throughput"], row["variant"])
+                for row in payload["maps"][map_name]["rows"]
+                if row["n_robots"] == sparse
+            ),
+            default=(0.0, ""),
+        )
+        if best[1] in {v for v, _ in PUBLISHED_RIVALS}:
+            leader, leader_map = best[1], map_name
+            break
+    opening = (
+        f"At {sparse} robots on `{short_map(leader_map)}` the leader is "
+        f"{label_of(leader)}, not aisleflow"
+        if leader
+        else f"At {sparse} robots every planner here is within noise of the others"
+    )
 
     top = header(
         fig,
         "Adding robots stops buying throughput, and the planners give up at different points",
         "Taller is better; the x axis is how many robots share the floor. "
-        "Every line rises, flattens and then falls: past some density the "
-        "robots\nspend their time getting out of each other's way. Where a "
-        "line turns over is the honest characterisation of a planner, and it "
-        "is the thing a\nsingle bar cannot show. Token Passing keeps pace "
-        "while the floor is quiet and falls away as it fills, which is what "
-        "its own completeness proof\npredicts: it assumes every agent has a "
-        "parking endpoint to rest at, and a crowded warehouse is exactly "
-        "where that assumption runs out.",
+        "Every line rises and then falls: past some density the robots spend "
+        "their\ntime getting out of each other's way. Where a line turns over "
+        "is the honest characterisation of a planner, and it is the thing a "
+        "single bar\ncannot show. "
+        + opening
+        + ". Token Passing then falls away as the floor fills, which is what "
+        "its own completeness proof predicts:\nit assumes every agent has a "
+        "parking endpoint to rest at, and a crowded warehouse is exactly where "
+        "that assumption runs out. Plain lifelong PIBT\nis not plotted here -- "
+        "it is this planner with its mechanisms off, and it belongs to the "
+        "ablation ladder, which is the next figure.",
     )
     caption(fig, provenance(payload))
-    fig.tight_layout(rect=(0, 0.028, 1, top))
+    fig.tight_layout(rect=(0, 0.075, 1, top))
     return fig
 
 

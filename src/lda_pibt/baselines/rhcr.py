@@ -162,8 +162,13 @@ class RHCRPlanner:
         by_id = {r.id: r for r in robots}
 
         root = _PBSNode(lower={i: set() for i in ids}, paths={})
+        free = ReservationTable()
         for robot in robots:
-            root.paths[robot.id] = self._single(robot, goals[robot.id], ReservationTable(), timestep)
+            # against an empty table `_single` always succeeds -- waiting the
+            # window out is unconstrained -- but the root of the search is not
+            # the place to depend on that
+            path = self._single(robot, goals[robot.id], free, timestep)
+            root.paths[robot.id] = path or [robot.position] * (self.window + 1)
         root.cost = self._cost(root.paths)
 
         stack: List[_PBSNode] = [root]

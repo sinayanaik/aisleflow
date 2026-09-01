@@ -45,9 +45,22 @@ That whole chart is a weaker claim than it looks, and the next figure is why.
 ![Throughput against robot count for every planner on two maps, showing where each one stops scaling](figures/02-throughput-vs-robots.svg)
 
 A single bar chart measures a planner at one point on a curve. Sweep the
-robot count instead and the shape of the comparison changes completely: on a
-quiet floor all four planners deliver within noise of each other, and they
-separate as the floor fills.
+robot count instead and the shape of the comparison changes completely:
+
+| Planner | `corridors`, 5 robots | `corridors`, 40 robots | `medium`, 5 robots | `medium`, 40 robots |
+| --- | ---: | ---: | ---: | ---: |
+| aisleflow | 84 | 152 | 108 | 418 |
+| Token Passing | **104** | 0 | **121** | 62 |
+| TP + task swaps | 79 | 0 | 107 | 57 |
+| RHCR | 74 | 39 | 118 | **489** |
+
+*Tasks per 1000 timesteps, 3 seeds. Bold is the best in that column.*
+
+**On a quiet floor Token Passing is the strongest planner in the study**, on
+both maps. That is the number that says the implementations are right: a
+faithful published algorithm, on an instance inside its assumptions, beats the
+thing this project ships. Everything below it on the bar chart is what happens
+as those assumptions are taken away.
 
 **Why Token Passing falls away.** Ma et al. prove TP complete on *well-formed*
 MAPD instances — every agent has a parking endpoint to rest at, and any two
@@ -56,22 +69,28 @@ Passing agent stays where it finished. On a floor with one-cell-wide aisles
 and two parking bays for thirty agents, where it finished is in somebody's
 way, and enough idle agents cut the warehouse into pieces that no path
 crosses. `warehouse_corridors` has **no** parking bays at all
-([page 06](06-the-maps.md)). That is the assumption failing, not the
-implementation: at five robots on `warehouse_narrow` TP delivers as much as
-aisleflow does.
+([page 06](06-the-maps.md)), which is why the line reaches exactly zero rather
+than merely declining.
 
 PIBT has no such assumption, because it never plans a path it has to reserve.
 A blocked robot lends its rank to the robot in its way and pushes; an idle
 robot in a corridor is displaced by the first busy robot that needs the cell.
 **That difference — not the scoring terms, not the crowding model, not the
-recovery ladder — is what the left-hand ends of those curves are measuring.**
+recovery ladder — is what the right-hand ends of those curves are measuring.**
 It is a property of PIBT, which this project did not invent.
+
+**RHCR does not have that problem** and is the strongest baseline throughout:
+it tracks aisleflow closely on `corridors` up to 20 robots and is ahead of it
+across the whole of `medium`, peaking at 489 against 418. Its own failure
+comes later and differently — on `corridors` at 40 robots the windowed
+instance stops being solvable often enough that its throughput falls to 39.
 
 So: the comparison against these three establishes that the planner is in the
 right league and inherits PIBT's robustness to density. It does not establish
-that anything *this project added* was worth adding. For that, the reference
-has to be plain lifelong PIBT — aisleflow with every one of its mechanisms
-switched off — and that comparison is the rest of this page.
+that anything *this project added* was worth adding — RHCR beats it on the one
+open floor without any of it. For that, the reference has to be plain lifelong
+PIBT, aisleflow with every one of its mechanisms switched off, and that
+comparison is the rest of this page.
 
 ## The finding that matters most
 
