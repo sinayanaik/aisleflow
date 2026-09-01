@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AisleFlow &mdash; MAPF project review</title>
+<title>TOLL &mdash; MAPF project review</title>
 <!--
   The editable source of docs/pdf/aisleflow-mapf-presentation.pdf.
 
@@ -199,7 +199,7 @@
 <!-- ==================================================================== 1 -->
 <section class="slide title-slide" data-slug="title" data-num="1">
   <p class="eyebrow">Multi-agent path finding &middot; project review</p>
-  <h1>AisleFlow</h1>
+  <h1>TOLL</h1>
   <div class="rule"></div>
   <p class="sub">Forty years of multi-agent path finding, the warehouse problem
      it grew into, and what a directional, congestion-aware lifelong planner
@@ -210,8 +210,8 @@
     <div class="stat"><div class="n small">0</div><div class="l">runtime dependencies</div></div>
   </div>
   <div class="foot">
-    <b>LDA-PIBT</b> &mdash; Lifelong Aisle-Managed Priority Inheritance with
-    Backtracking. AisleFlow is the implementation; LDA-PIBT is the algorithm.
+    <b>TOLL-PIBT</b> &mdash; Lifelong Aisle-Managed Priority Inheritance with
+    Backtracking. TOLL is the implementation; TOLL-PIBT is the algorithm.
   </div>
   <aside class="notes">
     <p>Set the frame before any detail: this is a review of a research
@@ -239,7 +239,7 @@
       <li>
         <h3>What problem were we solving?</h3>
         <p>Warehouse aisles are narrow and effectively one-way. PIBT is
-           direction-blind. LDA-PIBT adds an aisle layer that decides direction,
+           direction-blind. TOLL-PIBT adds an aisle layer that decides direction,
            and a recovery layer that survives it.</p>
       </li>
       <li>
@@ -738,7 +738,7 @@
     </table>
   </div>
   <div class="foot">
-    AisleFlow lives on the bottom row. The question the project asks: can a
+    TOLL lives on the bottom row. The question the project asks: can a
     warehouse-aware layer on top of a greedy planner <b>buy back</b> some of the
     quality the greedy choice gave away?
   </div>
@@ -956,7 +956,7 @@
       <div>
         <p class="pull">Robots generate directional requests, but aisles make
           directional decisions.
-          <span class="src">the architectural commitment of LDA-PIBT,
+          <span class="src">the architectural commitment of TOLL-PIBT,
             stated verbatim in the code</span></p>
       </div>
     </div>
@@ -1450,7 +1450,7 @@
 
 <!-- =================================================================== 31 -->
 <section class="slide" data-slug="result-lda" data-num="31">
-  <p class="eyebrow">Result 1 &middot; where LDA-PIBT lands</p>
+  <p class="eyebrow">Result 1 &middot; where TOLL-PIBT lands</p>
   <h2 class="wide">The aisle layer wins where corridors are the constraint</h2>
   <div class="body">
     <div class="cols3">

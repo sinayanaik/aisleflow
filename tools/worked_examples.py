@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
-GUIDE = ROOT / "docs" / "latex" / "aisleflow.tex"
+GUIDE = ROOT / "docs" / "latex" / "toll.tex"
 sys.path.insert(0, str(ROOT / "src"))
 
 from lda_pibt.aisle_manager import AisleManager  # noqa: E402

@@ -59,6 +59,22 @@ def test_every_figure_ships_both_formats():
         assert pdf.with_suffix(".svg").exists(), f"{pdf.name} has no SVG twin"
 
 
+def test_the_metrics_guide_is_generated_and_current():
+    """It quotes measured numbers, so it must match the dataset it cites."""
+    guide = ROOT / "docs" / "metrics.md"
+    assert guide.exists(), "run tools/make_metrics_doc.py"
+    text = guide.read_text()
+    meta = json.loads((DATA / "ablation.json").read_text())["meta"]
+    assert f"{meta['seeds']} seeds" in text, (
+        "docs/metrics.md cites a different seed count from docs/data/ -- "
+        "run tools/make_metrics_doc.py"
+    )
+    assert meta["git_sha"] in text, (
+        "docs/metrics.md was generated from an older dataset -- "
+        "run tools/make_metrics_doc.py"
+    )
+
+
 def test_the_dashboard_is_self_contained():
     dashboard = ROOT / "docs" / "dashboard.html"
     assert dashboard.exists(), "run tools/make_figures.py --dashboard"

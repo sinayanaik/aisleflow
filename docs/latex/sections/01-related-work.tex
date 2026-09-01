@@ -43,7 +43,7 @@ Two properties matter for everything that follows.
 \begin{enumerate}
 \item \textbf{Cost.} One timestep is $O(|A|(\Delta(G) + F + \log|A|))$ for a
 fleet $A$, maximum degree $\Delta(G)$ and per-candidate scoring cost $F$. On
-the maps used here this is under a millisecond per step, one to two orders of
+the maps used here this is 0.4--1.0\,ms per step, one to two orders of
 magnitude below either baseline in \Cref{sec:results}.
 
 \item \textbf{The push property.} Priority inheritance works because a robot
@@ -102,7 +102,7 @@ RHCR is the strongest of the three published methods for this setting and its
 design target is large: hundreds of robots on warehouses far bigger than the
 ones used here, where a rolling horizon pays for itself against full CBS. At
 the scale measured in this document, with untuned window parameters
-($10/5$), it costs 45--85\,ms per timestep --- against 0.8--2.8\,ms for the
+($10/5$), it costs 43--98\,ms per timestep --- against 0.4--4.4\,ms for the
 PIBT variants --- and does not convert that cost into throughput. We report
 this as a property of \emph{this baseline at this scale with these defaults}
 and not as a claim about RHCR generally; \Cref{sec:results-caveats} states the

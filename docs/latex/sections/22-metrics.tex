@@ -52,6 +52,13 @@ are what the hypothesis suite of \Cref{sec:results-hypotheses} scores against:
 \end{tabular}
 \end{center}
 
+A companion note, \code{docs/metrics.md}, catalogues every one of these
+quantities with the way it misleads if read alone, and reports the three the
+verdict actually turns on --- travel distance per delivered task, head-on
+conflicts per 1000 steps, and throughput against the published baselines ---
+with their measured values. It is generated from the same dataset as
+\Cref{sec:results}.
+
 \begin{caveat}
 \textbf{Service time is censored.} Every service-time field is computed over
 \emph{completed} tasks only, and in the saturated regime of

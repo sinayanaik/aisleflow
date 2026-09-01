@@ -89,9 +89,9 @@ must be stated before any of them is quoted.
 The arrival rate $\lambda$ is set well above what the floor can serve. On
 \variant{warehouse\_medium} tasks arrive at $\lambda = 1.5$ per timestep and
 the best configuration completes about $0.50$ per timestep; on
-\variant{warehouse\_bottleneck}, $\lambda = 0.8$ against roughly $0.14$ served.
-Between a sixth and a third of offered demand is served; the backlog grows
-without bound for the whole run. Three consequences follow, and all three are
+\variant{warehouse\_bottleneck}, $\lambda = 0.8$ against $0.15$ served. Between
+an eighth and a third of offered demand is served (\Cref{tab:scenarios}); the
+backlog grows without bound for the whole run. Three consequences follow, and all three are
 routinely misread.
 
 \begin{enumerate}
@@ -107,9 +107,9 @@ $\mathrm{svc}(\tau)$ exists only for completed tasks. A planner that serves
 only the nearby, easy tasks and abandons the rest reports an \emph{excellent}
 mean service time. This is not hypothetical: on
 \variant{warehouse\_bottleneck} Token Passing reports a mean service time of
-roughly $22$ timesteps --- the best figure in the table --- while completing
-essentially nothing, because the handful of tasks it finishes are the ones it
-finishes in the first few timesteps before the corridor jams forever. Mean
+$31$ timesteps --- against $154$ for the planner that delivers twenty times as
+many tasks --- because the handful of tasks it finishes are the ones it
+finishes in the first few timesteps, before the corridor jams for good. Mean
 service time may be compared only between planners with comparable throughput.
 \Cref{fig:censoring} shows this trap directly.
 

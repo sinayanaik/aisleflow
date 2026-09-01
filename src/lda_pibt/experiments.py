@@ -86,7 +86,7 @@ def build_run(
 ):
     """Build (but do not run) one configured `Simulator`.
 
-    `variant` is either a name from `config.ABLATIONS` (a PIBT/LDA-PIBT flag
+    `variant` is either a name from `config.ABLATIONS` (a PIBT/TOLL-PIBT flag
     bundle) or a name from `BASELINE_PLANNERS` (an external planner, e.g.
     `"token_passing"`, `"rhcr"`) -- both slot into the same call, so a
     comparison table can mix PIBT variants and baselines freely.

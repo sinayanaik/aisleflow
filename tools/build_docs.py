@@ -3,9 +3,9 @@
 
 Three targets:
 
-    paper   docs/latex/aisleflow.tex    -> aisleflow-paper.pdf
-    deck    docs/deck/slides.html       -> aisleflow-mapf-presentation.pdf
-    notes   docs/deck/slides.html       -> aisleflow-mapf-presentation-notes.pdf
+    paper   docs/latex/toll.tex    -> toll-paper.pdf
+    deck    docs/deck/slides.html       -> toll-mapf-presentation.pdf
+    notes   docs/deck/slides.html       -> toll-mapf-presentation-notes.pdf
 
 Usage::
 
@@ -144,7 +144,7 @@ def print_pdf(html_path: Path, pdf_path: Path, *, page_footer: bool = False) -> 
 
 
 def build_paper(page_footer: bool) -> Path:
-    """Compile docs/latex/aisleflow.tex and copy the PDF into docs/pdf/.
+    """Compile docs/latex/toll.tex and copy the PDF into docs/pdf/.
 
     LuaLaTeX rather than pdfLaTeX: the generated worked-example boxes are
     verbatim transcripts of program output and carry Greek letters and box
@@ -164,12 +164,12 @@ def build_paper(page_footer: bool) -> Path:
         )
     result = subprocess.run(
         [latexmk, "-lualatex", "-interaction=nonstopmode", "-halt-on-error",
-         "aisleflow.tex"],
+         "toll.tex"],
         cwd=latex, capture_output=True, text=True,
     )
-    built = latex / "aisleflow.pdf"
+    built = latex / "toll.pdf"
     if result.returncode != 0 or not built.exists():
-        log = latex / "aisleflow.log"
+        log = latex / "toll.log"
         errors = ""
         if log.exists():
             errors = "\n".join(
@@ -178,13 +178,13 @@ def build_paper(page_footer: bool) -> Path:
             )
         sys.exit(f"latexmk failed:\n{errors or result.stdout[-2000:]}")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / "aisleflow-paper.pdf"
+    out = OUT_DIR / "toll-paper.pdf"
     shutil.copyfile(built, out)
     return out
 
 
 def build_deck(page_footer: bool) -> Path:
-    out = OUT_DIR / "aisleflow-mapf-presentation.pdf"
+    out = OUT_DIR / "toll-mapf-presentation.pdf"
     print_pdf(DOCS / "deck" / "slides.html", out, page_footer=page_footer)
     return out
 
@@ -221,7 +221,7 @@ def notes_html() -> str:
 
 
 def build_notes(page_footer: bool) -> Path:
-    out = OUT_DIR / "aisleflow-mapf-presentation-notes.pdf"
+    out = OUT_DIR / "toll-mapf-presentation-notes.pdf"
     # Written beside slides.html rather than in a temp dir, so that any
     # relative reference the deck grows later still resolves.
     page = DOCS / "deck" / ".notes-build.html"

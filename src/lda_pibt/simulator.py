@@ -1,4 +1,4 @@
-"""Lifelong Aisle-Managed PIBT simulator.
+"""TOLL-PIBT simulator.
 
 This module implements the complete lifelong algorithm of spec section 30 and
 the move-execution contract of spec section 31.

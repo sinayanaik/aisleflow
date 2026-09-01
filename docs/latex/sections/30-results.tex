@@ -60,21 +60,21 @@ rather than rounding it away.
 \midrule
 \multirow{5}{*}{bottleneck}
  & plain lifelong PIBT & 0.118 & 154.2 & 0.40 & --- \\
- & AisleFlow (full) & \textbf{0.145} & 154.3 & 1.45 & 0.095 \\
+ & TOLL (full) & \textbf{0.145} & 154.3 & 1.45 & 0.095 \\
  & Token Passing & 0.007 & 31.1 & 36.2 & 0.008 \\
  & Token Passing + recovery & 0.008 & 42.2 & 32.3 & 0.008 \\
  & RHCR & 0.011 & 22.6 & 75.0 & 0.008 \\
 \midrule
 \multirow{5}{*}{corridors}
  & plain lifelong PIBT & 0.131 & 157.0 & 0.84 & --- \\
- & AisleFlow (full) & 0.121 & 148.9 & 2.84 & 0.492 \\
+ & TOLL (full) & 0.121 & 148.9 & 2.84 & 0.492 \\
  & Token Passing & 0.000 & --- & 80.8 & 0.008 \\
  & Token Passing + recovery & 0.000 & --- & 40.3 & 0.008 \\
  & RHCR & 0.001 & 8.6 & 43.0 & 0.008 \\
 \midrule
 \multirow{5}{*}{medium}
  & plain lifelong PIBT & \textbf{0.502} & 139.0 & 1.03 & --- \\
- & AisleFlow (full) & 0.313 & 150.0 & 4.36 & 0.008 \\
+ & TOLL (full) & 0.313 & 150.0 & 4.36 & 0.008 \\
  & Token Passing & 0.004 & 49.9 & 222.2 & 0.008 \\
  & Token Passing + recovery & 0.027 & 144.9 & 191.2 & 0.008 \\
  & RHCR & 0.014 & 38.7 & 97.9 & 0.008 \\
@@ -307,7 +307,7 @@ factor B was a bit-identical copy of the base.
 \centering\small
 \begin{tabular}{@{}lrrrl@{}}
 \toprule
-\textbf{Map} & \textbf{best AisleFlow} & \textbf{plain PIBT} & \textbf{difference} & \textbf{$p$} \\
+\textbf{Map} & \textbf{best TOLL} & \textbf{plain PIBT} & \textbf{difference} & \textbf{$p$} \\
 \midrule
 bottleneck (aisle-shaped) & 0.149 & 0.118 & $+27\%$ & 0.056 \\
 corridors (aisle-shaped) & 0.158 & 0.131 & $+21\%$ & 0.063 \\
@@ -315,7 +315,7 @@ narrow (open banks) & 0.289 & 0.354 & $-18\%$ & 0.016 \\
 medium (open grid) & 0.405 & 0.502 & $-19\%$ & 0.008 \\
 \bottomrule
 \end{tabular}
-\caption{The best AisleFlow configuration on each map --- \variant{aisle\_direction\_only}
+\caption{The best TOLL configuration on each map --- \variant{aisle\_direction\_only}
 in all four --- against plain lifelong PIBT.}
 \label{tab:honest}
 \end{table}
@@ -323,7 +323,7 @@ in all four --- against plain lifelong PIBT.}
 Stated plainly, and stated as the evidence actually stands:
 
 \begin{enumerate}
-\item \textbf{Against the published baselines, AisleFlow wins decisively and
+\item \textbf{Against the published baselines, TOLL wins decisively and
   significantly on every map tested}, at a twentieth to a three-hundredth of
   their cost per timestep. So does plain lifelong PIBT. The gap between
   PIBT-family planners and reservation-table planners in narrow lifelong traffic
@@ -351,6 +351,31 @@ still do not. It is that H1, H3, H4 and H6 were given a \emph{valid} test for
 the first time --- H3's treatment cell was previously empty, H1's headline map
 produces no treatment, and H6's support came from rescuing deadlocks the
 architecture manufactured for it.
+
+\subsection{Reading these numbers}
+
+\code{docs/metrics.md} is the companion to this section: every reported
+quantity, which direction is good, and how each one misleads on its own. Three
+results there are worth carrying back into this document, because they are the
+clearest statement of what the aisle layer buys and what it costs, and none of
+them is visible in a raw column:
+
+\begin{itemize}
+\item \textbf{Travel distance per delivered task} falls 23\% on
+  \variant{warehouse\_bottleneck} ($p = 0.008$) and 25\% on
+  \variant{warehouse\_corridors} ($p = 0.016$) --- the fleet drives a quarter
+  less to deliver the same task --- and rises 13\% and 21\% on the two open
+  maps. The raw total is lower everywhere and means nothing: a planner that
+  delivers less also drives less.
+\item \textbf{Head-on conflicts per 1000 steps} fall 34\% on
+  \variant{warehouse\_bottleneck} ($p = 0.016$), and 52\% per delivered task.
+  That is the mechanism measured on its own terms rather than through
+  throughput.
+\item \textbf{Backtracks per delivered task} rise by 85--130\% wherever an
+  aisle commits a direction ($p = 0.008$). Pricing counterflow makes the
+  inheritance recursion explore further before it resolves, and that is the
+  largest single cost of the method.
+\end{itemize}
 
 \subsection{Threats to validity}
 \label{sec:results-caveats}

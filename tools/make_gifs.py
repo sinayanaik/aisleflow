@@ -84,7 +84,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "full_lda_pibt",
-                "AisleFlow (LDA-PIBT)",
+                "TOLL-PIBT",
                 "a blocked robot pushes the robot ahead of it",
             ),
         ),
@@ -123,7 +123,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "aisle_direction_only",
-                "Direction as a price (AisleFlow)",
+                "Direction as a price (TOLL)",
                 "counterflow costs 8; a step of progress is worth 10",
             ),
         ),
@@ -162,7 +162,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "aisle_direction_only",
-                "Hysteresis + maximum green (AisleFlow)",
+                "Hysteresis + maximum green (TOLL)",
                 "past T_max, opposing demand forces a drain and flip",
             ),
         ),
@@ -202,7 +202,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "recovery_only",
-                "Corroborated stalls only (AisleFlow)",
+                "Corroborated stalls only (TOLL)",
                 "also needs a wait-for cycle or repeated configuration",
             ),
         ),
@@ -230,12 +230,12 @@ SCENARIOS: Tuple[Scenario, ...] = (
         title="Where the aisle layer costs more than it earns",
         caption=(
             "warehouse_medium, 40 robots, an open grid warehouse. "
-            "This is the case AisleFlow loses, shown as plainly as the ones it wins."
+            "This is the case TOLL loses, shown as plainly as the ones it wins."
         ),
         panels=(
             PanelSpec(
                 "full_lda_pibt",
-                "AisleFlow (LDA-PIBT)",
+                "TOLL-PIBT",
                 "aisles commit directions; detours are the price",
             ),
             PanelSpec(

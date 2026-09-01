@@ -94,10 +94,10 @@ DESIGNED_FOR = {"warehouse_bottleneck", "warehouse_corridors"}
 
 VARIANT_LABEL = {
     "lifelong_pibt": "plain lifelong PIBT",
-    "full_lda_pibt": "AisleFlow (full)",
-    "aisle_direction_only": "AisleFlow (aisle direction)",
+    "full_lda_pibt": "TOLL (full)",
+    "aisle_direction_only": "TOLL (aisle direction)",
     "hysteresis_pibt": "PIBT + hysteresis",
-    "aisle_managed_pibt": "AisleFlow (aisle managed)",
+    "aisle_managed_pibt": "TOLL (aisle managed)",
     "directional_pibt": "PIBT + robot direction",
     "token_passing": "Token Passing",
     "token_passing_recovery": "Token Passing + recovery",
@@ -158,7 +158,7 @@ def provenance(payload: Dict[str, Any]) -> str:
     meta = payload["meta"]
     return (
         f"{meta['seeds']} seeds x {meta['timesteps']} timesteps, Poisson "
-        f"arrivals, generated {meta['generated_utc']} from aisleflow "
+        f"arrivals, generated {meta['generated_utc']} from TOLL "
         f"@ {meta['git_sha']} by {meta['generator']}"
     )
 
@@ -248,7 +248,7 @@ def save(fig, name: str) -> List[Path]:
 
 HEADLINE_VARIANTS = ["lifelong_pibt", "full_lda_pibt", "token_passing", "rhcr"]
 
-#: AisleFlow configurations eligible for the headline. The ladder's full
+#: TOLL configurations eligible for the headline. The ladder's full
 #: variant is not always its best one -- on `warehouse_corridors` aisle
 #: direction alone beats it -- and a headline that always picked `full` would
 #: understate the method exactly where its own argument is strongest.
@@ -269,15 +269,15 @@ def wrap_label(text: str, width: int = 14) -> str:
     return "\n".join(lines)
 
 
-def best_aisleflow(map_name: str, ablation: Dict[str, Any]) -> Optional[Tuple[str, float]]:
-    """The best-throughput AisleFlow configuration on this map, if any."""
+def best_toll(map_name: str, ablation: Dict[str, Any]) -> Optional[Tuple[str, float]]:
+    """The best-throughput TOLL configuration on this map, if any."""
     rows = {r["variant"]: r for r in ablation["maps"][map_name]["rows"]}
     scored = [(v, rows[v]["throughput"]) for v in AISLEFLOW_CANDIDATES if v in rows]
     return max(scored, key=lambda pair: pair[1]) if scored else None
 
 
 def figure_headline():
-    """Throughput per map for AisleFlow, plain PIBT and both baselines."""
+    """Throughput per map for TOLL, plain PIBT and both baselines."""
     import matplotlib.pyplot as plt
 
     sys.path.insert(0, str(ROOT / "src"))
@@ -296,9 +296,9 @@ def figure_headline():
     for ax, map_name in zip(axes, maps):
         rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
         variants = [v for v in HEADLINE_VARIANTS if v in rows]
-        # swap the ladder's full variant for whichever AisleFlow configuration
+        # swap the ladder's full variant for whichever TOLL configuration
         # is actually best here; both suites ran the same scenario and seeds
-        chosen = best_aisleflow(map_name, ablation)
+        chosen = best_toll(map_name, ablation)
         if chosen and chosen[0] != "full_lda_pibt":
             variants = [chosen[0] if v == "full_lda_pibt" else v for v in variants]
         values, lows, highs = [], [], []
@@ -374,8 +374,8 @@ def figure_headline():
     axes[0].set_ylabel("tasks delivered per timestep", color=INK_2)
     top = header(
         fig,
-        "Throughput: AisleFlow wins where aisles are scarce, and loses where they are not",
-        "Each map shows the best AisleFlow configuration on that map, named "
+        "Throughput: TOLL wins where aisles are scarce, and loses where they are not",
+        "Each map shows the best TOLL configuration on that map, named "
         "under its bar, with a permutation test against plain PIBT.\nThe two "
         "wins are ahead by 21-27% but land at p = 0.06 on five seeds; the two "
         "losses are significant. Both baselines are far behind everywhere.",

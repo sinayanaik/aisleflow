@@ -1,12 +1,23 @@
-# AisleFlow
+# TOLL — Tolled One-way Lanes for Lifelong pickup-and-delivery
 
-**Directional and congestion-aware PIBT for lifelong multi-agent pickup and delivery.**
+**Direction as a price, not a rule: aisle-managed PIBT for lifelong multi-agent
+pickup and delivery.**
 
-AisleFlow is a complete, runnable Python implementation — and, as of this
-benchmark pass, an independently-verified evaluation — of the *Lifelong
-Aisle-Managed PIBT* (LDA-PIBT) proposal, an extension of
+A robot may drive the wrong way down a one-way aisle. It pays a toll for doing
+so. That single decision — a traffic rule as a *term in the objective* rather
+than a *constraint on the domain* — is worth between 1.9× and 3.7× throughput
+over the same rule enforced the usual way, and it is what this project is
+about.
+
+**TOLL** is the method; **TOLL-PIBT** is its planner, an extension of
 [Priority Inheritance with Backtracking](https://www.alphaxiv.org/abs/1901.11282)
-(Okumura, Machida, Défago, Tamura) to lifelong warehouse MAPD.
+(Okumura, Machida, Défago, Tamura) to lifelong warehouse MAPD. This repository
+is a complete, runnable Python implementation and — as of this benchmark pass —
+an independently-verified evaluation of it.
+
+> The repository and the Python package predate the name and still read
+> `aisleflow` and `lda_pibt`. `TOLL` and `TOLL-PIBT` are the method and its
+> planner everywhere else.
 
 The design principle from the proposal is preserved throughout:
 
@@ -25,23 +36,26 @@ needed for animations.
 Everything below is committed, so it opens straight from GitHub &mdash; no
 clone, no LaTeX, no PowerPoint, no Python:
 
-- **[The paper](docs/pdf/aisleflow-paper.pdf)** (PDF, 48pp) &mdash; the problem
+- **[The paper](docs/pdf/toll-paper.pdf)** (PDF, 48pp) &mdash; the problem
   stated formally, the four prior methods and how each one fails in a narrow
-  lifelong warehouse, what LDA-PIBT changes and why, the whole system in full
+  lifelong warehouse, what TOLL-PIBT changes and why, the whole system in full
   with numbered equations and algorithms, and what the measurements said.
   Source: [`docs/latex/`](docs/latex/).
 - **[The results dashboard](docs/dashboard.html)** &mdash; pick a map, pick a
   metric, hover a bar: mean, 95% interval, p-value against plain PIBT, and a
   sentence saying what that combination means. One self-contained file;
   download it and open it.
+- **[Reading the numbers](docs/metrics.md)** &mdash; every metric this project
+  reports, which direction is good, and how each one misleads on its own, with
+  the three that decide the verdict measured and tested.
 - **[The comparison animations](docs/gifs/)** &mdash; five side-by-side runs,
   each one a claim shown rather than asserted.
 - **[The figures](docs/figures/)** &mdash; the eight result figures, generated
   from [`docs/data/`](docs/data/).
-- **[Project-review deck](docs/pdf/aisleflow-mapf-presentation.pdf)** (PDF, 37
+- **[Project-review deck](docs/pdf/toll-mapf-presentation.pdf)** (PDF, 37
   slides) &mdash; forty years of MAPF, the gap this project set out to close,
   and what the measurements said. Also available
-  [with speaker notes](docs/pdf/aisleflow-mapf-presentation-notes.pdf).
+  [with speaker notes](docs/pdf/toll-mapf-presentation-notes.pdf).
   Source: [`docs/deck/slides.html`](docs/deck/slides.html).
 - [`docs/implementation-notes.md`](docs/implementation-notes.md) maps each spec
   section to the function that implements it.
@@ -63,7 +77,7 @@ in the single connecting corridor, no robot can reserve a path through the
 robots ahead of it, and nothing moves again for the rest of the run. Right: the
 same scenario under priority inheritance, where a blocked robot pushes the robot
 ahead of it out of the way.* The other four animations &mdash; including
-[the one where AisleFlow loses](docs/gifs/05-open-map-honesty.gif) &mdash; are
+[the one where TOLL loses](docs/gifs/05-open-map-honesty.gif) &mdash; are
 in [`docs/gifs/README.md`](docs/gifs/README.md).
 
 ---
@@ -351,9 +365,9 @@ question from "does anyone starve?".
 
 **The short version, as a picture:**
 
-![Throughput on three maps: AisleFlow ahead on the aisle-shaped maps, behind on the open one, both baselines far behind everywhere](docs/figures/headline.svg)
+![Throughput on three maps: TOLL ahead on the aisle-shaped maps, behind on the open one, both baselines far behind everywhere](docs/figures/headline.svg)
 
-AisleFlow's aisle layer is ahead by 21&ndash;27% on the two aisle-shaped maps
+TOLL's aisle layer is ahead by 21&ndash;27% on the two aisle-shaped maps
 and behind by 18&ndash;19% on the two open ones; at five seeds the losses are
 significant and the wins are not yet (p = 0.056 and 0.063). Both published
 baselines are two orders of magnitude behind on every map, significantly, at 20x
@@ -437,7 +451,7 @@ here so that stays visible rather than reading as a null result.
 ### Baselines: comparison against external algorithms
 
 Every table above is this codebase compared against itself: a feature flag on
-or off, same PIBT core underneath. None of it says how LDA-PIBT or plain
+or off, same PIBT core underneath. None of it says how TOLL-PIBT or plain
 lifelong PIBT stack up against independently-implemented algorithms from the
 literature — until now, that comparison didn't exist in this repo.
 

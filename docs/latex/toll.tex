@@ -1,7 +1,7 @@
-% AisleFlow: Lifelong Aisle-Managed PIBT
+% TOLL: Tolled One-way Lanes for Lifelong MAPD
 %
 % Build with:   python3 tools/build_docs.py paper
-% or directly:  latexmk -lualatex -interaction=nonstopmode docs/latex/aisleflow.tex
+% or directly:  latexmk -lualatex -interaction=nonstopmode docs/latex/toll.tex
 %
 % LuaLaTeX rather than pdfLaTeX, because the worked-example boxes are verbatim
 % transcripts of program output and contain box-drawing characters and Greek
@@ -17,9 +17,10 @@
 
 \input{preamble}
 
-\title{\textbf{AisleFlow}\\[0.35em]
-  \large Direction as a price, not a rule:\\
-  aisle-managed lifelong PIBT for warehouse pickup-and-delivery}
+\title{\textbf{TOLL}\\[0.2em]
+  \large \textnormal{\textbf{T}olled \textbf{O}ne-way \textbf{L}anes for
+  \textbf{L}ifelong pickup-and-delivery}\\[0.55em]
+  \large Direction as a price, not a rule}
 \author{}
 \date{}
 
@@ -39,8 +40,10 @@ timestep at a time and has no notion of an aisle at all. The obvious extension
 is to give aisles directions, as a warehouse floor manager would: make a
 contended corridor one-way while the traffic in it is one-way.
 
-This document describes \emph{LDA-PIBT}, that extension, and reports what
-happened when it was measured. Its central design decision is negative and, we
+This document describes \textbf{TOLL} --- \emph{Tolled One-way Lanes for
+Lifelong pickup-and-delivery} --- and its planner \textbf{TOLL-PIBT}, and
+reports what happened when it was measured. The name is the claim: a robot may
+drive the wrong way down a one-way aisle, and pays a toll for doing so. Its central design decision is negative and, we
 argue, general: a one-way rule must enter the planner as a \textbf{term in the
 objective}, never as a \textbf{constraint on the domain}. Deleting a
 counterflow move from a robot's candidate set --- the natural implementation,
@@ -60,7 +63,7 @@ We evaluate against two published lifelong baselines --- Token Passing and
 RHCR --- and against every ablation of the method itself, with bootstrap
 confidence intervals and permutation tests over five seeds. The result is
 scoped rather than universal, and we report it that way. Against both external
-baselines AisleFlow wins decisively and significantly on every map tested, at a
+baselines TOLL wins decisively and significantly on every map tested, at a
 twentieth to a three-hundredth of their cost per timestep. Against plain
 lifelong PIBT its aisle layer is ahead by 21--27\% on the two aisle-shaped maps
 and behind by 18--19\% on the two open ones --- and at five seeds the losses
@@ -76,7 +79,11 @@ settle the part that is still open.
 \small
 Source, simulator and every number in this document:
 \url{https://github.com/sinayanaik/aisleflow}\\
-Figures regenerate from \texttt{docs/data/}; worked examples regenerate from the code.
+Figures regenerate from \texttt{docs/data/}; worked examples regenerate from the code.\\[0.4em]
+\footnotesize
+The repository and the Python package predate this name and still read
+\texttt{aisleflow} and \texttt{lda\_pibt}; \texttt{TOLL} and
+\texttt{TOLL-PIBT} are the method and its planner throughout this document.
 \end{center}
 
 \clearpage
