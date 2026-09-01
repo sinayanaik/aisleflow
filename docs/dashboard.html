@@ -119,9 +119,10 @@ code { font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 12.5
 <main>
   <h1>AisleFlow: is it better?</h1>
   <p class="lede">
-    Yes on the maps it was designed for, no on open ones, and by a wide margin
-    against both published baselines everywhere. This page lets you check that
-    claim on any metric, on any map, with the interval and the p-value attached.
+    Ahead on the maps it was designed for, behind on open ones, and far ahead of
+    both published baselines everywhere. The wins are not yet significant at five
+    seeds and the losses are &mdash; this page shows both, on any metric, on any
+    map, with the interval and the p-value attached to every bar.
   </p>
 
   <div class="card readfirst">
@@ -540,6 +541,52 @@ function ratio(mapName, variant, against) {
   return 100 * (a - b) / b;
 }
 
+// The p-value of the best AisleFlow configuration against plain PIBT, from
+// the ablation suite's per-seed values. A percentage without it invites the
+// reader to believe a 27% lead at p = 0.06 is settled.
+function bestP(mapName) {
+  const ablation = DATA.ablation && DATA.ablation.maps[mapName];
+  if (!ablation) return null;
+  const rows = {};
+  for (const row of ablation.rows) rows[row.variant] = row;
+  const base = rows[REFERENCE];
+  if (!base || !base.raw) return null;
+  const candidates = ["full_lda_pibt", "aisle_direction_only", "aisle_managed_pibt"]
+    .filter(v => rows[v]);
+  if (!candidates.length) return null;
+  const best = candidates.reduce((a, b) =>
+    rows[a].throughput >= rows[b].throughput ? a : b);
+  return permutationP(rows[best].raw.throughput, base.raw.throughput);
+}
+
+// Exact two-sided permutation test, the same one stats.py runs: with five
+// seeds a side there are only C(10,5) = 252 label splits, so it enumerates
+// rather than samples, and the smallest attainable p is 2/252.
+function permutationP(a, b) {
+  if (!a || !b || !a.length || !b.length) return null;
+  const pooled = a.concat(b), n = pooled.length, na = a.length;
+  const mean = xs => xs.reduce((s, v) => s + v, 0) / xs.length;
+  const observed = Math.abs(mean(a) - mean(b));
+  let total = 0, extreme = 0;
+  const combo = [];
+  (function choose(start, left) {
+    if (left === 0) {
+      const inside = new Set(combo);
+      const groupA = [], groupB = [];
+      for (let i = 0; i < n; i++) (inside.has(i) ? groupA : groupB).push(pooled[i]);
+      total += 1;
+      if (Math.abs(mean(groupA) - mean(groupB)) >= observed - 1e-12) extreme += 1;
+      return;
+    }
+    for (let i = start; i <= n - left; i++) {
+      combo.push(i);
+      choose(i + 1, left - 1);
+      combo.pop();
+    }
+  })(0, na);
+  return total ? extreme / total : null;
+}
+
 function drawTiles() {
   const host = document.getElementById("tiles");
   host.textContent = "";
@@ -559,12 +606,19 @@ function drawTiles() {
     }
     if (!values.length) continue;
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const ps = family.maps.map(m => bestP(m)).filter(v => v !== null);
+    const significant = ps.length && ps.every(v => v < 0.05);
+    const strength = !ps.length ? ""
+      : significant
+        ? ` Significant on every map here (p up to ${Math.max(...ps).toFixed(3)}).`
+        : ` Not significant at five seeds (p up to ${Math.max(...ps).toFixed(3)}) ` +
+          "— the direction is consistent, the evidence is thin.";
     host.appendChild(tile(
       `AisleFlow ${family.label}`,
       `${mean >= 0 ? "+" : ""}${mean.toFixed(0)}%`,
       mean >= 0 ? "win" : "loss",
-      `Best AisleFlow configuration against plain lifelong PIBT on ` +
-      family.maps.map(shortMap).join(" and ") + "."
+      "Best AisleFlow configuration against plain lifelong PIBT on " +
+      family.maps.map(shortMap).join(" and ") + "." + strength
     ));
   }
 

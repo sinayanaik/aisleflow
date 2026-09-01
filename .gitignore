@@ -30,3 +30,4 @@ docs/latex/*.log
 docs/latex/*.out
 docs/latex/*.toc
 docs/latex/aisleflow.pdf
+docs/latex/*.fdb_latexmk

@@ -280,6 +280,9 @@ def figure_headline():
     """Throughput per map for AisleFlow, plain PIBT and both baselines."""
     import matplotlib.pyplot as plt
 
+    sys.path.insert(0, str(ROOT / "src"))
+    from lda_pibt.stats import permutation_test
+
     payload = load("baselines")
     ablation = load("ablation")
     maps = [m for m in MAP_ORDER if m in payload["maps"]]
@@ -323,19 +326,42 @@ def figure_headline():
             positions, values, yerr=[lows, highs], fmt="none",
             ecolor=INK_2, elinewidth=1.1, capsize=3, zorder=4,
         )
-        for x, value, high in zip(positions, values, highs):
-            # clear of the interval whisker, not just of the bar
+        # the p-value against plain PIBT belongs on the picture: a +27% bar at
+        # p = 0.06 is a different claim from a +27% bar at p = 0.008, and five
+        # seeds is thin enough that the difference matters
+        base_raw = next(r for r in ablation["maps"][map_name]["rows"]
+                        if r["variant"] == "lifelong_pibt")["raw"]["throughput"]
+        for x, variant, value, high in zip(positions, variants, values, highs):
             ax.annotate(
                 f"{value:.2f}", (x, value + high), textcoords="offset points",
                 xytext=(0, 7), ha="center", fontsize=8.5, color=INK,
                 fontweight="bold",
+            )
+            if variant == "lifelong_pibt":
+                note = "reference"
+            else:
+                raw = next(
+                    (r["raw"]["throughput"] for r in ablation["maps"][map_name]["rows"]
+                     if r["variant"] == variant), None
+                )
+                if raw is None:
+                    field = rows[variant]["fields"]["throughput"]
+                    note = ("p < 0.001" if field["p_vs_reference"] < 0.001
+                            else f"p = {field['p_vs_reference']:.3f}")
+                else:
+                    _, p_value = permutation_test(raw, base_raw)
+                    note = f"p = {p_value:.3f}"
+            ax.annotate(
+                note, (x, value + high), textcoords="offset points",
+                xytext=(0, 19), ha="center", fontsize=7,
+                color=MUTED,
             )
 
         ax.set_xticks(list(positions))
         ax.set_xticklabels(
             [wrap_label(label_of(v)) for v in variants], fontsize=7.4, color=INK_2,
         )
-        ax.set_ylim(0, max([v + h for v, h in zip(values, highs)] + [0.05]) * 1.28)
+        ax.set_ylim(0, max([v + h for v, h in zip(values, highs)] + [0.05]) * 1.42)
         kind = "aisle-shaped" if map_name in DESIGNED_FOR else "open"
         ax.set_title(
             f"{MAP_LABEL[map_name]}\n{kind} map", fontsize=8.8, color=INK,
@@ -350,8 +376,9 @@ def figure_headline():
         fig,
         "Throughput: AisleFlow wins where aisles are scarce, and loses where they are not",
         "Each map shows the best AisleFlow configuration on that map, named "
-        "under its bar.\nBoth external baselines are far behind everywhere. "
-        "Higher is better.",
+        "under its bar, with a permutation test against plain PIBT.\nThe two "
+        "wins are ahead by 21-27% but land at p = 0.06 on five seeds; the two "
+        "losses are significant. Both baselines are far behind everywhere.",
     )
     caption(fig, provenance(payload))
     fig.tight_layout(rect=(0, 0.028, 1, top))

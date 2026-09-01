@@ -48,8 +48,9 @@ and the one the original specification called for --- destroys the property
 priority inheritance runs on, namely that a robot can always be pushed
 somewhere. Pricing the same move instead, at a cost above every other soft
 preference and below the value of a step of progress, preserves it. Measured
-across four maps this single distinction is worth between $1.9\times$ and
-$3.1\times$ throughput and is the largest effect in the system. Two further
+this single distinction is worth between $1.9\times$ and $3.7\times$
+throughput on every map where an aisle ever commits a direction, and is the
+largest effect in the system. Two further
 mechanisms follow from the same reasoning: an aisle signal needs a maximum
 green as well as a minimum, or a balanced warehouse starves half its traffic;
 and deadlock recovery must require a corroborated stall signal, or it spends
@@ -58,12 +59,15 @@ its time dismantling ordinary queues.
 We evaluate against two published lifelong baselines --- Token Passing and
 RHCR --- and against every ablation of the method itself, with bootstrap
 confidence intervals and permutation tests over five seeds. The result is
-scoped rather than universal, and we report it that way: AisleFlow's aisle
-layer wins on the aisle-shaped maps it was designed for, is far cheaper and far
-more productive than either external baseline on every map tested, and
-\emph{loses} to plain lifelong PIBT on open grids, where the contention it
-manages does not exist. The final sections say exactly where that boundary
-falls and why.
+scoped rather than universal, and we report it that way. Against both external
+baselines AisleFlow wins decisively and significantly on every map tested, at a
+twentieth to a three-hundredth of their cost per timestep. Against plain
+lifelong PIBT its aisle layer is ahead by 21--27\% on the two aisle-shaped maps
+and behind by 18--19\% on the two open ones --- and at five seeds the losses
+are significant while the wins ($p = 0.056$ and $0.063$) are not yet. The
+mechanisms above are, wherever their mechanism can act at all. The final
+sections say exactly where that boundary falls, and what it would take to
+settle the part that is still open.
 \end{abstract}
 
 \vfill
