@@ -1,11 +1,11 @@
 """The committed documentation assets must stay consistent with each other.
 
-`docs/` now carries generated artefacts that are checked in: the measured
-dataset, eight figures, five animations and a dashboard. None of them is
+`docs/` carries generated artefacts that are checked in: the measured dataset,
+nine figures, five animations, two PDFs and a dashboard. None of them is
 rebuilt by the test suite -- that would take half an hour -- so what these
 tests check is the wiring: that the dataset is well formed and says where it
-came from, that every figure the paper and the dashboard reference exists, and
-that no committed animation has quietly grown past the size budget.
+came from, that every committed figure ships in both formats, and that no
+committed animation has quietly grown past the size budget.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "docs" / "data"
 FIGURES = ROOT / "docs" / "figures"
 GIFS = ROOT / "docs" / "gifs"
-LATEX = ROOT / "docs" / "latex"
+PDFS = ROOT / "docs" / "pdf"
 
 #: the budget `viz_compare.save_comparison` enforces when writing
 GIF_BUDGET_BYTES = 5 * 1024 * 1024
@@ -42,19 +42,16 @@ def test_dataset_is_well_formed(suite):
     assert meta["scenarios"], "no scenarios recorded"
 
 
-def test_every_figure_the_paper_includes_exists():
-    referenced = set()
-    for source in LATEX.rglob("*.tex"):
-        referenced |= set(
-            re.findall(r"\\includegraphics\[[^\]]*\]\{([^}]+)\}", source.read_text())
-        )
-    assert referenced, "the paper includes no figures at all"
-    for name in sorted(referenced):
-        assert (FIGURES / name).exists(), f"{name} is referenced but not committed"
+def test_the_built_documents_are_committed():
+    """Both PDFs open straight from GitHub, so both must be in the tree."""
+    for name in ("spar-planner.pdf", "matrix-comparison.pdf"):
+        pdf = PDFS / name
+        assert pdf.exists(), f"{name} is missing: run tools/build_docs.py"
+        assert pdf.stat().st_size > 20_000, f"{name} looks truncated"
 
 
 def test_every_figure_ships_both_formats():
-    """SVG renders inline on GitHub; PDF is what the paper embeds."""
+    """SVG renders inline on GitHub; PDF is what a print build would embed."""
     for pdf in FIGURES.glob("*.pdf"):
         assert pdf.with_suffix(".svg").exists(), f"{pdf.name} has no SVG twin"
 

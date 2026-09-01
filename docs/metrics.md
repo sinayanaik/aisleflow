@@ -126,4 +126,5 @@ Also: **planner runtime** rises from 0.4–1.0 ms per step to 0.6–2.0 (signifi
 
 - [`dashboard.html`](dashboard.html) — every metric, every map, interactively, with the interval and p-value on each bar
 - [`figures/`](figures/) — the eight result figures
-- [`pdf/spar-paper.pdf`](pdf/spar-paper.pdf) — the paper, whose results section is built from this same dataset
+- [`pdf/matrix-comparison.pdf`](pdf/matrix-comparison.pdf) — the comparison matrix, built from this same dataset
+- [`pdf/spar-planner.pdf`](pdf/spar-planner.pdf) — how the planner produces these numbers in the first place

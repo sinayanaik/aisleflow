@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """Build the distributable PDFs in ``docs/pdf/`` from their sources.
 
-Three targets:
+Four targets:
 
-    paper   docs/latex/spar.tex    -> spar-paper.pdf
-    deck    docs/deck/slides.html       -> spar-mapf-presentation.pdf
-    notes   docs/deck/slides.html       -> spar-mapf-presentation-notes.pdf
+    planner     docs/planner/planner.html    -> spar-planner.pdf
+    comparison  docs/planner/comparison.html -> matrix-comparison.pdf
+    deck        docs/deck/slides.html        -> spar-mapf-presentation.pdf
+    notes       docs/deck/slides.html        -> spar-mapf-presentation-notes.pdf
 
 Usage::
 
     python3 tools/build_docs.py            # same as "all"
-    python3 tools/build_docs.py paper
+    python3 tools/build_docs.py planner
     python3 tools/build_docs.py deck notes --page-footer
 
-Dependencies: the Python standard library, plus a Chromium-family browser for
-the two deck targets and a LaTeX installation for the paper. The browser is
-found via ``$CHROME`` or a short search list; nothing is installed and nothing
-is downloaded.
+Dependencies: the Python standard library plus a Chromium-family browser, found
+via ``$CHROME`` or a short search list. Nothing is installed and nothing is
+downloaded; there is no LaTeX in this pipeline.
 
 The Chromium CLI print path emits no PDF outline and cannot number printed
 pages, so ``--page-footer`` re-enables Chromium's own footer for anyone who
@@ -143,43 +143,17 @@ def print_pdf(html_path: Path, pdf_path: Path, *, page_footer: bool = False) -> 
 # --------------------------------------------------------------------------
 
 
-def build_paper(page_footer: bool) -> Path:
-    """Compile docs/latex/spar.tex and copy the PDF into docs/pdf/.
+def build_planner(page_footer: bool) -> Path:
+    """The implementation document: how the planner works, and its math."""
+    out = OUT_DIR / "spar-planner.pdf"
+    print_pdf(DOCS / "planner" / "planner.html", out, page_footer=page_footer)
+    return out
 
-    LuaLaTeX rather than pdfLaTeX: the generated worked-example boxes are
-    verbatim transcripts of program output and carry Greek letters and box
-    drawing that only a Unicode engine with a real font can set. `page_footer`
-    has no meaning here -- LaTeX numbers its own pages -- and is accepted only
-    so that every target has the same signature.
-    """
-    latex = DOCS / "latex"
-    latexmk = shutil.which("latexmk")
-    if not latexmk:
-        sys.exit(
-            "latexmk was not found. The paper target needs a LaTeX install:\n"
-            "    apt-get install texlive-latex-recommended texlive-latex-extra \\\n"
-            "        texlive-fonts-recommended texlive-luatex texlive-science \\\n"
-            "        latexmk fonts-dejavu\n"
-            "The deck and notes targets do not need it."
-        )
-    result = subprocess.run(
-        [latexmk, "-lualatex", "-interaction=nonstopmode", "-halt-on-error",
-         "spar.tex"],
-        cwd=latex, capture_output=True, text=True,
-    )
-    built = latex / "spar.pdf"
-    if result.returncode != 0 or not built.exists():
-        log = latex / "spar.log"
-        errors = ""
-        if log.exists():
-            errors = "\n".join(
-                line for line in log.read_text(errors="replace").splitlines()
-                if line.startswith("!")
-            )
-        sys.exit(f"latexmk failed:\n{errors or result.stdout[-2000:]}")
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / "spar-paper.pdf"
-    shutil.copyfile(built, out)
+
+def build_comparison(page_footer: bool) -> Path:
+    """The one comparison matrix, with the numbers read from docs/data/."""
+    out = OUT_DIR / "matrix-comparison.pdf"
+    print_pdf(DOCS / "planner" / "comparison.html", out, page_footer=page_footer)
     return out
 
 
@@ -233,14 +207,19 @@ def build_notes(page_footer: bool) -> Path:
     return out
 
 
-TARGETS = {"paper": build_paper, "deck": build_deck, "notes": build_notes}
+TARGETS = {
+    "planner": build_planner,
+    "comparison": build_comparison,
+    "deck": build_deck,
+    "notes": build_notes,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "targets", nargs="*", default=["all"],
-        help="paper, deck, notes, or all (default: all)",
+        help="planner, comparison, deck, notes, or all (default: all)",
     )
     parser.add_argument(
         "--page-footer", action="store_true",
@@ -257,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     for name in names:
         path = TARGETS[name](args.page_footer)
         size = path.stat().st_size / 1024
-        print(f"{name:6s} -> {path.relative_to(ROOT)}  ({size:.0f} KB)")
+        print(f"{name:10s} -> {path.relative_to(ROOT)}  ({size:.0f} KB)")
     return 0
 
 

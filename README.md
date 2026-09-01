@@ -36,11 +36,15 @@ needed for animations.
 Everything below is committed, so it opens straight from GitHub &mdash; no
 clone, no LaTeX, no PowerPoint, no Python:
 
-- **[The paper](docs/pdf/spar-paper.pdf)** (PDF, 48pp) &mdash; the problem
-  stated formally, the four prior methods and how each one fails in a narrow
-  lifelong warehouse, what SPAR-PIBT changes and why, the whole system in full
-  with numbered equations and algorithms, and what the measurements said.
-  Source: [`docs/latex/`](docs/latex/).
+- **[How the planner works](docs/pdf/spar-planner.pdf)** (PDF, 12pp) &mdash;
+  the implementation document: every rule SPAR-PIBT applies, the arithmetic it
+  does each timestep, and why each term is there. Start here if you want to
+  understand or modify the planner.
+  Source: [`docs/planner/planner.html`](docs/planner/planner.html).
+- **[The comparison matrix](docs/pdf/matrix-comparison.pdf)** (PDF, 2pp)
+  &mdash; SPAR-PIBT against plain PIBT, Token Passing, RHCR, and against the
+  same traffic rule enforced instead of priced: one table, and what it means.
+  Source: [`docs/planner/comparison.html`](docs/planner/comparison.html).
 - **[The results dashboard](docs/dashboard.html)** &mdash; pick a map, pick a
   metric, hover a bar: mean, 95% interval, p-value against plain PIBT, and a
   sentence saying what that combination means. One self-contained file;
@@ -544,7 +548,7 @@ Full per-seed data and every `CORE_REPORT_FIELDS` column lands in
 `results/baseline_comparison.json` and `results/baseline_medium.json`.
 
 The committed dataset in [`docs/data/baselines.json`](docs/data/baselines.json)
-&mdash; which the figures, the paper and the dashboard all read &mdash; is the
+&mdash; which the figures, the documents and the dashboard all read &mdash; is the
 same comparison at **5 seeds** rather than 10, so its means differ slightly from
 this table (0.118 / 0.145 on bottleneck against 0.13 / 0.14 here). Both runs say
 the same thing; where a figure and this table disagree in the third decimal,
@@ -866,17 +870,16 @@ src/lda_pibt/    the package (see the module table above)
 src/lda_pibt/gui/  browser GUI (server.py + static/index.html)
 src/lda_pibt/baselines/  Token Passing and RHCR, independent of the PIBT machinery
 src/lda_pibt/viz_compare.py  side-by-side animation of two planners on one scenario
-tests/           198 tests: graph, PIBT, aisle manager, lifelong layer, GUI,
-                 baselines, stats, the committed doc assets, and the paper's
-                 worked examples
+tests/           graph, PIBT, aisle manager, lifelong layer, GUI, baselines,
+                 stats, the committed doc assets, and the two planner documents
+                 (their quoted defaults and their measured numbers)
 experiments/     run_all.py (writes docs/data/), plus run_ablation.py,
                  run_density_sweep.py, run_factorial_ablation.py,
                  run_baseline_comparison.py, run_hypothesis_suite.py
 results/         JSON output from the individual runners (git-ignored)
 tools/           build_docs.py (the PDFs), make_figures.py + dashboard.py (the
-                 figures and docs/dashboard.html), make_gifs.py (the animations),
-                 worked_examples.py (the paper's numbers)
-docs/latex/      the paper's source
+                 figures and docs/dashboard.html), make_gifs.py (the animations)
+docs/planner/    planner.html and comparison.html, the two documents' sources
 docs/data/       the measured dataset every figure and table is generated from
 docs/figures/    the eight result figures, as SVG and PDF
 docs/gifs/       the five comparison animations

@@ -403,8 +403,10 @@ def build() -> Path:
     add("- [`dashboard.html`](dashboard.html) — every metric, every map, "
         "interactively, with the interval and p-value on each bar")
     add("- [`figures/`](figures/) — the eight result figures")
-    add("- [`pdf/spar-paper.pdf`](pdf/spar-paper.pdf) — the paper, whose results "
-        "section is built from this same dataset")
+    add("- [`pdf/matrix-comparison.pdf`](pdf/matrix-comparison.pdf) — the "
+        "comparison matrix, built from this same dataset")
+    add("- [`pdf/spar-planner.pdf`](pdf/spar-planner.pdf) — how the planner "
+        "produces these numbers in the first place")
 
     OUT.write_text("\n".join(lines) + "\n")
     print(f"  wrote {OUT.relative_to(ROOT)}  ({OUT.stat().st_size / 1024:.0f} kB)")
