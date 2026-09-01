@@ -54,6 +54,34 @@ MIN_TIME_SLACK = 32
 
 
 @dataclass
+class Budget:
+    """A search budget, in node expansions, shared across several searches.
+
+    Token Passing asks an agent to consider its tasks in order of distance and
+    plan the nearest one it can actually reach. On a well-formed instance the
+    nearest always plans and the question of how many to try never arises; on
+    a floor where agents are boxed in it does, and capping it at some round
+    number of candidates is an arbitrary handicap on the algorithm -- one that
+    measurably costs it throughput, which is not a thing to decide by picking
+    a constant.
+
+    So the cap is on work rather than on candidates: an agent gets one budget
+    per timestep and spends it on as many candidates as it fits. A search that
+    succeeds costs almost nothing, so an agent with somewhere to go tries one
+    and stops; an agent with nowhere to go spends the whole budget finding
+    that out, and tries again next timestep.
+    """
+
+    remaining: int
+
+    def spend(self, expansions: int) -> None:
+        self.remaining -= expansions
+
+    def __bool__(self) -> bool:
+        return self.remaining > 0
+
+
+@dataclass
 class ReservationTable:
     """Vertex-time, edge-time and *terminal* occupancy of the committed paths.
 
@@ -167,6 +195,7 @@ def space_time_astar(
     node_expansion_cap: Optional[int] = None,
     robot_id: Optional[int] = None,
     time_slack: Optional[int] = None,
+    budget: Optional[Budget] = None,
 ) -> Optional[List[Vertex]]:
     """Time-expanded A* from `start` at `start_time` to `goal`, avoiding `reservations`.
 
@@ -193,6 +222,9 @@ def space_time_astar(
     if h.get(start, float("inf")) == float("inf"):
         return None
 
+    if budget is not None:
+        cap = max(0, budget.remaining)
+        node_expansion_cap = cap if node_expansion_cap is None else min(node_expansion_cap, cap)
     if time_slack is None:
         time_slack = max(MIN_TIME_SLACK, len(graph))
     end_time = max(reservations.horizon_end, start_time) + time_slack
@@ -212,9 +244,13 @@ def space_time_astar(
         vertex, t = state
         expansions += 1
         if node_expansion_cap is not None and expansions > node_expansion_cap:
+            if budget is not None:
+                budget.spend(expansions)
             return None
 
         if vertex == goal and reservations.rest_is_clear(goal, t, robot_id):
+            if budget is not None:
+                budget.spend(expansions)
             return _reconstruct(came_from, state)
 
         if t >= end_time:
@@ -243,6 +279,8 @@ def space_time_astar(
                     open_heap,
                     (tentative_g + h.get(nxt, float("inf")), next(_counter), nxt_state),
                 )
+    if budget is not None:
+        budget.spend(expansions)
     return None
 
 
@@ -444,6 +482,7 @@ def resolve_residual_conflicts(ordered_robots: Sequence["Robot"]) -> List[int]:
 
 
 __all__ = [
+    "Budget",
     "ReservationTable",
     "bounded_horizon_astar",
     "prioritized_plan",

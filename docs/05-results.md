@@ -81,9 +81,14 @@ It is a property of PIBT, which this project did not invent.
 
 **RHCR does not have that problem** and is the strongest baseline throughout:
 it tracks aisleflow closely on `corridors` up to 20 robots and is ahead of it
-across the whole of `medium`, peaking at 489 against 418. Its own failure
-comes later and differently — on `corridors` at 40 robots the windowed
-instance stops being solvable often enough that its throughput falls to 39.
+across the whole of `medium`, peaking at 489 against 418. At the headline
+`corridors` scenario the two are **not separated** — 128 against 153 on the
+mean, but RHCR's five seeds range from 30 to 198 and aisleflow's from 45 to
+198, and a permutation test between them returns p = 0.73. Thirty-five robots on five
+single-file corridors is right at what that floor can carry, and which side of
+the edge a run lands on is close to a coin flip. RHCR's own failure arrives at
+40 robots, where the windowed instance stops being solvable often enough that
+its throughput falls to 39.
 
 So: the comparison against these three establishes that the planner is in the
 right league and inherits PIBT's robustness to density. It does not establish
@@ -246,8 +251,8 @@ is better without it.
   well-formed MAPD instance (see [page 06](06-the-maps.md)); RHCR does not,
   and it is competitive everywhere and ahead of aisleflow on `medium`. Read
   the density figure before reading anything into the bar chart: on a quiet
-  floor all four planners are level, which is what says the implementations
-  are right.
+  floor Token Passing is the *best* planner in the study, which is what says
+  the implementations are right.
 - **Four maps.** Every conclusion here is about `warehouse_bottleneck`,
   `warehouse_corridors`, `warehouse_narrow` and `warehouse_medium` at the
   robot counts and arrival rates in the dataset's `meta.scenarios`. A knob

@@ -60,13 +60,15 @@ def _dataset(name: str) -> Optional[Dict]:
     return _MEASURED[name]
 
 
-def measured_per_1000(map_name: str, variant: str) -> Optional[float]:
-    """Tasks per 1000 timesteps for one planner on one map, from `docs/data/`.
+def measured_per_1000(map_name: str, variant: str) -> Optional[Dict[str, float]]:
+    """One planner's throughput on one map, per 1000 timesteps, from `docs/data/`.
 
-    Checks the baseline suite first (it has the published planners) and then
-    the ablation suite (it has every configuration of this one).
+    Returns the mean and, where the suite recorded per-seed values, the
+    interval across them. Checks the baseline suite first (it has the
+    published planners) and then the ablation suite (it has every
+    configuration of this one).
     """
-    for suite, reader in (
+    for suite, mean_of in (
         ("baselines", lambda row: row["fields"]["throughput"]["mean"]),
         ("ablation", lambda row: row["throughput"]),
     ):
@@ -74,19 +76,34 @@ def measured_per_1000(map_name: str, variant: str) -> Optional[float]:
         if not payload or map_name not in payload.get("maps", {}):
             continue
         for row in payload["maps"][map_name]["rows"]:
-            if row["variant"] == variant:
-                return 1000.0 * reader(row)
+            if row["variant"] != variant:
+                continue
+            raw = (row.get("raw") or row.get("fields", {}).get("throughput", {})).get(
+                "throughput", row.get("fields", {}).get("throughput", {}).get("raw")
+            )
+            seeds = [1000.0 * v for v in raw] if raw else []
+            return {
+                "mean": 1000.0 * mean_of(row),
+                "lo": min(seeds) if seeds else 0.0,
+                "hi": max(seeds) if seeds else 0.0,
+            }
     return None
 
 
 def fill(text: str, scenario: "Scenario") -> str:
-    """Substitute `{left}` and `{right}` with the measured throughputs.
+    """Substitute the measured numbers into a narration string.
+
+    `{left}` / `{right}` are the mean throughputs of the two panels;
+    `{left_range}` / `{right_range}` are the range across seeds, which matters
+    wherever a planner's seed-to-seed spread is the point -- a mean of 128
+    that covers everything from 65 to 190 describes a planner sitting on the
+    edge of failing, and a caption that only quotes the mean over an animation
+    of the bad draw is a caption arguing with its own picture.
 
     A sentence whose number is missing from the dataset is dropped rather than
-    printed with a hole in it -- the GIF is still correct without it, and a
-    caption reading "156 against {right}" is worse than one less caption.
+    printed with a hole in it.
     """
-    if "{left}" not in text and "{right}" not in text:
+    if "{" not in text:
         return text
     values = {
         side: measured_per_1000(scenario.map_name, spec.variant)
@@ -94,7 +111,11 @@ def fill(text: str, scenario: "Scenario") -> str:
     }
     if any(value is None for value in values.values()):
         return ""
-    return text.format(**{k: f"{v:.0f}" for k, v in values.items()})
+    fields = {}
+    for side, value in values.items():
+        fields[side] = f"{value['mean']:.0f}"
+        fields[f"{side}_range"] = f"{value['lo']:.0f} to {value['hi']:.0f}"
+    return text.format(**fields)
 
 
 @dataclass(frozen=True)
@@ -254,7 +275,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         rate=1.0,
         timesteps=400,
         stride=2,
-        title="Re-solving a window, against resolving each conflict in place",
+        title="Two planners at the edge of what the floor can carry",
         caption=(
             "warehouse_corridors, 35 robots. RHCR re-solves a windowed instance "
             "every few steps; aisleflow resolves each conflict where it happens."
@@ -272,35 +293,41 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
         ),
         watch_for=(
-            "The strongest of the three published baselines, and the one whose "
-            "assumptions this warehouse does not break. RHCR replans every "
-            "agent together every few timesteps over a short window, resolving "
-            "collisions inside it with priority-based search and ignoring "
-            "everything beyond it; between replans the agents follow the plan "
-            "they were given. That is a genuinely different design from "
-            "PIBT's, and on five single-file corridors it is competitive: "
-            "{left} tasks per 1000 timesteps against aisleflow's {right}. "
-            "What the two panels differ in is *when* the work happens. RHCR "
-            "pays a large, periodic cost -- a joint search over all 35 agents "
-            "-- and then moves for free until the next one; aisleflow pays a "
-            "small cost every timestep and never searches at all. Watch how "
-            "similar the two floors look. That is the point: the interesting "
-            "comparison in this project is not against RHCR, it is against "
-            "the plain PIBT in the ablation ladder."
+            "RHCR is the strongest of the three published baselines and the "
+            "only one whose assumptions this warehouse does not break: it "
+            "replans every agent together every few timesteps over a short "
+            "window, resolving collisions inside it with priority-based search "
+            "and following the plan in between. Its mean here is {left} tasks "
+            "per 1000 timesteps against aisleflow's {right}, and the honest "
+            "reading of that pair is that they are indistinguishable: across "
+            "five seeds RHCR ranges {left_range} and aisleflow {right_range}, "
+            "and the permutation test does not separate them. Thirty-five "
+            "robots on five single-file corridors is right at what this floor "
+            "can carry, and which side of the edge a run lands on is close to "
+            "a coin flip. This animation is a seed where RHCR went over and "
+            "aisleflow did not, and the mechanism is worth watching for that "
+            "reason: the whole left panel turns red at once, because an agent "
+            "whose windowed search finds no plan holds position, holding "
+            "position makes the next window harder, and nothing in RHCR can "
+            "move a stopped agent that is not itself planning. Aisleflow "
+            "never solves an instance at all -- a blocked robot lends its rank "
+            "to the robot in the way and pushes -- so it has no search to "
+            "fail; on its own bad seeds it slows down instead of stopping. "
+            "One animation is one draw. Read the intervals."
         ),
         beats=(
             Beat(0, "Same map, same 35 robots, same jobs. Two ways of avoiding a "
-                    "collision."),
+                    "collision, and a floor at the edge of what it can carry."),
             Beat(50, "Left: RHCR replans every agent together, every few steps, over "
-                     "a short window."),
-            Beat(120, "Collisions are resolved only inside that window. Beyond it, "
-                      "the paths are left to be somebody's problem later."),
-            Beat(200, "Right never solves an instance at all: a blocked robot lends "
-                      "its rank to the robot in the way and pushes."),
-            Beat(280, "Both floors keep moving. This baseline is not the one that "
-                      "struggles here -- Token Passing is (see GIF 01)."),
-            Beat(350, "Five seeds: {right} against {left} tasks per 1000 steps. Close "
-                      "enough that the ablation ladder is the argument, not this."),
+                     "a short window, and follows the plan in between."),
+            Beat(120, "Left: at this density the windowed instance stops being "
+                      "solvable, and an agent with no plan holds position."),
+            Beat(200, "Holding position makes the next window harder. Red = stuck, "
+                      "and nothing in RHCR can move an agent that is not planning."),
+            Beat(280, "Right never solves an instance: a blocked robot lends its rank "
+                      "to the robot in the way and pushes, so it slows, not stops."),
+            Beat(350, "This is ONE seed. Over five, RHCR ranges {left_range} per 1000 "
+                      "steps and aisleflow {right_range}: these two are not separated."),
         ),
     ),
     Scenario(

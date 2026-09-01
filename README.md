@@ -114,25 +114,27 @@ over SSH with a forwarded port too (`--host 0.0.0.0`, `--no-browser`).
 
 **Click a robot and you get the answer to "why is it stuck?"** The inspector
 lists every candidate cell with its score and the exact rule that rejected it —
-`aisle-direction`, `no-reservation`, `vertex-conflict`, `kinematics` — in spec
-§22.1 order. A stalled robot almost always shows the same reason on every
-candidate, which names the culprit immediately. This is the diagnostic that
-found all five bugs listed below; it is now a first-class feature
-(`PIBTPlanner.explain_candidates`), usable from the library as well.
+`vertex-conflict`, `kinematics`, `off-graph`. A stalled robot
+almost always shows the same reason on every candidate, which names the
+culprit immediately. This is the diagnostic that found all five bugs listed
+below; it is a first-class feature (`PIBTPlanner.explain_candidates`), usable
+from the library as well.
 
 Also in there:
 
-- **Aisle overlay** — every aisle tinted by state (OPEN / FORWARD / REVERSE /
-  DRAINING) with flow arrows. Watch drain-before-reverse happen.
+- **Aisle overlay** — every aisle tinted, with its occupancy against capacity,
+  so you can see which corridor is the one filling up.
 - **Heatmaps** — local congestion, or per-robot stall time, so jams are visible
   before you go looking for them.
-- **Click an aisle** — state, direction, occupancy vs capacity, lock expiry,
-  switch count, live reservation holders, and whether it is managed at all.
-- **Live parameter sliders** — α, β, γ, λ, μ, ξ, `R_near`/`R_far`, `T_min`,
-  `τ_switch`, capacity, drain timeout. Changing one restarts the run with the
-  same seed, so A/B-ing a weight takes two seconds.
-- **Ablation switches** as checkboxes: hysteresis, reservations, congestion,
-  recovery, turning cost, direction-aware routing.
+- **Live parameter sliders** — the progress reward, the stay-in-lane bonus and
+  its near-waypoint variant, the turn penalty and reverse multiplier, the
+  crowding penalty and its radius, `R_near`/`R_far`, priority class spread,
+  rank per step waited, stall threshold, recovery ladder depth, and the
+  assignment weights. Changing one restarts the run with the same seed, so
+  A/B-ing a weight takes two seconds.
+- **Ablation switches** as checkboxes: crowding in movement, crowding in
+  matching, deadlock recovery, corroborated deadlocks, turning cost, park when
+  idle.
 - Keyboard: `space` play/pause, `.` step, `r` reset.
 
 Every control is also a JSON endpoint (`/api/state`, `/api/step`,

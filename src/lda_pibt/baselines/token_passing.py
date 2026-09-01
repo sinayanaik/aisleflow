@@ -62,6 +62,7 @@ from ..task import Task, TaskQueue
 from ..types import INF, RobotState, TaskStatus, Vertex
 from ..warehouse import Warehouse
 from .space_time_search import (
+    Budget,
     ReservationTable,
     resolve_residual_conflicts,
     space_time_astar,
@@ -76,22 +77,16 @@ class TokenPassingPlanner:
     it owns task assignment itself.
     """
 
-    #: bounds worst-case A* cost on a pathological instance. Generous, because
-    #: a Token Passing search runs once per task rather than once per robot
-    #: per timestep, and a cap that bites is a silent planning failure.
-    node_expansion_cap: int = 100_000
+    #: A* node expansions one agent may spend in one turn with the token,
+    #: across however many candidate tasks that pays for. See
+    #: `space_time_search.Budget` for why the cap is on work rather than on a
+    #: fixed number of candidates. A search that succeeds costs a few hundred
+    #: expansions, so this is dozens of candidates for an agent that has
+    #: somewhere to go and one wasted timestep for one that does not.
+    token_expansion_budget: int = 120_000
 
     #: Algorithm 2's task swaps. Off here, on in the subclass below.
     task_swaps: bool = False
-
-    #: how many candidate tasks an agent will try to plan before giving up
-    #: this timestep. On a well-formed instance the nearest one always plans
-    #: and this never binds; on these maps it bounds the cost of an agent
-    #: that is boxed in and would otherwise re-search the whole task queue --
-    #: and an agent boxed in by a *moving* neighbour fails every candidate,
-    #: not just the first, so a failure is strong evidence the next one fails
-    #: too. It tries again next timestep either way.
-    plan_attempts: int = 4
 
     def __init__(
         self,
@@ -210,6 +205,7 @@ class TokenPassingPlanner:
         goals: Sequence[Vertex],
         table: ReservationTable,
         timestep: int,
+        budget: Optional[Budget] = None,
     ) -> Optional[List[Vertex]]:
         """One path through `goals` in order, avoiding the token.
 
@@ -232,7 +228,7 @@ class TokenPassingPlanner:
             self.astar_calls += 1
             leg = space_time_astar(
                 self.graph, at, goal, start, working,
-                node_expansion_cap=self.node_expansion_cap, robot_id=robot.id,
+                robot_id=robot.id, budget=budget,
             )
             if leg is None:
                 self.path_not_found += 1
@@ -276,6 +272,7 @@ class TokenPassingPlanner:
         """One agent's turn with the token. Returns an agent it robbed, if any."""
         table = self._reservations(robots, robot, timestep)
         reachable = self._reachable(robot, table, timestep)
+        budget = Budget(self.token_expansion_budget)
 
         if robot.task is not None:
             # mid-task and out of path: TPTS plans pickup and delivery as two
@@ -283,7 +280,7 @@ class TokenPassingPlanner:
             # delivery. For TP it only happens if a leg failed earlier.
             remaining = self._remaining_goals(robot)
             path = (
-                self._plan(robot, remaining, table, timestep)
+                self._plan(robot, remaining, table, timestep, budget)
                 if all(goal in reachable for goal in remaining)
                 else None
             )
@@ -296,7 +293,9 @@ class TokenPassingPlanner:
             if task.pickup in reachable and task.delivery in reachable
         ]
         if available:
-            robbed = self._take_best_task(robot, available, robots, table, task_queue, timestep)
+            robbed = self._take_best_task(
+                robot, available, robots, table, task_queue, timestep, budget
+            )
             if robbed is not None or robot.task is not None:
                 return robbed
 
@@ -325,7 +324,7 @@ class TokenPassingPlanner:
             self.paths[robot.id] = [robot.position]
             return None
         self.paths[robot.id] = self._move_aside(
-            robot, robots, table, task_queue, timestep, reachable
+            robot, robots, table, task_queue, timestep, reachable, budget
         )
         return None
 
@@ -360,14 +359,16 @@ class TokenPassingPlanner:
         table: ReservationTable,
         task_queue: TaskQueue,
         timestep: int,
+        budget: Budget,
     ) -> Optional[Robot]:
         """Algorithm 1, lines 7-10: nearest reachable pickup, then plan it.
 
         Tries tasks in order of pickup distance and stops at the first one it
-        can actually plan. On a well-formed instance the first is always
-        plannable and this is exactly the paper; on these maps it sometimes
-        is not, and trying the next-nearest is strictly better than leaving
-        an idle agent and an unclaimed task in the same room.
+        can actually plan, or when this turn's search budget runs out. On a
+        well-formed instance the first is always plannable and this is exactly
+        the paper; on these maps it sometimes is not, and trying the
+        next-nearest is strictly better than leaving an idle agent and an
+        unclaimed task in the same room.
         """
         ordered = sorted(
             (
@@ -376,12 +377,12 @@ class TokenPassingPlanner:
             ),
             key=lambda item: (item[0], item[1]),
         )
-        attempts = 0
         for distance, _, task in ordered:
-            if distance == INF or attempts >= self.plan_attempts:
+            if distance == INF or not budget:
                 break
-            attempts += 1
-            path = self._plan(robot, [task.pickup, task.delivery], table, timestep)
+            path = self._plan(
+                robot, [task.pickup, task.delivery], table, timestep, budget
+            )
             if path is None:
                 continue
             self._commit(robot, task, path)
@@ -406,6 +407,7 @@ class TokenPassingPlanner:
         task_queue: TaskQueue,
         timestep: int,
         reachable: Set[Vertex],
+        budget: Budget,
     ) -> List[Vertex]:
         """Path2: go to an endpoint that is nobody's delivery and nobody's rest.
 
@@ -431,10 +433,12 @@ class TokenPassingPlanner:
             ),
             key=lambda item: (item[0] >= len(self.parking_endpoints), item[1], item[2]),
         )
-        for _, distance, endpoint in candidates[: self.plan_attempts]:
+        for _, distance, endpoint in candidates:
+            if not budget:
+                break
             if distance == INF or endpoint == robot.position:
                 continue
-            path = self._plan(robot, [endpoint], table, timestep)
+            path = self._plan(robot, [endpoint], table, timestep, budget)
             if path is not None:
                 return path
         return [robot.position]
@@ -556,6 +560,7 @@ class TokenPassingTaskSwapsPlanner(TokenPassingPlanner):
         table: ReservationTable,
         task_queue: TaskQueue,
         timestep: int,
+        budget: Budget,
     ) -> Optional[Robot]:
         by_id = {r.id: r for r in robots}
         ordered = sorted(
@@ -565,9 +570,8 @@ class TokenPassingTaskSwapsPlanner(TokenPassingPlanner):
             ),
             key=lambda item: (item[0], item[1]),
         )
-        attempts = 0
         for distance, _, task in ordered:
-            if distance == INF or attempts >= self.plan_attempts:
+            if distance == INF or not budget:
                 break
             holder = by_id.get(task.assignment) if task.assignment is not None else None
             if holder is not None and holder.id != robot.id:
@@ -582,10 +586,9 @@ class TokenPassingTaskSwapsPlanner(TokenPassingPlanner):
                 swap_table = self._reservations(robots, robot, timestep, resting=(holder.id,))
             else:
                 swap_table = table
-            attempts += 1
             # TPTS plans only to the pickup; the delivery leg is planned on
             # arrival, which is what makes a swap cheap
-            path = self._plan(robot, [task.pickup], swap_table, timestep)
+            path = self._plan(robot, [task.pickup], swap_table, timestep, budget)
             if path is None:
                 continue
             if holder is not None and holder.id != robot.id:
