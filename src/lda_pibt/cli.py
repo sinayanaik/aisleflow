@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .config import ABLATIONS, Params, ablation
+from .config import ABLATIONS, LEGACY_NAMES, REMOVED_NAMES, Params, ablation
 from .simulator import build_simulator
 from .task import TaskGenerator
 from .warehouse import Warehouse
@@ -31,7 +31,8 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="KEY=VALUE",
-        help="override any Params field, e.g. --set progress_reward=8",
+        help="override any Params field, e.g. --set progress_reward=8 "
+             "(pre-simplification names still resolve)",
     )
 
 
@@ -40,6 +41,16 @@ def _params_from_args(args: argparse.Namespace, variant: str) -> Params:
     overrides = {}
     for item in args.set:
         key, _, raw = item.partition("=")
+        # Resolve pre-simplification names here rather than rejecting them:
+        # `Params` accepts them, so the CLI refusing them first would make the
+        # alias table useless exactly where people meet it.
+        key = LEGACY_NAMES.get(key, key)
+        if key in REMOVED_NAMES:
+            raise SystemExit(
+                f"parameter {key!r} no longer exists: the term it weighted was "
+                f"removed after it measured as having no effect or a negative "
+                f"one. See docs/04-parameters.md."
+            )
         current = getattr(params, key, None)
         if current is None and key not in Params.__dataclass_fields__:
             raise SystemExit(f"unknown parameter: {key}")

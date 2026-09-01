@@ -369,3 +369,25 @@ def test_uncorroborated_mode_restores_the_old_trigger():
     assert monitor.detect_deadlocked_groups(sim.robots, 100)
 
 
+
+
+def test_the_report_summary_prints_only_fields_that_exist():
+    """`print(report)` is the CLI's whole output, and nothing covered it.
+
+    `summary_lines` referenced three metrics that had been deleted with the
+    aisle-direction layer, so every `main.py run` ended in an AttributeError
+    while the test suite stayed green -- the suite only ever read fields off
+    the report, never rendered it.
+    """
+    params = ablation("full_lda_pibt", Params(seed=0))
+    wh = Warehouse.from_file("maps/warehouse_small.map", params)
+    sim = build_simulator(wh, 4, params)
+    report = sim.run(max_timesteps=30)
+
+    text = str(report)
+    assert "throughput" in text
+    assert "collision free" in text
+    # Every line must be "label : value" with a value that actually rendered.
+    for line in report.summary_lines():
+        assert ":" in line, line
+        assert line.split(":", 1)[1].strip(), f"empty value in {line!r}"

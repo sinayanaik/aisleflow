@@ -13,7 +13,7 @@ Tasks delivered per timestep, against every planner we can compare with.
 | Token Passing + recovery | 0.010 | 0.000 | 0.008 |
 | RHCR | 0.011 | 0.001 | 0.014 |
 
-*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `b00ff91`.*
+*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `2e7b6fc`.*
 <!-- /generated:headline -->
 
 **Read the baselines honestly.** Token Passing and RHCR score close to zero on
@@ -39,7 +39,7 @@ configuration is not the best on any of them**:
 | + crowding | 0.147 | 0.178 | 0.309 | 0.426 |
 | + deadlock recovery (full) | 0.147 | 0.153 | 0.291 | 0.416 |
 
-*Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `b00ff91`.*
+*Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `2e7b6fc`.*
 <!-- /generated:ladder -->
 
 On `bottleneck` and `corridors` — narrow, one-cell corridors with real
@@ -147,7 +147,7 @@ is better without it.
 | recovery | `recovery_max_level=3` | +4.2% | 0.061 | — |
 | recovery | `recovery` | +4.2% | 0.061 | — |
 
-*24 variants, 10 seeds, 400 steps, 4 maps. Effect is the change in throughput from removing the knob, so a positive number means the planner is better without it. Paired sign-flip test; git `5f68d90`.*
+*24 variants, 10 seeds, 400 steps, 4 maps. Effect is the change in throughput from removing the knob, so a positive number means the planner is better without it. Paired sign-flip test; git `2e7b6fc`.*
 <!-- /generated:sensitivity -->
 
 ### Caveats worth stating

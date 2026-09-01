@@ -163,3 +163,37 @@ def test_unknown_route_is_404(base_url):
     with pytest.raises(urllib.error.HTTPError) as excinfo:
         urllib.request.urlopen(base_url + "/api/nope")
     assert excinfo.value.code == 404
+
+
+# ------------------------------------------------------------------ the CLI
+def test_the_cli_resolves_pre_simplification_parameter_names():
+    """`--set lambda_turn=1` must work; the docs promise it does.
+
+    `Params` accepts the old names through `LEGACY_NAMES`, but the CLI
+    validated the key against the live fields *before* that expansion ran, so
+    every legacy name was rejected at the one place people actually meet it.
+    """
+    import argparse
+
+    from lda_pibt.cli import _params_from_args
+
+    args = argparse.Namespace(
+        seed=0, timesteps=10, set=["lambda_turn=1.5", "alpha_progress=7"]
+    )
+    params = _params_from_args(args, "full_lda_pibt")
+    assert params.turn_penalty == 1.5
+    assert params.progress_reward == 7.0
+
+
+def test_the_cli_explains_a_parameter_that_was_removed():
+    import argparse
+
+    import pytest as _pytest
+
+    from lda_pibt.cli import _params_from_args
+
+    args = argparse.Namespace(seed=0, timesteps=10, set=["zeta_counterflow=8"])
+    with _pytest.raises(SystemExit) as excinfo:
+        _params_from_args(args, "full_lda_pibt")
+    assert "no longer exists" in str(excinfo.value)
+    assert "docs/04-parameters.md" in str(excinfo.value)

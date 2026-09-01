@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-09-01T07:55:17.465819</dc:date>
+    <dc:date>2026-09-01T08:37:14.699366</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -102,7 +102,7 @@ L 270.91245 109.460099
 L 270.91245 191.927173 
 L 98.81255 191.927173 
 z
-" clip-path="url(#p1808abef10)" style="fill: #b0c9e5; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #b0c9e5; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 281.89755 109.460099 
@@ -110,7 +110,7 @@ L 453.99745 109.460099
 L 453.99745 191.927173 
 L 281.89755 191.927173 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 464.98255 109.460099 
@@ -118,7 +118,7 @@ L 637.08245 109.460099
 L 637.08245 191.927173 
 L 464.98255 191.927173 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
     <path d="M 648.06755 109.460099 
@@ -126,7 +126,7 @@ L 820.16745 109.460099
 L 820.16745 191.927173 
 L 648.06755 191.927173 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
     <path d="M 98.81255 203.172683 
@@ -134,7 +134,7 @@ L 270.91245 203.172683
 L 270.91245 285.639757 
 L 98.81255 285.639757 
 z
-" clip-path="url(#p1808abef10)" style="fill: #8fb5e1; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #8fb5e1; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_8">
     <path d="M 281.89755 203.172683 
@@ -142,7 +142,7 @@ L 453.99745 203.172683
 L 453.99745 285.639757 
 L 281.89755 285.639757 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_9">
     <path d="M 464.98255 203.172683 
@@ -150,7 +150,7 @@ L 637.08245 203.172683
 L 637.08245 285.639757 
 L 464.98255 285.639757 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_10">
     <path d="M 648.06755 203.172683 
@@ -158,7 +158,7 @@ L 820.16745 203.172683
 L 820.16745 285.639757 
 L 648.06755 285.639757 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_11">
     <path d="M 98.81255 296.885267 
@@ -166,7 +166,7 @@ L 270.91245 296.885267
 L 270.91245 379.352341 
 L 98.81255 379.352341 
 z
-" clip-path="url(#p1808abef10)" style="fill: #e9c9c7; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #e9c9c7; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_12">
     <path d="M 98.81255 390.597851 
@@ -174,7 +174,7 @@ L 270.91245 390.597851
 L 270.91245 473.064925 
 L 98.81255 473.064925 
 z
-" clip-path="url(#p1808abef10)" style="fill: #e8c3c1; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #e8c3c1; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_13">
     <path d="M 281.89755 390.597851 
@@ -182,7 +182,7 @@ L 453.99745 390.597851
 L 453.99745 473.064925 
 L 281.89755 473.064925 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_14">
     <path d="M 464.98255 390.597851 
@@ -190,7 +190,7 @@ L 637.08245 390.597851
 L 637.08245 473.064925 
 L 464.98255 473.064925 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_15">
     <path d="M 648.06755 390.597851 
@@ -198,7 +198,7 @@ L 820.16745 390.597851
 L 820.16745 473.064925 
 L 648.06755 473.064925 
 z
-" clip-path="url(#p1808abef10)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+" clip-path="url(#p32c8e0fb45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
    </g>
    <g id="text_9">
     <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="138.454651" transform="rotate(-0 184.8625 138.454651)">1.22x</text>
@@ -380,11 +380,11 @@ z
    <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 57.95415)">and behind on the two open ones -- and at five seeds only the two losses clear p &lt; 0.05.</text>
   </g>
   <g id="text_66">
-   <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #898781" x="14.004" y="497.845719" transform="rotate(-0 14.004 497.845719)">5 seeds x 400 timesteps, Poisson arrivals, generated 2026-09-01T07:18:59Z from aisleflow @ b00ff91 by experiments/run_all.py</text>
+   <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #898781" x="14.004" y="497.845719" transform="rotate(-0 14.004 497.845719)">5 seeds x 400 timesteps, Poisson arrivals, generated 2026-09-01T08:05:06Z from aisleflow @ 2e7b6fc by experiments/run_all.py</text>
   </g>
  </g>
  <defs>
-  <clipPath id="p1808abef10">
+  <clipPath id="p32c8e0fb45">
    <rect x="93.32" y="103.837344" width="732.34" height="374.850336"/>
   </clipPath>
  </defs>

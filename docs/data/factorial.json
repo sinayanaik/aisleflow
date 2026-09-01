@@ -16,8 +16,8 @@
         "rate": 1.5
       }
     ],
-    "git_sha": "7007ca5",
-    "generated_utc": "2026-09-01T07:48:25Z",
+    "git_sha": "2e7b6fc",
+    "generated_utc": "2026-09-01T08:35:35Z",
     "generator": "experiments/run_all.py"
   },
   "rows": [
@@ -69,8 +69,8 @@
           "pibt_backtracks_sd": 101.78654135002328,
           "candidate_evaluations": 23605.0,
           "candidate_evaluations_sd": 1172.1699962036223,
-          "mean_runtime_ms_per_step": 0.6714193600032559,
-          "mean_runtime_ms_per_step_sd": 0.024350382128426645
+          "mean_runtime_ms_per_step": 0.6369173560333365,
+          "mean_runtime_ms_per_step_sd": 0.01181987016533261
         },
         "a": {
           "variant": "congestion_only",
@@ -112,8 +112,8 @@
           "pibt_backtracks_sd": 39.1279950930277,
           "candidate_evaluations": 24055.4,
           "candidate_evaluations_sd": 511.92265040726613,
-          "mean_runtime_ms_per_step": 1.7081999940091919,
-          "mean_runtime_ms_per_step_sd": 0.038673293273843445
+          "mean_runtime_ms_per_step": 1.6096249310267012,
+          "mean_runtime_ms_per_step_sd": 0.033569511277742006
         },
         "b": {
           "variant": "recovery_only",
@@ -155,8 +155,8 @@
           "pibt_backtracks_sd": 1419.6961998963018,
           "candidate_evaluations": 23347.2,
           "candidate_evaluations_sd": 625.0525577901429,
-          "mean_runtime_ms_per_step": 0.72061042849964,
-          "mean_runtime_ms_per_step_sd": 0.012115289365921789
+          "mean_runtime_ms_per_step": 0.6827156470053524,
+          "mean_runtime_ms_per_step_sd": 0.008450452894231974
         },
         "both": {
           "variant": "full_lda_pibt",
@@ -198,8 +198,8 @@
           "pibt_backtracks_sd": 238.96861718644146,
           "candidate_evaluations": 24174.8,
           "candidate_evaluations_sd": 576.2232206358921,
-          "mean_runtime_ms_per_step": 1.7051845385108209,
-          "mean_runtime_ms_per_step_sd": 0.09650219299631754
+          "mean_runtime_ms_per_step": 1.6406416520021594,
+          "mean_runtime_ms_per_step_sd": 0.07720028630884863
         }
       },
       "decomposition": {
@@ -287,8 +287,8 @@
           "pibt_backtracks_sd": 97.56126280445534,
           "candidate_evaluations": 34835.0,
           "candidate_evaluations_sd": 155.8797613547057,
-          "mean_runtime_ms_per_step": 0.8698312884976076,
-          "mean_runtime_ms_per_step_sd": 0.04277417024704809
+          "mean_runtime_ms_per_step": 0.8155372379842447,
+          "mean_runtime_ms_per_step_sd": 0.007714442428940836
         },
         "a": {
           "variant": "congestion_only",
@@ -330,8 +330,8 @@
           "pibt_backtracks_sd": 83.95951405290529,
           "candidate_evaluations": 35688.4,
           "candidate_evaluations_sd": 457.04955967597215,
-          "mean_runtime_ms_per_step": 2.5275185874820636,
-          "mean_runtime_ms_per_step_sd": 0.07464471253587175
+          "mean_runtime_ms_per_step": 2.4446493105024274,
+          "mean_runtime_ms_per_step_sd": 0.05337293703855739
         },
         "b": {
           "variant": "recovery_only",
@@ -373,8 +373,8 @@
           "pibt_backtracks_sd": 102.23257797786378,
           "candidate_evaluations": 34933.0,
           "candidate_evaluations_sd": 136.61442090789683,
-          "mean_runtime_ms_per_step": 0.8665478214948052,
-          "mean_runtime_ms_per_step_sd": 0.013164854056169342
+          "mean_runtime_ms_per_step": 0.8546272390231024,
+          "mean_runtime_ms_per_step_sd": 0.006165177591019591
         },
         "both": {
           "variant": "full_lda_pibt",
@@ -416,8 +416,8 @@
           "pibt_backtracks_sd": 63.29454952837566,
           "candidate_evaluations": 35797.8,
           "candidate_evaluations_sd": 629.3470425766693,
-          "mean_runtime_ms_per_step": 2.5360769239905494,
-          "mean_runtime_ms_per_step_sd": 0.05534021342374241
+          "mean_runtime_ms_per_step": 2.4904415385108223,
+          "mean_runtime_ms_per_step_sd": 0.03852350972868199
         }
       },
       "decomposition": {

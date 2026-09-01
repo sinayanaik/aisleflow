@@ -26,8 +26,8 @@
         "rate": 1.5
       }
     ],
-    "git_sha": "7007ca5",
-    "generated_utc": "2026-09-01T07:46:27Z",
+    "git_sha": "2e7b6fc",
+    "generated_utc": "2026-09-01T08:33:38Z",
     "generator": "experiments/run_all.py"
   },
   "rows": [
