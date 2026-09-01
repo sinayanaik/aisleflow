@@ -243,8 +243,7 @@ def run_factorial_table(
 ) -> Dict[str, Any]:
     """Run one 2x2 factorial (spec-ladder de-confounding) and decompose it.
 
-    Each of the ladder's three bundled steps (lifelong_pibt->directional_pibt,
-    hysteresis_pibt->aisle_managed_pibt, aisle_managed_pibt->full_lda_pibt)
+    The ladder's remaining bundled step (lane_bonus_only->full_lda_pibt)
     flips two flags together, so its throughput delta cannot be attributed to
     either flag. This runs all four corners of the corresponding 2x2 design
     (`config.FACTORIAL_DESIGNS`) and reports, for each field in
@@ -419,84 +418,82 @@ HYPOTHESES: Tuple[Hypothesis, ...] = (
     Hypothesis(
         key="H1",
         claim=(
-            "Aisle-level direction control improves throughput in narrow aisles "
-            "under dense traffic, when direction is a soft ranking term on "
-            "straight-run aisles with a starvation-free signal."
+            "Rewarding a robot for staying in the lane it is already in "
+            "reduces head-on encounters in single-file corridors."
         ),
-        treatment="aisle_direction_only",
-        control="hysteresis_pibt",
-        metric="aisle_throughput_per_1000",
-        better="higher",
+        treatment="lane_bonus_only",
+        control="turning_cost_only",
+        metric="head_on_conflicts",
+        better="lower",
         secondary=("throughput", "mean_service_time"),
     ),
     Hypothesis(
         key="H2",
         claim=(
-            "Hysteresis reduces direction switching and prevents oscillation, "
-            "without reintroducing starvation."
+            "Pricing crowding into the movement score raises throughput, by "
+            "steering robots out of jams before they form."
         ),
-        treatment="aisle_direction_only",
-        control="aisle_direction_only",
-        control_overrides=(("hysteresis", False),),
-        control_label="no dead band, no minimum lock",
-        metric="direction_switches_per_1000",
-        better="lower",
-        secondary=("throughput", "starvation_flips"),
+        treatment="full_lda_pibt",
+        control="full_lda_pibt",
+        control_overrides=(("congestion_scoring", False),),
+        control_label="no crowding term in the movement score",
+        metric="throughput",
+        better="higher",
+        secondary=("p95_service_time", "deadlocks_detected"),
     ),
     Hypothesis(
         key="H3",
         claim=(
-            "Entry capacity admission reduces head-on conflicts and deadlocks "
-            "in single-file aisles, independently of the direction mode."
+            "Pricing crowding into the task match raises throughput, by not "
+            "sending robots into the busiest part of the map for a task."
         ),
-        treatment="reservations_only",
-        control="hysteresis_pibt",
-        metric="head_on_conflicts",
-        better="lower",
-        secondary=("deadlocks_detected", "throughput"),
+        treatment="full_lda_pibt",
+        control="full_lda_pibt",
+        control_overrides=(("congestion_assignment", False),),
+        control_label="no crowding term in the assignment cost",
+        metric="throughput",
+        better="higher",
+        secondary=("mean_service_time", "jain_fairness"),
     ),
     Hypothesis(
         key="H4",
         claim=(
-            "Congestion-aware task assignment cuts mean and tail service time, "
-            "separately from the congestion penalty in movement scoring."
+            "Requiring a wait-for cycle or a repeated configuration before "
+            "escalating recovery beats treating any lack of progress as a "
+            "deadlock: ordinary queueing is not a jam."
         ),
-        treatment="congestion_assignment_only",
-        control="aisle_managed_pibt",
-        metric="mean_service_time",
-        better="lower",
-        secondary=("p95_service_time", "throughput"),
+        treatment="recovery_only",
+        control="recovery_uncorroborated",
+        metric="throughput",
+        better="higher",
+        secondary=("deadlocks_detected", "deadlocks_unrecovered"),
     ),
     Hypothesis(
         key="H5",
         claim=(
-            "Proximity-dependent direction weights improve waypoint arrival: "
-            "decaying beta as a robot nears its waypoint lets preference yield "
-            "to arrival."
+            "Stopping the recovery ladder before its strongest remedies beats "
+            "running all of them: tearing up routes costs more than the jam."
         ),
-        treatment="aisle_direction_only",
-        control="aisle_direction_only",
-        control_overrides=(("r_near", 8), ("r_far", 8)),
-        control_label="no decay, beta at its ceiling throughout",
-        # `max_service_time` saturates against the run horizon, so it reports
-        # the same number for almost any configuration; p95 does not.
-        metric="p95_service_time",
-        better="lower",
-        secondary=("mean_service_time", "max_service_time", "throughput"),
+        treatment="full_lda_pibt",
+        control="recovery_full_ladder",
+        metric="throughput",
+        better="higher",
+        secondary=("deadlocks_unrecovered", "p95_service_time"),
     ),
     Hypothesis(
         key="H6",
         claim=(
-            "Localised progressive recovery beats a global replan, when it "
-            "escalates only on a corroborated stall signal."
+            "Charging for turns shortens the distance robots actually travel, "
+            "because a straight path through a corridor beats a zigzag."
         ),
-        treatment="recovery_only",
-        control="aisle_managed_pibt",
-        metric="throughput",
-        better="higher",
-        secondary=("deadlocks_recovered", "mean_service_time"),
+        treatment="turning_cost_only",
+        control="lifelong_pibt",
+        metric="total_travel_distance",
+        better="lower",
+        secondary=("throughput", "mean_service_time"),
     ),
 )
+
 
 def run_hypothesis_table(
     map_path: str | Path,

@@ -363,6 +363,9 @@ SENSITIVITY: Tuple[SensitivityVariant, ...] = (
     # -- 3. priority p_i(t) (priority.py) -----------------------------------
     SensitivityVariant("prio_no_waiting", "priority", "waiting_weight", dict(waiting_weight=0.0)),
     SensitivityVariant("prio_no_inside_aisle", "priority", "priority_inside_aisle", dict(priority_inside_aisle=0.0)),
+    #: Does the five-way job-class ranking do anything, or is it only the
+    #: waiting clock that ever decides the order?
+    SensitivityVariant("prio_flat_classes", "priority", "priority_class_spread", dict(priority_class_spread=0.0)),
     #: Does the five-way task class ranking do anything, or is it only the
     #: waiting/blocked terms that ever decide the order?
 
@@ -386,8 +389,6 @@ SENSITIVITY: Tuple[SensitivityVariant, ...] = (
     SensitivityVariant("recovery_max_2", "recovery", "recovery_max_level=2", dict(recovery_max_level=2)),
     SensitivityVariant("recovery_max_3", "recovery", "recovery_max_level=3", dict(recovery_max_level=3)),
     SensitivityVariant("recovery_max_4", "recovery", "recovery_max_level=4", dict(recovery_max_level=4)),
-    SensitivityVariant("recovery_max_5", "recovery", "recovery_max_level=3", dict(recovery_max_level=3)),
-    SensitivityVariant("recovery_max_6", "recovery", "recovery_max_level=4", dict(recovery_max_level=4)),
     SensitivityVariant("recovery_off", "recovery", "recovery", dict(recovery=False)),
     SensitivityVariant("recovery_uncorroborated", "recovery", "require_deadlock_corroboration", dict(require_deadlock_corroboration=False)),
     SensitivityVariant("recovery_stall_threshold_short", "recovery", "stall_steps", dict(stall_steps=5)),
