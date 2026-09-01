@@ -15,16 +15,17 @@ changed nothing was deleted rather than left at a default. The evidence is in
 Aisleflow is measured against three published lifelong planners, each
 implemented from its paper: **Token Passing** and **Token Passing with Task
 Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). It leads on
-all four floors at the robot counts above — but the comparison that carries
-information is the [density sweep](docs/05-results.md), which shows all four
-planners level on a quiet floor and separating as it fills. Token Passing is
-complete only on *well-formed* MAPD instances, meaning one parking endpoint
-per agent, and none of these maps provides that at these robot counts; that
-assumption running out is what the curves show.
+the three aisle-constrained floors and **loses to RHCR on the open one**.
+Token Passing falls away as the floor fills, for a reason its own paper
+gives: it is complete only on *well-formed* MAPD instances — one parking
+endpoint per agent — and none of these maps provides that at these robot
+counts. [The density sweep](docs/05-results.md) shows all four planners level
+on a quiet floor and separating as it crowds, which is the honest shape of the
+comparison.
 
-The comparison that decides whether this project earned anything is not
-against those three at all. It is against the plain lifelong PIBT it extends,
-where it wins two floors and loses two — see
+None of that is the comparison that decides whether this project earned
+anything. That one is against the plain lifelong PIBT it extends, where it
+wins two floors and loses two — see
 [the ablation ladder](docs/05-results.md).
 
 ## Documentation

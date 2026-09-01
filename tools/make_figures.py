@@ -288,6 +288,17 @@ def save(fig, name: str) -> Path:
 #: map" is a claim that needs the ladder next to it to be readable.
 AISLEFLOW = "full_lda_pibt"
 
+#: The published lifelong planners, in the order the comparison figure draws
+#: them. Plain lifelong PIBT is deliberately *not* here: it is aisleflow with
+#: its mechanisms switched off, so putting it in a chart headed "against the
+#: published planners" both misdescribes it and lets a reader read an ablation
+#: rung as a rival. It belongs to the ladder, which is where it appears.
+PUBLISHED_RIVALS = [
+    ("token_passing", "Token Passing"),
+    ("token_passing_task_swaps", "TP + task swaps"),
+    ("rhcr", "RHCR"),
+]
+
 
 def _row(payload: Dict[str, Any], map_name: str, variant: str):
     for row in payload["maps"][map_name]["rows"]:
@@ -345,6 +356,14 @@ def figure_vs_baselines():
                         textcoords="offset points", xytext=(0, 4), ha="center",
                         fontsize=8, color=INK,
                         fontweight="bold" if variant == AISLEFLOW else "normal")
+        # a bar at zero is the one bar a reader is entitled to an explanation
+        # for on the figure itself rather than three paragraphs away
+        for x, value in zip(centres, values):
+            if value <= 0:
+                ax.annotate("nothing\ndelivered †", (x, 0),
+                            textcoords="offset points", xytext=(0, 16),
+                            ha="center", va="bottom", fontsize=6.8,
+                            color=DIVERGING_LOW, rotation=90)
 
     ax.set_xticks(range(len(maps)))
     ax.set_xticklabels(
@@ -362,6 +381,28 @@ def figure_vs_baselines():
     strip_frame(ax)
     value_grid(ax, axis="y")
 
+    # the shutouts, named with the map's own numbers rather than asserted
+    sys.path.insert(0, str(ROOT / "src"))
+    from lda_pibt.warehouse import Warehouse
+
+    shutouts = sorted({
+        short_map(m)
+        for m in maps for v, _ in series
+        if (_throughput(payload, m, v) or (1,))[0] <= 0
+    })
+    footnote = ""
+    if shutouts:
+        worst = f"warehouse_{shutouts[0]}"
+        bays = len(Warehouse.from_file(ROOT / "maps" / f"{worst}.map").parking_vertices)
+        footnote = (
+            f"\n† A Token Passing agent with no task rests where it stopped, and "
+            f"`{shutouts[0]}` offers {bays} parking bays for "
+            f"{payload['maps'][worst]['robots']} agents. Every one of its "
+            f"single-file runs has\nan agent standing in it before the first "
+            f"task is handed out, so no path across the map can be planned at "
+            f"all. This is the completeness assumption failing, not a tie-break."
+        )
+
     top = header(
         fig,
         "Aisleflow against the three published lifelong planners",
@@ -372,8 +413,9 @@ def figure_vs_baselines():
         "problem, named under its bars; compare planners within a map.\n"
         "Token Passing and TPTS are complete only on well-formed MAPD "
         "instances -- one parking endpoint per agent -- which none of these "
-        "floors provides at these robot counts.\nThe next figure sweeps the "
-        "robot count and shows where that assumption starts to bite.",
+        "floors provides at these robot counts. The next figure sweeps\nthe "
+        "robot count and shows where that assumption starts to bite."
+        + footnote,
     )
     caption(fig, provenance(payload))
     fig.tight_layout(rect=(0, 0.028, 1, top))

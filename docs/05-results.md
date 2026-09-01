@@ -19,10 +19,26 @@ Three published lifelong (MAPD) planners, each implemented from its paper in
 ![Throughput per map for aisleflow against Token Passing, TPTS and RHCR, with bootstrap intervals over five seeds](figures/01-vs-baselines.svg)
 
 <!-- generated:headline -->
+| Planner | bottleneck | corridors | narrow | medium |
+| --- | ---: | ---: | ---: | ---: |
+| **Aisleflow (shipped configuration)** | 0.147 | 0.153 | 0.291 | 0.416 |
+| Token Passing (Ma et al. 2017, Alg. 1) | 0.093 | 0.000 | 0.028 | 0.085 |
+| TP + task swaps (Ma et al. 2017, Alg. 2) | 0.050 | 0.000 | 0.018 | 0.045 |
+| RHCR (Li et al. 2021, PBS) | 0.100 | 0.128 | 0.178 | 0.478 |
+| Plain lifelong PIBT (ablation reference) | 0.127 | 0.131 | 0.354 | 0.502 |
+
+*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `ef0910e`.*
 <!-- /generated:headline -->
 
-**What to look for:** aisleflow leads on all four floors at these robot
-counts. That is a weaker claim than it looks, and the next figure is why.
+**What to look for:** aisleflow leads on the three floors where every route
+crosses a chokepoint, and **RHCR beats it on the open one** — 478 tasks per
+1000 timesteps against 416 on `medium`. Token Passing delivers nothing at all
+on `corridors`, which is a fact about that map rather than about the
+algorithm: it has no parking bays, so with 35 agents every one of its five
+single-file runs has an idle agent standing in it before the first task is
+handed out.
+
+That whole chart is a weaker claim than it looks, and the next figure is why.
 
 ## …and what that comparison is worth
 
@@ -219,11 +235,20 @@ is better without it.
 
 ```bash
 pip install -r requirements-dev.txt
-python3 experiments/run_sensitivity.py --seeds 10 --jobs 4   # ~4 min
-python3 experiments/run_all.py --seeds 5                     # ~30 min
+python3 experiments/run_sensitivity.py --seeds 10 --jobs 4
+python3 experiments/run_all.py --only ablation hypotheses paired factorial --seeds 5
+python3 experiments/run_all.py --only baselines --seeds 5 --jobs 4
+python3 experiments/run_all.py --only density  --seeds 3 --jobs 4
 python3 tools/make_docs_tables.py                            # refresh this page
 python3 tools/make_figures.py
 ```
+
+The `baselines` and `density` suites are the slow ones by two orders of
+magnitude, and they are slow for a reason worth knowing: Token Passing runs a
+space-time A\* per agent per task, and on a floor where most agents cannot
+reach any task it runs one per agent per *timestep* and fails. That is the
+algorithm doing what its paper says, so it is left alone and given `--jobs`
+instead. Budget an hour or two for those two; the rest is a few minutes.
 
 Every dataset in `docs/data/` carries a `meta` block with the git SHA, the
 seeds, the horizon and the exact scenarios, so any row here can be traced to
@@ -234,11 +259,14 @@ the run that produced it.
 Side-by-side runs sharing a map, a seed, a robot count and a job stream, and
 differing only in the planner. Red means a robot has not moved for 15 steps.
 
-![Token Passing gridlocks in a one-corridor map while aisleflow drains the same queue](gifs/01-token-passing-gridlock.gif)
+![Token Passing's idle robots resting in the one corridor, against PIBT pushing through the same queue](gifs/01-token-passing-gridlock.gif)
 
-Four more — the turning cost on a tight floor, RHCR stalling the same way Token
-Passing does, what the deadlock corroboration rule is worth, and the open-map
-case this planner loses — are in **[gifs/README.md](gifs/README.md)**, each with
-its narration written out beat by beat.
+Four more — the turning cost on a tight floor, RHCR keeping pace by replanning
+a window instead of pushing, what the deadlock corroboration rule is worth,
+and the open-map case this planner loses — are in
+**[gifs/README.md](gifs/README.md)**, each with its narration written out beat
+by beat. Every number quoted in a caption is looked up from `docs/data/` when
+the animation is rendered, so a regenerated dataset cannot leave the narration
+behind.
 
 Rebuild with `python3 tools/make_gifs.py`.
