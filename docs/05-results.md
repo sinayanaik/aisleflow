@@ -2,54 +2,62 @@
 
 Five figures carry this page, and each one is generated from `docs/data/` by
 `tools/make_figures.py`, so nothing here is drawn by hand or left behind when
-the planner changes.
+the planner changes. [Page 06](06-the-maps.md) says what the maps are; every
+number below is a number about one of them.
 
-## The headline
+## Against the published planners
 
-![Aisleflow against every rival planner, one cell per rival per map, as a ratio and a verdict](figures/01-vs-baselines.svg)
+Three published lifelong (MAPD) planners, each implemented from its paper in
+`src/lda_pibt/baselines/`:
 
-**What to look for:** the three left-hand columns are published planners, and
-aisleflow wins every cell against them. The right-hand column is the plain PIBT
-it extends, and there it wins two maps and loses two — that column is the
-honest comparison, and the rest of this page is about it.
+| | |
+| --- | --- |
+| **Token Passing** (TP) | Ma, Li, Kumar & Koenig, AAMAS 2017, Algorithm 1. A shared token holds the task set, the assignment and every agent's path. An agent that reaches the end of its path takes the nearest task whose endpoints nobody is resting on, plans one path through pickup and delivery against the token, and follows it without replanning. |
+| **TP with Task Swaps** (TPTS) | The same paper, Algorithm 2. An agent may take a task already assigned to another agent that has not yet picked it up, if it would reach the pickup sooner. |
+| **RHCR** | Li, Tinka, Kiesel, Durham, Kumar & Koenig, AAAI 2021. Replan every `h` steps over a `w`-step window, resolving collisions only inside that window, with PBS as the solver — the choice that paper uses by default. |
 
-Tasks delivered per timestep, against every planner we can compare with.
+![Throughput per map for aisleflow against Token Passing, TPTS and RHCR, with bootstrap intervals over five seeds](figures/01-vs-baselines.svg)
 
 <!-- generated:headline -->
-| Planner | bottleneck | corridors | medium |
-| --- | ---: | ---: | ---: |
-| **Aisleflow (shipped configuration)** | 0.147 | 0.153 | 0.416 |
-| Token Passing (Ma et al. 2017, Alg. 1) | 0.007 | 0.000 | 0.004 |
-| TP + task swaps (Ma et al. 2017, Alg. 2) | — | — | — |
-| RHCR (Li et al. 2021, PBS) | 0.011 | 0.001 | 0.014 |
-| Plain lifelong PIBT (ablation reference) | 0.127 | 0.131 | 0.502 |
-
-*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `b00ff91`.*
 <!-- /generated:headline -->
 
-![Throughput per map for aisleflow, plain lifelong PIBT and both published baselines, with a permutation test on each bar](figures/02-per-map-throughput.svg)
+**What to look for:** aisleflow leads on all four floors at these robot
+counts. That is a weaker claim than it looks, and the next figure is why.
 
-**What to look for:** the same numbers as the table above, with their
-uncertainty. The blue bar is aisleflow, the orange one is the plain PIBT it
-extends, and the two grey stubs are the published baselines.
+## …and what that comparison is worth
 
-**Read the baselines honestly.** Token Passing and RHCR score close to zero on
-these maps. That is not a scalp: both are published algorithms that starve
-here, because a robot whose space-time search fails simply waits, and in dense
-lifelong traffic it keeps failing. The comparison that carries information is
-the **plain lifelong PIBT** row — same collision resolution, none of the
-scoring, matching or recovery machinery. That is the number to judge this
-planner by.
+![Throughput against robot count for every planner on two maps, showing where each one stops scaling](figures/02-throughput-vs-robots.svg)
+
+A single bar chart measures a planner at one point on a curve. Sweep the
+robot count instead and the shape of the comparison changes completely: on a
+quiet floor all four planners deliver within noise of each other, and they
+separate as the floor fills.
+
+**Why Token Passing falls away.** Ma et al. prove TP complete on *well-formed*
+MAPD instances — every agent has a parking endpoint to rest at, and any two
+endpoints are joined by a path traversing no other endpoint. An idle Token
+Passing agent stays where it finished. On a floor with one-cell-wide aisles
+and two parking bays for thirty agents, where it finished is in somebody's
+way, and enough idle agents cut the warehouse into pieces that no path
+crosses. `warehouse_corridors` has **no** parking bays at all
+([page 06](06-the-maps.md)). That is the assumption failing, not the
+implementation: at five robots on `warehouse_narrow` TP delivers as much as
+aisleflow does.
+
+PIBT has no such assumption, because it never plans a path it has to reserve.
+A blocked robot lends its rank to the robot in its way and pushes; an idle
+robot in a corridor is displaced by the first busy robot that needs the cell.
+**That difference — not the scoring terms, not the crowding model, not the
+recovery ladder — is what the left-hand ends of those curves are measuring.**
+It is a property of PIBT, which this project did not invent.
+
+So: the comparison against these three establishes that the planner is in the
+right league and inherits PIBT's robustness to density. It does not establish
+that anything *this project added* was worth adding. For that, the reference
+has to be plain lifelong PIBT — aisleflow with every one of its mechanisms
+switched off — and that comparison is the rest of this page.
 
 ## The finding that matters most
-
-![Where aisleflow beats plain lifelong PIBT and where it does not: per-map margins with intervals, and every configuration on every map](figures/03-where-it-wins.svg)
-
-**What to look for:** the left panel is the whole argument in four bars — blue
-above the line on the two aisle-constrained floors, red below it on the two
-open ones. The right panel is the same comparison for every configuration, so
-you can check that the left panel's "best config per map" was not cherry-picked
-out of a grid that says something else.
 
 Every mechanism this planner adds on top of plain lifelong PIBT helps on a
 tight floor and hurts on an open one. Across the four maps, **the full
@@ -67,21 +75,21 @@ configuration is not the best on any of them**:
 *Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `ef0910e`.*
 <!-- /generated:ladder -->
 
-![The ablation ladder: one panel per map, each rung adding one mechanism, with the best rung on each map marked](figures/04-ablation-ladder.svg)
+![The ablation ladder: one panel per map, each rung adding one mechanism, with the best rung on each map marked](figures/03-ablation-ladder.svg)
 
 **What to look for:** read each panel top to bottom — every rung adds one
 mechanism. If more were always better, the green "best here" marker would sit
 on the bottom rung of all four panels. It sits there on none of them.
 
-On `bottleneck` and `corridors` — narrow, one-cell corridors with real
-chokepoints — the extra terms buy 16–50% over plain PIBT. On `narrow` and
-`medium`, which are open floors with room to go around, plain PIBT wins by
-20–30% and every addition costs.
+On `bottleneck` and `corridors` the extra terms buy 16–50% over plain PIBT.
+Both have a chokepoint every route crosses: one six-cell corridor joining the
+halves, or five 22-cell single-file runs. On `narrow` and `medium` there is
+more than one way round, plain PIBT wins by 20–30%, and every addition costs.
 
 This is not a defect to hide; it is the most useful thing the study produced.
 It says the machinery is *congestion machinery*, and it earns its keep exactly
-where congestion is the binding constraint. On an open floor, getting out of
-the robots' way is the better strategy.
+where congestion is the binding constraint. Where there is a way round,
+getting out of the robots' way is the better strategy.
 
 **Practical consequence:** pick the configuration for the floor, not the other
 way round. `turning_cost_only` is the best single choice for tight maps,
@@ -147,7 +155,7 @@ measured per corridor.
 
 ## Every knob, measured
 
-![The twelve largest parameter effects, ranked by what neutralising each knob costs in throughput](figures/05-knobs.svg)
+![The twelve largest parameter effects, ranked by what neutralising each knob costs in throughput](figures/04-knobs.svg)
 
 **What to look for:** the bars that reach far left are the parameters the
 planner cannot do without — the progress reward, the deadlock corroboration

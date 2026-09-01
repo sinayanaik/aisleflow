@@ -115,13 +115,9 @@ class MetricsReport:
             f"{self.mean_service_time:.1f} / {self.median_service_time:.1f} / "
             f"{self.p95_service_time:.1f}",
             f"max service time          : {self.max_service_time:.0f}",
+            f"released tasks            : {self.released_tasks}",
             f"travel distance (total)   : {self.total_travel_distance}",
-            f"direction switches /1000  : {self.direction_switches_per_1000:.2f} "
-            f"({self.starvation_flips} forced by max green)",
-            f"aisle throughput /1000    : {self.aisle_throughput_per_1000:.1f} "
-            f"per managed aisle ({self.managed_aisles} aisles)",
             f"head-on conflicts         : {self.head_on_conflicts}",
-            f"counterflow moves         : {self.counterflow_moves}",
             f"deadlocks det/rec/unrec   : {self.deadlocks_detected} / "
             f"{self.deadlocks_recovered} / {self.deadlocks_unrecovered}",
             f"Jain fairness             : {self.jain_fairness:.4f}",
