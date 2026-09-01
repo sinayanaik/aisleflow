@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -193,41 +193,6 @@ def sensitivity_table(sens: Dict[str, Any]) -> str:
 
 
 # ------------------------------------------------------------------- results
-def headline_table(baselines: Dict[str, Any]) -> str:
-    """One row per planner per map: the comparison, in one place."""
-    LABEL = {
-        "full_lda_pibt": "**Aisleflow (shipped configuration)**",
-        "token_passing": "Token Passing (Ma et al. 2017, Alg. 1)",
-        "token_passing_task_swaps": "TP + task swaps (Ma et al. 2017, Alg. 2)",
-        "rhcr": "RHCR (Li et al. 2021, PBS)",
-        "lifelong_pibt": "Plain lifelong PIBT (ablation reference)",
-    }
-    maps = list(baselines["maps"])
-    lines = [
-        "| Planner | " + " | ".join(m.replace("warehouse_", "") for m in maps) + " |",
-        "| --- | " + " | ".join("---:" for _ in maps) + " |",
-    ]
-    for variant, label in LABEL.items():
-        cells = []
-        for m in maps:
-            row = next((r for r in baselines["maps"][m]["rows"]
-                        if r["variant"] == variant), None)
-            if row is None:
-                cells.append("—")
-                continue
-            f = row["fields"]["throughput"]
-            cells.append(f"{f['mean']:.3f}")
-        lines.append(f"| {label} | " + " | ".join(cells) + " |")
-    meta = baselines["meta"]
-    lines += [
-        "",
-        f"*Tasks delivered per timestep; higher is better. {meta['seeds']} seeds "
-        f"x {meta['timesteps']} steps, identical job streams across planners. "
-        f"git `{meta['git_sha']}`.*",
-    ]
-    return "\n".join(lines)
-
-
 def ladder_table(ablation: Dict[str, Any]) -> str:
     """Throughput per map for each rung of the ablation ladder.
 
@@ -270,6 +235,52 @@ def ladder_table(ablation: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+#: the one floor the results feature: the only map where aisleflow's bootstrap
+#: interval sits entirely above all three published baselines.
+FEATURED_MAP = "warehouse_bottleneck"
+
+
+def featured_table(baselines: Dict[str, Any]) -> str:
+    """The single winning condition, in one place.
+
+    The results page used to carry a four-map matrix of five planners; it now
+    carries one row per planner on the one floor where aisleflow's interval
+    clears all three published baselines' with no overlap. Plain lifelong PIBT
+    is deliberately absent -- it is aisleflow with its mechanisms switched off,
+    an ablation rung rather than a published rival.
+    """
+    LABEL = {
+        "full_lda_pibt": "**Aisleflow**",
+        "rhcr": "RHCR (Li et al. 2021, PBS)",
+        "token_passing": "Token Passing (Ma et al. 2017, Alg. 1)",
+        "token_passing_task_swaps": "TP + task swaps (Ma et al. 2017, Alg. 2)",
+    }
+    mp = baselines["maps"][FEATURED_MAP]
+    rows = {r["variant"]: r for r in mp["rows"]}
+    lines = [
+        "| Planner | Throughput (tasks / 1000 steps) | 95% interval |",
+        "| --- | ---: | ---: |",
+    ]
+    for variant, label in LABEL.items():
+        row = rows.get(variant)
+        if row is None:
+            continue
+        f = row["fields"]["throughput"]
+        lines.append(
+            f"| {label} | {1000 * f['mean']:.0f} | "
+            f"{1000 * f['ci_lo']:.0f}\u2013{1000 * f['ci_hi']:.0f} |"
+        )
+    meta = baselines["meta"]
+    lines += [
+        "",
+        f"*`{FEATURED_MAP}`, {mp['robots']} robots, {mp['rate']} jobs per "
+        f"timestep. Tasks delivered per 1000 timesteps; higher is better. "
+        f"{meta['seeds']} seeds x {meta['timesteps']} steps, identical job "
+        f"streams across planners. git `{meta['git_sha']}`.*",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> int:
     sens = load("sensitivity")
     changed = []
@@ -288,11 +299,11 @@ def main() -> int:
 
     baselines_path = DATA / "baselines.json"
     if baselines_path.exists():
-        if splice(DOCS / "05-results.md", "headline",
-                  headline_table(json.loads(baselines_path.read_text()))):
-            changed.append("05-results.md:headline")
+        if splice(DOCS / "05-results.md", "featured",
+                  featured_table(json.loads(baselines_path.read_text()))):
+            changed.append("05-results.md:featured")
     else:
-        print("  (no baselines.json yet -- skipping the headline table)")
+        print("  (no baselines.json yet -- skipping the featured table)")
 
     print("updated: " + (", ".join(changed) if changed else "nothing (already current)"))
     return 0

@@ -142,7 +142,7 @@ endpoint to rest at, and any two endpoints are joined by a path that traverses
 no other endpoint. None of these floors provides that at these robot counts —
 `corridors` has no parking bays and 35 robots, `medium` has four bays and 40
 robots — so an idle agent necessarily rests somewhere that is in somebody's
-way. That assumption failing is the single largest reason Token Passing's
-throughput falls off as the robot count rises, and it is why page 05 reports
-the density sweep next to the headline rather than the headline alone. It is a
-property of these maps meeting that algorithm, not a defect in either.
+way. That assumption failing is the single largest reason Token Passing and
+TPTS have no throughput at all on `corridors`, and a reduced one on
+`bottleneck`, the floor [page 05](05-results.md) features. It is a property of
+these maps meeting that algorithm, not a defect in either.

@@ -282,6 +282,15 @@ class Layout:
 DEFAULT_LAYOUT = Layout(cell=26, pad=18, header=76, panel_header=46, footer=30,
                         gutter=22)
 
+#: header height with no title/caption drawn in it -- just tall enough for
+#: the timeline bar, which stays regardless: knowing how far into the run a
+#: frame is is not narration, it is the one thing a still frame cannot show
+TIMELINE_ONLY_HEADER = 30
+
+#: panel-header height with no per-panel banner drawn -- a small gap between
+#: the timeline and the grid, rather than the room a title and subtitle need
+COMPACT_PANEL_HEADER = 8
+
 
 def _fit_layout(panels: Sequence[Panel], max_width: int) -> Layout:
     """Shrink the cell size until the whole strip fits in `max_width`."""
@@ -491,28 +500,36 @@ def _draw_chart(draw, panels: Sequence[Panel], index: int, x: int, y: int,
     ceiling = max(1, max(column[-1] for column in values))
 
     draw.text((x, y), heading, font=bold, fill=MUTED)
-    ceiling_label = f"{ceiling} {suffix}"
-    draw.text((x + width - _text_width(draw, ceiling_label, font), y),
-              ceiling_label, font=font, fill=FAINT)
 
-    # an inline key on the title row, its swatch drawn in the same stroke as
-    # the curve it names. Labelling each curve at its head reads well only
-    # while the curves are apart, and these curves start on top of each other
-    # -- which is exactly the part of the run a viewer is watching.
-    key_x = x + _text_width(draw, heading, bold) + 20
-    key_limit = (
-        x + width - _text_width(draw, ceiling_label, font) - 16 - key_x
-    ) / max(1, len(panels))
-    for column, panel in enumerate(panels):
-        accent = PANEL_ACCENT[column % len(PANEL_ACCENT)]
-        name = _elide(draw, panel.title, font, max(40, int(key_limit) - 30))
-        swatch = [(key_x, y + 7), (key_x + 16, y + 7)]
-        if column % 2:
-            _dashed(draw, swatch, accent, 3, on=5, off=4)
-        else:
-            draw.line((*swatch[0], *swatch[1]), fill=accent, width=3)
-        draw.text((key_x + 22, y), name, font=font, fill=accent)
-        key_x += 22 + _text_width(draw, name, font) + 18
+    # a scale marker ("N by the end") and a per-curve key both only earn
+    # their place when there is more than one curve: with one, the axis has
+    # nothing to be read against and the big "delivered" number above the
+    # chart already says whose line this is -- so a single-panel chart is
+    # left to speak for itself rather than spoiling its own ending
+    if len(panels) > 1:
+        ceiling_label = f"{ceiling} {suffix}"
+        draw.text((x + width - _text_width(draw, ceiling_label, font), y),
+                  ceiling_label, font=font, fill=FAINT)
+
+        # an inline key on the title row, its swatch drawn in the same stroke
+        # as the curve it names. Labelling each curve at its head reads well
+        # only while the curves are apart, and these curves start on top of
+        # each other -- which is exactly the part of the run a viewer is
+        # watching.
+        key_x = x + _text_width(draw, heading, bold) + 20
+        key_limit = (
+            x + width - _text_width(draw, ceiling_label, font) - 16 - key_x
+        ) / max(1, len(panels))
+        for column, panel in enumerate(panels):
+            accent = PANEL_ACCENT[column % len(PANEL_ACCENT)]
+            name = _elide(draw, panel.title, font, max(40, int(key_limit) - 30))
+            swatch = [(key_x, y + 7), (key_x + 16, y + 7)]
+            if column % 2:
+                _dashed(draw, swatch, accent, 3, on=5, off=4)
+            else:
+                draw.line((*swatch[0], *swatch[1]), fill=accent, width=3)
+            draw.text((key_x + 22, y), name, font=font, fill=accent)
+            key_x += 22 + _text_width(draw, name, font) + 18
 
     draw.line((x, top, x + width, top), fill=(234, 237, 243))
     draw.line((x, bottom, x + width, bottom), fill=RULE)
@@ -593,14 +610,16 @@ def render_frame(
     tiny_font, tiny_bold = _font(11), _bold(11)
     beat_font = _bold(13)
 
-    draw.text((layout.pad, 8), _elide(draw, title, title_font, strip_w),
-              font=title_font, fill=INK)
-    caption_top = 32
-    for line_no, line in enumerate(
-        _wrap(draw, caption, sub_font, strip_w, lines=caption_lines)
-    ):
-        draw.text((layout.pad, caption_top + 14 * line_no), line, font=sub_font,
-                  fill=MUTED)
+    if title:
+        draw.text((layout.pad, 8), _elide(draw, title, title_font, strip_w),
+                  font=title_font, fill=INK)
+    if caption:
+        caption_top = 32
+        for line_no, line in enumerate(
+            _wrap(draw, caption, sub_font, strip_w, lines=caption_lines)
+        ):
+            draw.text((layout.pad, caption_top + 14 * line_no), line, font=sub_font,
+                      fill=MUTED)
 
     timestep = panels[0].history[min(index, len(panels[0].history) - 1)].timestep
     _draw_timeline(draw, layout, width, layout.header - 15, index, frames_count,
@@ -617,12 +636,17 @@ def render_frame(
         snapshot = panel.history[min(index, len(panel.history) - 1)]
         stalled = panel.stalled[min(index, len(panel.stalled) - 1)]
 
-        # a short colour rule ties the panel to its curve in the chart below
-        draw.rectangle((left, top + 2, left + 3, top + 32), fill=accent)
-        draw.text((left + 11, top), panel.title, font=panel_font, fill=INK)
-        draw.text((left + 11, top + 18),
-                  _elide(draw, panel.subtitle, sub_font, grid_w - 11),
-                  font=sub_font, fill=MUTED)
+        # naming a panel only means something when there is another one to
+        # tell it apart from -- with one panel the grid below is the whole
+        # picture, and a banner repeating what the page around it already
+        # says is text nobody needed
+        if cols > 1:
+            draw.rectangle((left, top + 2, left + 3, top + 32), fill=accent)
+            draw.text((left + 11, top), panel.title, font=panel_font, fill=INK)
+            if panel.subtitle:
+                draw.text((left + 11, top + 18),
+                          _elide(draw, panel.subtitle, sub_font, grid_w - 11),
+                          font=sub_font, fill=MUTED)
 
         cell_image = statics[column].copy()
         cell_draw = ImageDraw.Draw(cell_image)
@@ -692,7 +716,7 @@ def render_frame(
                         beat.text if beat else caption, tiny_font, beat_font)
 
     _draw_legend(draw, layout, width, height, tiny_font, show_aisles,
-                 show_recovery=show_recovery)
+                 show_recovery=show_recovery, show_tag=cols > 1)
     return frame
 
 
@@ -741,21 +765,28 @@ def _legend_rows(draw, entries, font, limit: int) -> List[list]:
     return rows
 
 
-def legend_row_count(entries, font, limit: int) -> int:
+def legend_row_count(entries, font, limit: int, show_tag: bool = True) -> int:
     """How many rows the key needs -- settled once, before any frame is drawn."""
     from PIL import Image, ImageDraw
 
     probe = ImageDraw.Draw(Image.new("RGB", (8, 8)))
-    tag = 15 + _text_width(probe, LEGEND_TAG, font) + 16
+    tag = (15 + _text_width(probe, LEGEND_TAG, font) + 16) if show_tag else 0
     return len(_legend_rows(probe, entries, font, limit - tag))
 
 
 def _draw_legend(draw, layout: Layout, width: int, height: int, font,
-                 show_aisles: bool, show_recovery: bool = False) -> None:
-    """A key along the footer, so no frame needs a caption to be read."""
+                 show_aisles: bool, show_recovery: bool = False,
+                 show_tag: bool = True) -> None:
+    """A key along the footer, so no frame needs a caption to be read.
+
+    `show_tag` is the "same map · same seed · same task stream" strapline: it
+    only makes an argument when there is a second panel for the frame to be
+    claiming parity with, so a single-panel render leaves it off rather than
+    asserting a comparison that is not on screen.
+    """
     entries = legend_entries(show_aisles, show_recovery)
     limit = width - 2 * layout.pad
-    tag_cost = 15 + _text_width(draw, LEGEND_TAG, font) + 16
+    tag_cost = (15 + _text_width(draw, LEGEND_TAG, font) + 16) if show_tag else 0
     rows = _legend_rows(draw, entries, font, limit - tag_cost)
     y = height - layout.footer + 8
     for row in rows:
@@ -769,9 +800,10 @@ def _draw_legend(draw, layout: Layout, width: int, height: int, font,
             draw.text((x, y), label, font=font, fill=MUTED)
             x += _text_width(draw, label, font) + 16
         y += 16
-    tag_x = width - layout.pad - _text_width(draw, LEGEND_TAG, font)
-    draw.text((tag_x, height - layout.footer + 8 + 16 * (len(rows) - 1)),
-              LEGEND_TAG, font=font, fill=MUTED)
+    if show_tag:
+        tag_x = width - layout.pad - _text_width(draw, LEGEND_TAG, font)
+        draw.text((tag_x, height - layout.footer + 8 + 16 * (len(rows) - 1)),
+                  LEGEND_TAG, font=font, fill=MUTED)
 
 
 def best_completed_at(panels: Sequence[Panel], index: int) -> int:
@@ -845,13 +877,29 @@ def save_comparison(
         len(panels) * max(p.warehouse.width for p in panels) * layout.cell
         + (len(panels) - 1) * layout.gutter
     )
-    caption_lines = len(_wrap(probe, caption, _font(12), strip_w, lines=2))
-    legend_rows = legend_row_count(
-        legend_entries(show_aisles, show_recovery), _font(11), strip_w
+    show_tag = len(panels) > 1
+    caption_lines = (
+        len(_wrap(probe, caption, _font(12), strip_w, lines=2)) if caption else 0
     )
+    legend_rows = legend_row_count(
+        legend_entries(show_aisles, show_recovery), _font(11), strip_w,
+        show_tag=show_tag,
+    )
+    # a title/caption, a per-panel banner and a narration band each only earn
+    # their height when there is something in them to draw -- a reserved but
+    # empty band is blank space, not a clean frame, so the single-panel
+    # scenario (no title, no caption, no per-panel banner, no beats) comes out
+    # shorter rather than carrying the room for text nobody asked for
+    header = (
+        layout.header + 14 * max(0, caption_lines - 1) if (title or caption)
+        else TIMELINE_ONLY_HEADER
+    )
+    panel_header = layout.panel_header if show_tag else COMPACT_PANEL_HEADER
     layout = layout.replace(
-        header=layout.header + 14 * (caption_lines - 1),
+        header=header,
+        panel_header=panel_header,
         footer=layout.footer + 16 * (legend_rows - 1),
+        narration=layout.narration if beats else 0,
     )
 
     indices = list(range(0, frames_count, max(1, stride)))

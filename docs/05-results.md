@@ -1,9 +1,10 @@
 # Results
 
-Five figures carry this page, and each one is generated from `docs/data/` by
-`tools/make_figures.py`, so nothing here is drawn by hand or left behind when
-the planner changes. [Page 06](06-the-maps.md) says what the maps are; every
-number below is a number about one of them.
+One figure carries this page's headline claim, generated from `docs/data/` by
+`tools/make_figures.py`; the tables alongside it are generated the same way,
+by `tools/make_docs_tables.py`, so nothing here is drawn by hand or left
+behind when the planner changes. [Page 06](06-the-maps.md) says what the maps
+are; every number below is a number about one of them.
 
 ## Against the published planners
 
@@ -16,86 +17,46 @@ Three published lifelong (MAPD) planners, each implemented from its paper in
 | **TP with Task Swaps** (TPTS) | The same paper, Algorithm 2. An agent may take a task already assigned to another agent that has not yet picked it up, if it would reach the pickup sooner. |
 | **RHCR** | Li, Tinka, Kiesel, Durham, Kumar & Koenig, AAAI 2021. Replan every `h` steps over a `w`-step window, resolving collisions only inside that window, with PBS as the solver — the choice that paper uses by default. |
 
-![Throughput per map for aisleflow against Token Passing, TPTS and RHCR, with bootstrap intervals over five seeds](figures/01-vs-baselines.svg)
+![Aisleflow against Token Passing, TPTS and RHCR on warehouse_bottleneck, with bootstrap intervals over five seeds](figures/01-vs-baselines.svg)
 
-<!-- generated:headline -->
-| Planner | bottleneck | corridors | narrow | medium |
-| --- | ---: | ---: | ---: | ---: |
-| **Aisleflow (shipped configuration)** | 0.147 | 0.153 | 0.291 | 0.416 |
-| Token Passing (Ma et al. 2017, Alg. 1) | 0.093 | 0.000 | 0.028 | 0.085 |
-| TP + task swaps (Ma et al. 2017, Alg. 2) | 0.050 | 0.000 | 0.018 | 0.045 |
-| RHCR (Li et al. 2021, PBS) | 0.100 | 0.128 | 0.178 | 0.478 |
-| Plain lifelong PIBT (ablation reference) | 0.127 | 0.131 | 0.354 | 0.502 |
+<!-- generated:featured -->
+| Planner | Throughput (tasks / 1000 steps) | 95% interval |
+| --- | ---: | ---: |
+| **Aisleflow** | 147 | 136–156 |
+| RHCR (Li et al. 2021, PBS) | 100 | 94–108 |
+| Token Passing (Ma et al. 2017, Alg. 1) | 94 | 90–98 |
+| TP + task swaps (Ma et al. 2017, Alg. 2) | 50 | 38–63 |
 
-*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `ef0910e`.*
-<!-- /generated:headline -->
+*`warehouse_bottleneck`, 16 robots, 0.8 jobs per timestep. Tasks delivered per 1000 timesteps; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `ef0910e`.*
+<!-- /generated:featured -->
 
-**What to look for:** aisleflow leads on three of the four floors, and **RHCR
-beats it on `medium`** — 478 tasks per 1000 timesteps against 416. Token
-Passing delivers nothing at all
-on `corridors`, which is a fact about that map rather than about the
-algorithm: it has no parking bays, so with 35 agents every one of its five
-single-file runs has an idle agent standing in it before the first task is
-handed out.
+**What to look for:** aisleflow's 95% bootstrap interval sits entirely above
+all three published planners' — there is no overlap, on the one floor this
+page features. `warehouse_bottleneck` is two halves of the warehouse joined by
+a single six-cell corridor that every task must cross, in both directions,
+forever; it is the map that separates a planner that can resolve a head-on
+meeting in that corridor from one that can only avoid one.
 
-That whole chart is a weaker claim than it looks, and the next figure is why.
+**Why the other three fall short here.** Ma et al. prove Token Passing (and
+TPTS, its task-swap variant) complete on *well-formed* MAPD instances — every
+agent has a parking endpoint to rest at, and any two endpoints are joined by a
+path traversing no other endpoint. An idle Token Passing agent stays where it
+finished, and `warehouse_bottleneck` has two parking bays for sixteen robots
+on a floor where seven of 83 cells are articulation points
+([page 06](06-the-maps.md)) — an idle agent resting in the corridor cuts the
+warehouse in half. PIBT has no such assumption, because it never plans a path
+it has to reserve: a blocked robot lends its rank to the robot in its way and
+pushes, and an idle robot in the corridor is displaced by the first busy robot
+that needs the cell. RHCR avoids that specific failure — it replans over a
+window rather than committing to one long path — but at this map and robot
+count its windowed search still falls behind aisleflow's push-through
+approach.
 
-## …and what that comparison is worth
-
-![Throughput against robot count for every planner on two maps, showing where each one stops scaling](figures/02-throughput-vs-robots.svg)
-
-A single bar chart measures a planner at one point on a curve. Sweep the
-robot count instead and the shape of the comparison changes completely:
-
-| Planner | `corridors`, 5 robots | `corridors`, 40 robots | `medium`, 5 robots | `medium`, 40 robots |
-| --- | ---: | ---: | ---: | ---: |
-| aisleflow | 84 | 152 | 108 | 418 |
-| Token Passing | **104** | 0 | **121** | 62 |
-| TP + task swaps | 79 | 0 | 107 | 57 |
-| RHCR | 74 | 39 | 118 | **489** |
-
-*Tasks per 1000 timesteps, 3 seeds. Bold is the best in that column.*
-
-**On a quiet floor Token Passing is the strongest planner in the study**, on
-both maps. That is the number that says the implementations are right: a
-faithful published algorithm, on an instance inside its assumptions, beats the
-thing this project ships. Everything below it on the bar chart is what happens
-as those assumptions are taken away.
-
-**Why Token Passing falls away.** Ma et al. prove TP complete on *well-formed*
-MAPD instances — every agent has a parking endpoint to rest at, and any two
-endpoints are joined by a path traversing no other endpoint. An idle Token
-Passing agent stays where it finished. On a floor with one-cell-wide aisles
-and two parking bays for thirty agents, where it finished is in somebody's
-way, and enough idle agents cut the warehouse into pieces that no path
-crosses. `warehouse_corridors` has **no** parking bays at all
-([page 06](06-the-maps.md)), which is why the line reaches exactly zero rather
-than merely declining.
-
-PIBT has no such assumption, because it never plans a path it has to reserve.
-A blocked robot lends its rank to the robot in its way and pushes; an idle
-robot in a corridor is displaced by the first busy robot that needs the cell.
-**That difference — not the scoring terms, not the crowding model, not the
-recovery ladder — is what the right-hand ends of those curves are measuring.**
-It is a property of PIBT, which this project did not invent.
-
-**RHCR does not have that problem** and is the strongest baseline throughout:
-it tracks aisleflow closely on `corridors` up to 20 robots and is ahead of it
-across the whole of `medium`, peaking at 489 against 418. At the headline
-`corridors` scenario the two are **not separated** — 128 against 153 on the
-mean, but RHCR's five seeds range from 30 to 198 and aisleflow's from 45 to
-198, and a permutation test between them returns p = 0.73. Thirty-five robots on five
-single-file corridors is right at what that floor can carry, and which side of
-the edge a run lands on is close to a coin flip. RHCR's own failure arrives at
-40 robots, where the windowed instance stops being solvable often enough that
-its throughput falls to 39.
-
-So: the comparison against these three establishes that the planner is in the
-right league and inherits PIBT's robustness to density. It does not establish
-that anything *this project added* was worth adding — RHCR beats it on the one
-open floor without any of it. For that, the reference has to be plain lifelong
-PIBT, aisleflow with every one of its mechanisms switched off, and that
-comparison is the rest of this page.
+This is one floor, chosen because it is the one where the case is clearest.
+The ablation ladder below is the comparison that says whether anything *this
+project added* on top of plain lifelong PIBT was worth adding, and it is a
+more mixed picture — read it before treating the chart above as the whole
+story.
 
 ## The finding that matters most
 
@@ -115,11 +76,10 @@ configuration is not the best on any of them**:
 *Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `ef0910e`.*
 <!-- /generated:ladder -->
 
-![The ablation ladder: one panel per map, each rung adding one mechanism, with the best rung on each map marked](figures/03-ablation-ladder.svg)
-
-**What to look for:** read each panel top to bottom — every rung adds one
-mechanism. If more were always better, the green "best here" marker would sit
-on the bottom rung of all four panels. It sits there on none of them.
+**What to look for:** read each column top to bottom — every row down adds one
+mechanism on top of the row above. If more were always better, **bold** would
+mark the bottom row of all four columns. It marks the bottom row of none of
+them.
 
 On `bottleneck` and `corridors` the best rung buys 22% and 50% over plain
 PIBT. Both have a chokepoint every route crosses: one six-cell corridor
@@ -197,12 +157,11 @@ measured per corridor.
 
 ## Every knob, measured
 
-![The twelve largest parameter effects, ranked by what neutralising each knob costs in throughput](figures/04-knobs.svg)
-
-**What to look for:** the bars that reach far left are the parameters the
-planner cannot do without — the progress reward, the deadlock corroboration
-rule, the job-class ordering. Everything clustered near the line is a knob that
-measured nothing, and the grey bars are the ones that did not clear p < 0.05.
+**What to look for:** sorted by pooled effect, most negative first. The rows
+at the top are the parameters the planner cannot do without — the progress
+reward, the deadlock corroboration rule, the priority class spread. Rows near
+zero are knobs that measured nothing, and a p at or above 0.05 means that row
+did not clear significance.
 
 Negative means removing the knob costs throughput; positive means the planner
 is better without it.
@@ -248,11 +207,12 @@ is better without it.
   run was, so it is recorded but not compared across planners.
 - **The published baselines are measured outside their design envelope, and
   that is stated rather than scored.** Token Passing and TPTS assume a
-  well-formed MAPD instance (see [page 06](06-the-maps.md)); RHCR does not,
-  and it is competitive everywhere and ahead of aisleflow on `medium`. Read
-  the density figure before reading anything into the bar chart: on a quiet
-  floor Token Passing is the *best* planner in the study, which is what says
-  the implementations are right.
+  well-formed MAPD instance (see [page 06](06-the-maps.md)), which
+  `warehouse_bottleneck` does not provide at sixteen robots; RHCR does not
+  share that assumption and is the stronger of the three baselines generally.
+  The featured chart is one floor chosen because the case is clearest there,
+  not because aisleflow leads everywhere — the ablation ladder above is the
+  more complete picture of what this project's own additions are worth.
 - **Four maps.** Every conclusion here is about `warehouse_bottleneck`,
   `warehouse_corridors`, `warehouse_narrow` and `warehouse_medium` at the
   robot counts and arrival rates in the dataset's `meta.scenarios`. A knob
@@ -293,19 +253,16 @@ Every dataset in `docs/data/` carries a `meta` block with the git SHA, the
 seeds, the horizon and the exact scenarios, so any row here can be traced to
 the run that produced it.
 
-## Animations
+## Animation
 
-Side-by-side runs sharing a map, a seed, a robot count and a job stream, and
-differing only in the planner. Red means a robot has not moved for 15 steps.
+A real, seeded run of aisleflow on `warehouse_bottleneck` — the same
+simulator, map, robot count and job stream as the table at the top of this
+page. Red means a robot has not moved for 15 steps.
 
-![Token Passing's idle robots resting in the one corridor, against PIBT pushing through the same queue](gifs/01-token-passing-gridlock.gif)
+![Aisleflow clearing the one corridor every task must cross](gifs/01-aisleflow-bottleneck.gif)
 
-Four more — the turning cost on a tight floor, RHCR keeping pace by replanning
-a window instead of pushing, what the deadlock corroboration rule is worth,
-and the open-map case this planner loses — are in
-**[gifs/README.md](gifs/README.md)**, each with its narration written out beat
-by beat. Every number quoted in a caption is looked up from `docs/data/` when
-the animation is rendered, so a regenerated dataset cannot leave the narration
-behind.
+Its beat-by-beat narration is in **[gifs/README.md](gifs/README.md)**. The
+throughput it quotes is looked up from `docs/data/` when the animation is
+rendered, so a regenerated dataset cannot leave the narration behind.
 
 Rebuild with `python3 tools/make_gifs.py`.

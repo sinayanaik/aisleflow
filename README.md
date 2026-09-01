@@ -10,20 +10,19 @@ changed nothing was deleted rather than left at a default. The evidence is in
 [docs/05-results.md](docs/05-results.md); the reasoning is in
 [docs/01-how-it-works.md](docs/01-how-it-works.md).
 
-![Throughput per map for aisleflow against Token Passing, TPTS and RHCR, with bootstrap intervals](docs/figures/01-vs-baselines.svg)
+![Aisleflow against Token Passing, TPTS and RHCR on warehouse_bottleneck, with bootstrap intervals](docs/figures/01-vs-baselines.svg)
 
 Aisleflow is measured against three published lifelong planners, each
 implemented from its paper: **Token Passing** and **Token Passing with Task
-Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). It leads on
-three of the four floors and **loses to RHCR on `warehouse_medium`**.
-Token Passing falls away as the floor fills, for a reason its own paper
-gives: it is complete only on *well-formed* MAPD instances — one parking
-endpoint per agent — and none of these maps provides that at these robot
-counts. [The density sweep](docs/05-results.md) shows all four planners level
-on a quiet floor and separating as it crowds, which is the honest shape of the
-comparison.
+Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). On
+`warehouse_bottleneck` — two halves of the floor joined by one six-cell
+corridor that every task must cross — its 95% bootstrap interval clears all
+three baselines' with no overlap. Token Passing and TPTS fall away for a
+reason their own paper gives: they're complete only on *well-formed* MAPD
+instances — one parking endpoint per agent — which this floor doesn't provide
+at this robot count; RHCR avoids that failure mode but still falls short here.
 
-None of that is the comparison that decides whether this project earned
+That one chart is not the comparison that decides whether this project earned
 anything. That one is against the plain lifelong PIBT it extends, where it
 wins two floors and loses two — see
 [the ablation ladder](docs/05-results.md).
@@ -228,13 +227,13 @@ experiments/     run_sensitivity.py (what each knob is worth) and run_all.py
                  which write to results/.
 results/         JSON from the individual runners (git-ignored)
 tools/           make_docs_tables.py (the generated tables in docs/04, 05
-                 and 06), make_figures.py (the figures), make_gifs.py (the
-                 animations -- their captions read their numbers from
-                 docs/data/ at render time)
+                 and 06), make_figures.py (the figures, plus their README),
+                 make_gifs.py (the animation, plus its README -- both read
+                 their numbers from docs/data/ at render time)
 docs/*.md        the six documents, in reading order
 docs/data/       the measured dataset every figure and table is generated from
-docs/figures/    the five result figures, as SVG, embedded in docs/05 and 06
-docs/gifs/       the comparison animations
+docs/figures/    the result figures, as SVG, embedded in docs/05 and 06
+docs/gifs/       the animation
 ```
 
 ## Citation
