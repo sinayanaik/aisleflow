@@ -154,8 +154,12 @@ class Params:
     park_when_idle: bool = True
     validate_every_step: bool = True
 
-    # ---- baseline planners (Token Passing, RHCR) --------------------------
-    #: unused by PIBT; only consumed by baselines.rhcr.RHCRPlanner
+    # ---- baseline planners (RHCR) -----------------------------------------
+    #: unused by PIBT and by Token Passing; only consumed by
+    #: `baselines.rhcr.RHCRPlanner`. `w` is RHCR's collision-resolution
+    #: window and `h` its replanning period, in the notation of Li et al.
+    #: 2021; their study finds small windows work well, and h <= w is
+    #: required (the planner clamps it).
     baseline_window: int = 10
     baseline_replan_period: int = 5
 
@@ -265,15 +269,16 @@ ABLATIONS["recovery_full_ladder"] = dict(
     ABLATIONS["full_lda_pibt"], recovery_max_level=4
 )
 
-#: Params flags for the external baseline planners (Token Passing, RHCR):
-#: identical to `lifelong_pibt`'s all-mechanisms-off state, since neither
-#: baseline scores candidates. `recovery` is deliberately not fixed here --
-#: `experiments.BASELINE_PLANNERS` sets it per variant, since whether a
-#: baseline gets the same deadlock safety net as the PIBT variants is itself
-#: part of what is being compared.
+#: Params flags for the published baseline planners (TP, TPTS, RHCR):
+#: identical to `lifelong_pibt`'s all-mechanisms-off state, since none of the
+#: three scores candidates. `recovery` is off for all of them because each
+#: brings its own answer to being stuck -- Token Passing rests agents at
+#: endpoints and moves them aside (Path2), TPTS additionally swaps tasks, and
+#: RHCR replans every window. Bolting this project's deadlock ladder onto a
+#: published algorithm would measure a hybrid nobody published.
 BASELINE_PARAMS_PRESET: Dict[str, Any] = dict(
     lifelong=True, congestion_scoring=False, congestion_assignment=False,
-    turning_cost=False, aisle_bonus=0.0, aisle_bonus_near=0.0,
+    recovery=False, turning_cost=False, aisle_bonus=0.0, aisle_bonus_near=0.0,
 )
 
 

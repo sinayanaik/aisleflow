@@ -8,10 +8,29 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .config import ABLATIONS, Params, ablation
+from .baselines import RHCRPlanner, TokenPassingPlanner, TokenPassingTaskSwapsPlanner
+from .config import ABLATIONS, BASELINE_PARAMS_PRESET, Params, ablation
 from .simulator import build_simulator
 from .task import TaskGenerator
 from .warehouse import Warehouse
+
+#: The published baselines, selectable by `--variant` alongside the ablation
+#: names. Kept here rather than imported from `experiments` so the CLI does
+#: not pull in the whole statistics stack to parse an argument.
+BASELINE_PLANNERS = {
+    "token_passing": TokenPassingPlanner,
+    "token_passing_task_swaps": TokenPassingTaskSwapsPlanner,
+    "rhcr": RHCRPlanner,
+}
+
+#: what `--variant` accepts wherever the whole simulator is being run
+VARIANT_CHOICES = sorted(ABLATIONS) + sorted(BASELINE_PLANNERS)
+
+#: what the GUI accepts. Its inspector answers "why did this robot not move
+#: there?" out of `PIBTPlanner.explain_candidates`, and a baseline planner has
+#: no candidates to explain -- it committed to a path several timesteps ago.
+#: Offering the names there would put a KeyError behind a dropdown.
+GUI_VARIANT_CHOICES = sorted(ABLATIONS)
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -36,7 +55,13 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 
 def _params_from_args(args: argparse.Namespace, variant: str) -> Params:
-    params = ablation(variant, Params(seed=args.seed, max_timesteps=args.timesteps))
+    base = Params(seed=args.seed, max_timesteps=args.timesteps)
+    if variant in BASELINE_PLANNERS:
+        # a published baseline replaces the PIBT layer, so none of the
+        # scoring/recovery flags an ablation name selects apply to it
+        params = base.merged(**BASELINE_PARAMS_PRESET)
+    else:
+        params = ablation(variant, base)
     overrides = {}
     for item in args.set:
         key, _, raw = item.partition("=")
@@ -57,6 +82,7 @@ def _params_from_args(args: argparse.Namespace, variant: str) -> Params:
 
 def _build(args: argparse.Namespace, variant: str, record: bool = False):
     params = _params_from_args(args, variant)
+    planner_factory = BASELINE_PLANNERS.get(variant)
     warehouse = Warehouse.from_file(args.map, params)
     if not warehouse.pickup_vertices or not warehouse.delivery_vertices:
         raise SystemExit(
@@ -76,6 +102,7 @@ def _build(args: argparse.Namespace, variant: str, record: bool = False):
         params,
         task_generator=generator,
         record_history=record,
+        planner_factory=planner_factory,
     )
 
 
@@ -190,19 +217,19 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     run = sub.add_parser("run", help="run one simulation")
     _add_common(run)
-    run.add_argument("--variant", choices=sorted(ABLATIONS), default="full_lda_pibt")
+    run.add_argument("--variant", choices=VARIANT_CHOICES, default="full_lda_pibt")
     run.add_argument("--json", type=Path, default=None)
     run.add_argument("--progress", action="store_true")
     run.set_defaults(func=cmd_run)
 
     inspect = sub.add_parser("inspect", help="print warehouse structure")
     _add_common(inspect)
-    inspect.add_argument("--variant", choices=sorted(ABLATIONS), default="full_lda_pibt")
+    inspect.add_argument("--variant", choices=VARIANT_CHOICES, default="full_lda_pibt")
     inspect.set_defaults(func=cmd_inspect)
 
     animate = sub.add_parser("animate", help="ASCII frames or an mp4/gif")
     _add_common(animate)
-    animate.add_argument("--variant", choices=sorted(ABLATIONS), default="full_lda_pibt")
+    animate.add_argument("--variant", choices=VARIANT_CHOICES, default="full_lda_pibt")
     animate.add_argument("--out", type=Path, default=None)
     animate.add_argument("--fps", type=int, default=8)
     animate.add_argument("--stride", type=int, default=10)
@@ -210,7 +237,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     gui = sub.add_parser("gui", help="interactive browser GUI")
     _add_common(gui)
-    gui.add_argument("--variant", choices=sorted(ABLATIONS), default="full_lda_pibt")
+    gui.add_argument("--variant", choices=GUI_VARIANT_CHOICES, default="full_lda_pibt")
     gui.add_argument("--host", default="127.0.0.1")
     gui.add_argument("--port", type=int, default=8000)
     gui.add_argument("--no-browser", action="store_true")

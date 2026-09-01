@@ -10,14 +10,23 @@ changed nothing was deleted rather than left at a default. The evidence is in
 [docs/05-results.md](docs/05-results.md); the reasoning is in
 [docs/01-how-it-works.md](docs/01-how-it-works.md).
 
-![Aisleflow against every rival planner, one cell per rival per map, as a ratio and a verdict](docs/figures/01-vs-baselines.svg)
+![Throughput per map for aisleflow against Token Passing, TPTS and RHCR, with bootstrap intervals](docs/figures/01-vs-baselines.svg)
 
-Against the three published lifelong planners this beats — Token Passing, Token
-Passing with recovery, and RHCR — aisleflow wins every map. Against the plain
-lifelong PIBT it extends, it wins the two aisle-constrained floors and loses
-the two open ones, which is the more useful result: the machinery is congestion
-machinery, and it earns its keep exactly where congestion is the binding
-constraint. [The full evidence, in five figures.](docs/05-results.md)
+Aisleflow is measured against three published lifelong planners, each
+implemented from its paper: **Token Passing** and **Token Passing with Task
+Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). It leads on
+three of the four floors and **loses to RHCR on `warehouse_medium`**.
+Token Passing falls away as the floor fills, for a reason its own paper
+gives: it is complete only on *well-formed* MAPD instances — one parking
+endpoint per agent — and none of these maps provides that at these robot
+counts. [The density sweep](docs/05-results.md) shows all four planners level
+on a quiet floor and separating as it crowds, which is the honest shape of the
+comparison.
+
+None of that is the comparison that decides whether this project earned
+anything. That one is against the plain lifelong PIBT it extends, where it
+wins two floors and loses two — see
+[the ablation ladder](docs/05-results.md).
 
 ## Documentation
 
@@ -28,6 +37,7 @@ constraint. [The full evidence, in five figures.](docs/05-results.md)
 | **[The maths](docs/03-the-math.md)** | Every formula, with a symbol table. |
 | **[Parameters](docs/04-parameters.md)** | Every knob and the measured cost of removing it. |
 | **[Results](docs/05-results.md)** | Baseline comparison and the evidence behind every deletion. |
+| **[The maps](docs/06-the-maps.md)** | What the five warehouse floors are, and why each is a different problem. |
 
 ## The algorithm in a paragraph
 
@@ -63,16 +73,16 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 158 tests, ~15s
-pytest -m slow               # the wide baseline sweep, 12 more, ~14s
-pytest -m ""                 # everything, ~27s
+pytest                       # 167 tests, ~25s
+pytest -m slow               # the wide baseline sweep, 12 more
+pytest -m ""                 # everything, 179 tests, ~57s
 ```
 
-The default run deselects `slow`, which is the baseline planners re-checked on
-four extra maps. Those planners re-solve a space-time A\* per robot per
-timestep, so that sweep alone cost more than the rest of the suite; the three
-maps the default run keeps cover the same three failure modes. CI should run
-`pytest -m ""`.
+The default run deselects `slow`, which is the three published baselines
+re-checked on four extra maps. Those planners run a space-time search per
+agent per task or per replanning window, so that sweep alone costs more than
+the rest of the suite; the three maps the default run keeps cover the same
+three failure modes. CI should run `pytest -m ""`.
 
 Python 3.10+.
 
@@ -104,25 +114,27 @@ over SSH with a forwarded port too (`--host 0.0.0.0`, `--no-browser`).
 
 **Click a robot and you get the answer to "why is it stuck?"** The inspector
 lists every candidate cell with its score and the exact rule that rejected it —
-`aisle-direction`, `no-reservation`, `vertex-conflict`, `kinematics` — in spec
-§22.1 order. A stalled robot almost always shows the same reason on every
-candidate, which names the culprit immediately. This is the diagnostic that
-found all five bugs listed below; it is now a first-class feature
-(`PIBTPlanner.explain_candidates`), usable from the library as well.
+`vertex-conflict`, `kinematics`, `off-graph`. A stalled robot
+almost always shows the same reason on every candidate, which names the
+culprit immediately. This is the diagnostic that found all five bugs listed
+below; it is a first-class feature (`PIBTPlanner.explain_candidates`), usable
+from the library as well.
 
 Also in there:
 
-- **Aisle overlay** — every aisle tinted by state (OPEN / FORWARD / REVERSE /
-  DRAINING) with flow arrows. Watch drain-before-reverse happen.
+- **Aisle overlay** — every aisle tinted, with its occupancy against capacity,
+  so you can see which corridor is the one filling up.
 - **Heatmaps** — local congestion, or per-robot stall time, so jams are visible
   before you go looking for them.
-- **Click an aisle** — state, direction, occupancy vs capacity, lock expiry,
-  switch count, live reservation holders, and whether it is managed at all.
-- **Live parameter sliders** — α, β, γ, λ, μ, ξ, `R_near`/`R_far`, `T_min`,
-  `τ_switch`, capacity, drain timeout. Changing one restarts the run with the
-  same seed, so A/B-ing a weight takes two seconds.
-- **Ablation switches** as checkboxes: hysteresis, reservations, congestion,
-  recovery, turning cost, direction-aware routing.
+- **Live parameter sliders** — the progress reward, the stay-in-lane bonus and
+  its near-waypoint variant, the turn penalty and reverse multiplier, the
+  crowding penalty and its radius, `R_near`/`R_far`, priority class spread,
+  rank per step waited, stall threshold, recovery ladder depth, and the
+  assignment weights. Changing one restarts the run with the same seed, so
+  A/B-ing a weight takes two seconds.
+- **Ablation switches** as checkboxes: crowding in movement, crowding in
+  matching, deadlock recovery, corroborated deadlocks, turning cost, park when
+  idle.
 - Keyboard: `space` play/pause, `.` step, `r` reset.
 
 Every control is also a JSON endpoint (`/api/state`, `/api/step`,
@@ -146,6 +158,9 @@ lda-pibt run maps/warehouse_medium.map -n 40 -t 400 --rate 1.5 --variant full_ld
 
 # the ablation table of spec section 34
 lda-pibt ablate maps/warehouse_corridors.map -n 35 -t 400 --seeds 3
+
+# a published baseline instead of the PIBT layer -- same CLI, same metrics
+lda-pibt run maps/warehouse_medium.map -n 12 -t 400 --variant token_passing
 
 # ASCII frames, or an animated gif (needs matplotlib + pillow)
 lda-pibt animate maps/warehouse_small.map -n 8 -t 120 --stride 20
@@ -190,7 +205,10 @@ points, bridge edges, dead ends — is derived automatically.
 
 Bundled maps: `warehouse_small`, `warehouse_medium`, `warehouse_narrow`,
 `warehouse_corridors` (parallel head-on corridors), `warehouse_bottleneck`
-(two halves joined by one long corridor), plus `corridor` and `loop` for tests.
+(two halves joined by one long corridor), plus `corridor` and `loop` for
+tests. [**docs/06-the-maps.md**](docs/06-the-maps.md) draws all five to scale
+and gives the measured structure of each — aisle lengths, junction counts, and
+which cells a stationary robot can cut the floor at.
 
 ## Repository layout
 
@@ -198,21 +216,24 @@ Bundled maps: `warehouse_small`, `warehouse_medium`, `warehouse_narrow`,
 maps/            warehouse maps
 src/lda_pibt/    the package (see the module table above)
 src/lda_pibt/gui/  browser GUI (server.py + static/index.html)
-src/lda_pibt/baselines/  Token Passing and RHCR, independent of the PIBT machinery
+src/lda_pibt/baselines/  Token Passing, TPTS and RHCR, each from its paper
 src/lda_pibt/viz_compare.py  side-by-side animation of two planners on one scenario
 tests/           graph, PIBT, lifelong layer, GUI, baselines, statistics, the
                  committed doc assets, and the documents themselves (every
                  parameter documented, every generated table current)
 experiments/     run_sensitivity.py (what each knob is worth) and run_all.py
-                 (the ablation ladder, baselines, hypotheses, paired designs
-                 and factorials) -- both write docs/data/. Plus the older
-                 single-purpose runners, which write to results/.
+                 (the ablation ladder, the published baselines, the density
+                 sweep, hypotheses, paired designs and factorials) -- both
+                 write docs/data/. Plus the older single-purpose runners,
+                 which write to results/.
 results/         JSON from the individual runners (git-ignored)
-tools/           make_docs_tables.py (the generated tables in docs/04 and 05),
-                 make_figures.py (the figures), make_gifs.py (the animations)
-docs/*.md        the five documents, in reading order
+tools/           make_docs_tables.py (the generated tables in docs/04, 05
+                 and 06), make_figures.py (the figures), make_gifs.py (the
+                 animations -- their captions read their numbers from
+                 docs/data/ at render time)
+docs/*.md        the six documents, in reading order
 docs/data/       the measured dataset every figure and table is generated from
-docs/figures/    the five result figures, as SVG, all embedded in docs/05
+docs/figures/    the five result figures, as SVG, embedded in docs/05 and 06
 docs/gifs/       the comparison animations
 ```
 
@@ -224,19 +245,21 @@ The underlying algorithm:
 > *Priority Inheritance with Backtracking for Iterative Multi-agent Path Finding.*
 > arXiv:1901.11282.
 
-The external baselines in `src/lda_pibt/baselines/` (see "Baselines" under
-Results):
+The baselines in `src/lda_pibt/baselines/`. Token Passing (Algorithm 1) and
+Token Passing with Task Swaps (Algorithm 2) both come from:
 
-> H. Ma, D. Harabor, P. J. Stuckey, J. Li, S. Koenig.
-> *Searching with Consistent Prioritization for Multi-Agent Path Finding*, and
-> H. Ma, J. Li, T. K. S. Kumar, S. Koenig, *Lifelong Multi-Agent Path Finding
-> for Online Pickup and Delivery Tasks*, AAMAS 2017 (Token Passing).
+> H. Ma, J. Li, T. K. S. Kumar, S. Koenig. *Lifelong Multi-Agent Path Finding
+> for Online Pickup and Delivery Tasks.* AAMAS 2017.
 
-And:
+RHCR, and the PBS solver it runs over:
 
 > J. Li, A. Tinka, S. Kiesel, J. W. Durham, T. K. S. Kumar, S. Koenig.
 > *Lifelong Multi-Agent Path Finding in Large-Scale Warehouses.* AAAI 2021
 > (Rolling-Horizon Collision Resolution).
+
+> H. Ma, D. Harabor, P. J. Stuckey, J. Li, S. Koenig. *Searching with
+> Consistent Prioritization for Multi-Agent Path Finding.* AAAI 2019
+> (Priority-Based Search).
 
 ## License
 

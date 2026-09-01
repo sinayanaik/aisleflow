@@ -4,7 +4,7 @@
 The other four scripts in this directory each answer one question and write
 into `results/` (git-ignored). This one runs all of them over a single set of
 scenarios and writes into **`docs/data/`**, which *is* committed, because the
-generated tables in `docs/04` and `docs/05`, the five figures written by
+generated tables in `docs/04`, `docs/05` and `docs/06`, the figures written by
 `tools/make_figures.py` and the numbers quoted in the animation narration must
 all be generated from the same measured numbers rather than from four runs that
 happened on four different afternoons.
@@ -41,10 +41,16 @@ from lda_pibt.experiments import (  # noqa: E402
     REPORT_FIELDS,
     run_ablation_table,
     run_comparison_table,
+    run_density_table,
     run_factorial_table,
     run_hypothesis_table,
     run_paired_table,
 )
+
+#: worker processes for the two suites that run the published baselines. Set
+#: by `main`; module-level so the suite functions can read it without every
+#: signature growing a parameter it forwards unchanged.
+JOBS = 1
 
 OUT_DIR = ROOT / "docs" / "data"
 
@@ -63,19 +69,39 @@ SCENARIOS = [
     ("warehouse_medium", 40, 1.5),
 ]
 
-#: Maps the external baselines are run on. Token Passing costs ~320 ms/step on
-#: `warehouse_medium`, so the baseline suite dominates the wall clock; these
-#: three are the ones the README's baseline table already covers.
-BASELINE_MAPS = ("warehouse_bottleneck", "warehouse_corridors", "warehouse_medium")
+#: Maps the published baselines are run on: **all of them**. The baseline
+#: suite dominates the wall clock -- Token Passing re-solves a space-time
+#: search per agent per task -- and it used to skip `warehouse_narrow` for
+#: that reason, which left one cell of the comparison figure reading "not run
+#: on this map" and quietly made the headline claim about three maps while
+#: the ablation next to it was about four. Cheaper is not a reason to compare
+#: on a different set of floors than everything else on the page.
+BASELINE_MAPS = (
+    "warehouse_bottleneck",
+    "warehouse_corridors",
+    "warehouse_narrow",
+    "warehouse_medium",
+)
 
 BASELINE_VARIANTS = [
     "lifelong_pibt",
     "full_lda_pibt",
     "token_passing",
-    "token_passing_recovery",
+    "token_passing_task_swaps",
     "rhcr",
 ]
 BASELINE_REFERENCE = "lifelong_pibt"
+
+#: (map, robot counts) for the throughput-against-density curves. Every
+#: planner has a robot count past which more robots stop buying throughput,
+#: and the headline scenarios are a single point on that curve each -- which
+#: is exactly the thing a reader cannot check from a bar chart. Two maps, one
+#: aisle-constrained and one open, at five densities apiece.
+DENSITY_RUNS = [
+    ("warehouse_corridors", (5, 10, 20, 30, 40), 1.0),
+    ("warehouse_medium", (5, 10, 20, 30, 40), 1.5),
+]
+DENSITY_VARIANTS = BASELINE_VARIANTS
 
 #: The 2x2 designs, on the maps whose structure makes their factors act.
 FACTORIAL_RUNS = [
@@ -83,7 +109,7 @@ FACTORIAL_RUNS = [
     ("congestion_vs_recovery", "warehouse_medium"),
 ]
 
-SUITES = ("ablation", "baselines", "hypotheses", "paired", "factorial")
+SUITES = ("ablation", "baselines", "density", "hypotheses", "paired", "factorial")
 
 
 # --------------------------------------------------------------------------
@@ -169,10 +195,32 @@ def suite_baselines(seeds: int, horizon: int) -> Dict[str, Any]:
             n_robots=robots, timesteps=horizon, seeds=seeds, rate=rate,
             # every field, not just the cross-planner core: the figures need
             # released_tasks (offered load) and completed_tasks (censoring).
-            fields=REPORT_FIELDS, include_raw=True,
+            fields=REPORT_FIELDS, include_raw=True, jobs=JOBS,
         )
         assert all(r["collision_free"] for r in rows), f"collision on {map_name}"
         payload["maps"][map_name] = {"robots": robots, "rate": rate, "rows": rows}
+    return payload
+
+
+def suite_density(seeds: int, horizon: int) -> Dict[str, Any]:
+    """Throughput against robot count, every planner, on two floors."""
+    scenarios = [
+        {"map": m, "robots": list(counts), "rate": rate}
+        for m, counts, rate in DENSITY_RUNS
+    ]
+    payload: Dict[str, Any] = {
+        "meta": dict(header("density", seeds, horizon, []), scenarios=scenarios),
+        "maps": {},
+    }
+    for map_name, counts, rate in DENSITY_RUNS:
+        print(f"  {map_name}: {len(DENSITY_VARIANTS)} planners x {len(counts)} densities")
+        rows = run_density_table(
+            ROOT / "maps" / f"{map_name}.map", DENSITY_VARIANTS, counts,
+            timesteps=horizon, seeds=seeds, rate=rate, jobs=JOBS,
+        )
+        assert all(r["collision_free"] for r in rows), f"collision on {map_name}"
+        payload["maps"][map_name] = {"rate": rate, "robot_counts": list(counts),
+                                     "rows": rows}
     return payload
 
 
@@ -234,6 +282,7 @@ def suite_factorial(seeds: int, horizon: int) -> Dict[str, Any]:
 RUNNERS = {
     "ablation": suite_ablation,
     "baselines": suite_baselines,
+    "density": suite_density,
     "hypotheses": suite_hypotheses,
     "paired": suite_paired,
     "factorial": suite_factorial,
@@ -248,11 +297,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="2 seeds, 120 steps -- a smoke test, not a result")
     parser.add_argument("--only", nargs="*", choices=SUITES, default=None,
                         help="run a subset of the suites")
+    parser.add_argument("--jobs", type=int, default=1,
+                        help="worker processes for the baseline and density "
+                             "suites (the two that run Token Passing and RHCR)")
     parser.add_argument("--out", type=Path, default=None,
                         help=f"where to write (default {OUT_DIR.relative_to(ROOT)}, "
                              f"or {QUICK_DIR.relative_to(ROOT)} with --quick)")
     args = parser.parse_args(argv)
 
+    global JOBS
+    JOBS = max(1, args.jobs)
     seeds = 2 if args.quick else args.seeds
     horizon = 120 if args.quick else args.horizon
     # resolved, because the guard below compares directories and a relative

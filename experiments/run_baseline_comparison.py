@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare LDA-PIBT variants against external baselines (Token Passing, RHCR).
+"""Compare aisleflow against the published baselines (TP, TPTS, RHCR).
 
 Every prior table in this repo is an internal ablation -- this is the first
 comparison against independently-implemented algorithms from the literature.
@@ -29,16 +29,17 @@ VARIANTS = [
     "lifelong_pibt",
     "full_lda_pibt",
     "token_passing",
-    "token_passing_recovery",
+    "token_passing_task_swaps",
     "rhcr",
 ]
 REFERENCE = "lifelong_pibt"
 
-#: (map, robots, task arrival rate) -- matches run_ablation.py's SCENARIOS
-#: for the three headline maps, so results are directly comparable.
+#: (map, robots, task arrival rate) -- matches `experiments/run_all.py`'s
+#: SCENARIOS, so results are directly comparable with `docs/data/`.
 SCENARIOS = [
     ("warehouse_bottleneck", 16, 0.8),
     ("warehouse_corridors", 35, 1.0),
+    ("warehouse_narrow", 30, 1.2),
     ("warehouse_medium", 40, 1.5),
 ]
 

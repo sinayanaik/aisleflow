@@ -43,6 +43,16 @@ class Planner(Protocol):
 
     def stats(self) -> Dict[str, Any]: ...
 
+    #: Optional. A planner that defines `assign_tasks` owns task assignment
+    #: and `Simulator` calls it instead of `assignment.TaskAssigner` (and
+    #: skips idle-robot parking, which is then the planner's business too).
+    #: Token Passing needs this: in Ma et al. 2017 the token holds the task
+    #: set, the assignment and the paths, and its assignment rule -- never
+    #: hand out a task whose endpoints another agent is resting on -- is what
+    #: keeps its own path planning solvable. Assignment made by something
+    #: else, to different rules, is not Token Passing with a different
+    #: router; it is a different algorithm that cannot plan.
+
 
 #: Builds a planner from the same five components `PIBTPlanner` takes.
 #: Baseline planners accept and ignore `scorer` so every
@@ -94,6 +104,8 @@ class Simulator:
         self.planner: Planner = (planner_factory or PIBTPlanner)(
             warehouse, self.index, self.scorer, self.params
         )
+        #: whether the planner replaces `TaskAssigner` (see `Planner`)
+        self.planner_assigns_tasks = hasattr(self.planner, "assign_tasks")
         self.deadlocks = DeadlockMonitor(warehouse, self.index, self.params)
         self.metrics = MetricsCollector()
 
@@ -136,8 +148,11 @@ class Simulator:
 
         # 3. assign tasks to free robots --------------------------------------
         if self.params.lifelong:
-            self.assigner.assign_tasks_greedily(self.robots, self.task_queue, t)
-            self._park_idle_robots()
+            if self.planner_assigns_tasks:
+                self.planner.assign_tasks(self.robots, self.task_queue, t)
+            else:
+                self.assigner.assign_tasks_greedily(self.robots, self.task_queue, t)
+                self._park_idle_robots()
 
         # 4. update waypoints, route distance and proximity mode ---------------
         for robot in self.robots:

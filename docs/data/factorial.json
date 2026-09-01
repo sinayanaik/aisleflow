@@ -16,8 +16,8 @@
         "rate": 1.5
       }
     ],
-    "git_sha": "7007ca5",
-    "generated_utc": "2026-09-01T07:48:25Z",
+    "git_sha": "ef0910e",
+    "generated_utc": "2026-09-01T10:16:58Z",
     "generator": "experiments/run_all.py"
   },
   "rows": [
@@ -69,8 +69,8 @@
           "pibt_backtracks_sd": 101.78654135002328,
           "candidate_evaluations": 23605.0,
           "candidate_evaluations_sd": 1172.1699962036223,
-          "mean_runtime_ms_per_step": 0.6714193600032559,
-          "mean_runtime_ms_per_step_sd": 0.024350382128426645
+          "mean_runtime_ms_per_step": 0.9152499924982749,
+          "mean_runtime_ms_per_step_sd": 0.03220359919141455
         },
         "a": {
           "variant": "congestion_only",
@@ -112,8 +112,8 @@
           "pibt_backtracks_sd": 39.1279950930277,
           "candidate_evaluations": 24055.4,
           "candidate_evaluations_sd": 511.92265040726613,
-          "mean_runtime_ms_per_step": 1.7081999940091919,
-          "mean_runtime_ms_per_step_sd": 0.038673293273843445
+          "mean_runtime_ms_per_step": 2.3418269449964555,
+          "mean_runtime_ms_per_step_sd": 0.054180036071339234
         },
         "b": {
           "variant": "recovery_only",
@@ -155,8 +155,8 @@
           "pibt_backtracks_sd": 1419.6961998963018,
           "candidate_evaluations": 23347.2,
           "candidate_evaluations_sd": 625.0525577901429,
-          "mean_runtime_ms_per_step": 0.72061042849964,
-          "mean_runtime_ms_per_step_sd": 0.012115289365921789
+          "mean_runtime_ms_per_step": 0.9942027794993464,
+          "mean_runtime_ms_per_step_sd": 0.04979330671616885
         },
         "both": {
           "variant": "full_lda_pibt",
@@ -198,8 +198,8 @@
           "pibt_backtracks_sd": 238.96861718644146,
           "candidate_evaluations": 24174.8,
           "candidate_evaluations_sd": 576.2232206358921,
-          "mean_runtime_ms_per_step": 1.7051845385108209,
-          "mean_runtime_ms_per_step_sd": 0.09650219299631754
+          "mean_runtime_ms_per_step": 2.261371596504887,
+          "mean_runtime_ms_per_step_sd": 0.14126683080834027
         }
       },
       "decomposition": {
@@ -287,8 +287,8 @@
           "pibt_backtracks_sd": 97.56126280445534,
           "candidate_evaluations": 34835.0,
           "candidate_evaluations_sd": 155.8797613547057,
-          "mean_runtime_ms_per_step": 0.8698312884976076,
-          "mean_runtime_ms_per_step_sd": 0.04277417024704809
+          "mean_runtime_ms_per_step": 1.1494453840059577,
+          "mean_runtime_ms_per_step_sd": 0.0343130381293022
         },
         "a": {
           "variant": "congestion_only",
@@ -330,8 +330,8 @@
           "pibt_backtracks_sd": 83.95951405290529,
           "candidate_evaluations": 35688.4,
           "candidate_evaluations_sd": 457.04955967597215,
-          "mean_runtime_ms_per_step": 2.5275185874820636,
-          "mean_runtime_ms_per_step_sd": 0.07464471253587175
+          "mean_runtime_ms_per_step": 3.367039118004186,
+          "mean_runtime_ms_per_step_sd": 0.10511862391737066
         },
         "b": {
           "variant": "recovery_only",
@@ -373,8 +373,8 @@
           "pibt_backtracks_sd": 102.23257797786378,
           "candidate_evaluations": 34933.0,
           "candidate_evaluations_sd": 136.61442090789683,
-          "mean_runtime_ms_per_step": 0.8665478214948052,
-          "mean_runtime_ms_per_step_sd": 0.013164854056169342
+          "mean_runtime_ms_per_step": 1.1607798174961772,
+          "mean_runtime_ms_per_step_sd": 0.02099346540605107
         },
         "both": {
           "variant": "full_lda_pibt",
@@ -416,8 +416,8 @@
           "pibt_backtracks_sd": 63.29454952837566,
           "candidate_evaluations": 35797.8,
           "candidate_evaluations_sd": 629.3470425766693,
-          "mean_runtime_ms_per_step": 2.5360769239905494,
-          "mean_runtime_ms_per_step_sd": 0.05534021342374241
+          "mean_runtime_ms_per_step": 3.3751023700017413,
+          "mean_runtime_ms_per_step_sd": 0.13548734530172585
         }
       },
       "decomposition": {

@@ -1,10 +1,36 @@
 """Space-time (reservation-table) pathfinding shared by the baseline planners.
 
-Nothing else in the codebase provides this: `routing.Router` and
-`graph.GridGraph.shortest_route` are static, single-agent shortest paths with
-no notion of *when* a cell is occupied, which is exactly what Token Passing
-and RHCR need in order to avoid other robots without PIBT's
-candidate-scoring/priority-inheritance machinery.
+Nothing else in the codebase provides this: `graph.GridGraph.shortest_route`
+is a static, single-agent shortest path with no notion of *when* a cell is
+occupied, which is exactly what Token Passing and RHCR need in order to avoid
+other robots without PIBT's candidate-scoring/priority-inheritance machinery.
+
+Two searches live here, because the two baselines need genuinely different
+things and collapsing them into one was how the previous version of this file
+made both of them fail:
+
+`space_time_astar`
+    Token Passing's search (Ma et al. 2017, Path1/Path2). Plans **all the way
+    to the goal**, however far that is, and requires that the agent can then
+    *stay* there -- a Token Passing path ends at an endpoint the agent rests
+    at until it next receives the token, so the goal has to be free from
+    arrival onwards, not merely for some fixed number of steps.
+
+`bounded_horizon_astar`
+    RHCR's search (Li et al. 2021). Resolves collisions only within the first
+    `window` timesteps and ignores reservations beyond it, which is precisely
+    what "bounded horizon" means in that paper -- the path is *not* required
+    to reach the goal inside the window, and a robot whose goal is 60 steps
+    away still gets a legal, progress-making path out of a 10-step window.
+    It plans through a *sequence* of goals (pickup then delivery), because
+    RHCR assigns each agent a sequence and a robot that would otherwise reach
+    its pickup mid-window would sit there until the next replan.
+
+The distinction matters because the failure mode is asymmetric: a windowed
+search that is asked to reach a far goal returns "no path" for every robot at
+once, and a full-goal search that is given a fixed short horizon does the
+same. Either way every robot waits, and the baseline appears to deadlock when
+what actually happened is that its planner was asked the wrong question.
 """
 
 from __future__ import annotations
@@ -22,19 +48,68 @@ if TYPE_CHECKING:
 
 _counter = itertools.count()
 
+#: Floor on how far past the last reservation a Token Passing search may
+#: plan, when the graph is smaller than this. See `space_time_astar`.
+MIN_TIME_SLACK = 32
+
+
+@dataclass
+class Budget:
+    """A search budget, in node expansions, shared across several searches.
+
+    Token Passing asks an agent to consider its tasks in order of distance and
+    plan the nearest one it can actually reach. On a well-formed instance the
+    nearest always plans and the question of how many to try never arises; on
+    a floor where agents are boxed in it does, and capping it at some round
+    number of candidates is an arbitrary handicap on the algorithm -- one that
+    measurably costs it throughput, which is not a thing to decide by picking
+    a constant.
+
+    So the cap is on work rather than on candidates: an agent gets one budget
+    per timestep and spends it on as many candidates as it fits. A search that
+    succeeds costs almost nothing, so an agent with somewhere to go tries one
+    and stops; an agent with nowhere to go spends the whole budget finding
+    that out, and tries again next timestep.
+    """
+
+    remaining: int
+
+    def spend(self, expansions: int) -> None:
+        self.remaining -= expansions
+
+    def __bool__(self) -> bool:
+        return self.remaining > 0
+
 
 @dataclass
 class ReservationTable:
-    """Vertex-time and edge-time occupancy used to keep planned paths conflict-free.
+    """Vertex-time, edge-time and *terminal* occupancy of the committed paths.
 
-    Always built fresh for a single planning call and discarded afterwards --
-    it never accumulates reservations across simulation timesteps, so its size
-    is bounded by (number of robots x path/window length), not by run length.
+    The first two are the usual cooperative-A* reservations. The third is
+    what Token Passing actually needs and what a fixed-horizon table cannot
+    express: an agent whose path ends at vertex ``v`` at time ``T`` stays
+    there indefinitely -- until it next receives the token, which may be
+    hundreds of timesteps later -- so ``v`` is blocked for *every* ``t >= T``,
+    not for ``T..T+horizon``. Reserving a finite hold instead is a silent
+    correctness hole (a later robot plans through the cell once the hold
+    lapses) and reserving a very long one is a silent throughput hole (the
+    table grows by horizon entries per idle robot per planning call).
     """
 
     vertex_reservations: Dict[Tuple[Vertex, int], int] = field(default_factory=dict)
     edge_reservations: Dict[Tuple[Vertex, Vertex, int], int] = field(default_factory=dict)
+    #: vertex -> (robot id, first timestep it is held from, forever)
+    terminal_holds: Dict[Vertex, Tuple[int, int]] = field(default_factory=dict)
+    #: latest timestep any explicit reservation covers, so a goal test knows
+    #: how far into the future it has to look
+    horizon_end: int = 0
+    #: vertex -> {robot id: last timestep that robot claims it}. Redundant
+    #: with `vertex_reservations`, and kept because `rest_is_clear` is called
+    #: once per goal-expansion and scanning the whole remaining horizon there
+    #: made a failed Token Passing search quadratic in the horizon.
+    latest_claim: Dict[Vertex, Dict[int, int]] = field(default_factory=dict)
 
+    # ------------------------------------------------------------- queries
     def is_free(
         self,
         vertex: Vertex,
@@ -45,6 +120,9 @@ class ReservationTable:
         holder = self.vertex_reservations.get((vertex, t))
         if holder is not None and holder != robot_id:
             return False
+        terminal = self.terminal_holds.get(vertex)
+        if terminal is not None and terminal[0] != robot_id and t >= terminal[1]:
+            return False
         if moving_from is not None:
             # Someone else moving the opposite way across the same edge this
             # timestep is a swap conflict, not just a vertex conflict.
@@ -53,89 +131,103 @@ class ReservationTable:
                 return False
         return True
 
-    def reserve_path(self, robot_id: int, path: Sequence[Vertex], start_time: int) -> None:
-        for offset, vertex in enumerate(path):
-            t = start_time + offset
-            self.vertex_reservations[(vertex, t)] = robot_id
-            if offset > 0:
-                self.edge_reservations[(path[offset - 1], vertex, t)] = robot_id
+    def rest_is_clear(self, vertex: Vertex, from_time: int, robot_id: Optional[int] = None) -> bool:
+        """Whether `vertex` is free of *other* claims for all time from `from_time`.
 
-    def reserve_hold(self, robot_id: int, vertex: Vertex, from_time: int, until_time: int) -> None:
-        """Reserve `vertex` for every timestep in [from_time, until_time] -- used
-        for a robot that could not find a path and is waiting in place, so
-        other robots plan around it rather than through it."""
-        for t in range(from_time, until_time + 1):
-            self.vertex_reservations[(vertex, t)] = robot_id
-
-    def goal_is_clear(
-        self, vertex: Vertex, from_time: int, until_time: int, robot_id: Optional[int] = None
-    ) -> bool:
-        """Whether `vertex` is free of *other* reservations for the rest of the
-        search horizon -- the usual cooperative-A* goal condition: a path may
-        only stop and hold at its goal once nobody else needs the cell later."""
-        for t in range(from_time, until_time + 1):
-            holder = self.vertex_reservations.get((vertex, t))
-            if holder is not None and holder != robot_id:
+        Token Passing's goal test. A path may only end at a vertex the agent
+        can then occupy indefinitely, so this checks every remaining explicit
+        reservation as well as the terminal holds.
+        """
+        terminal = self.terminal_holds.get(vertex)
+        if terminal is not None and terminal[0] != robot_id:
+            return False
+        for holder, last in self.latest_claim.get(vertex, {}).items():
+            if holder != robot_id and last >= from_time:
                 return False
         return True
 
+    # ------------------------------------------------------------ mutation
+    def reserve_path(
+        self,
+        robot_id: int,
+        path: Sequence[Vertex],
+        start_time: int,
+        rest_at_end: bool = True,
+    ) -> None:
+        """Commit `path` to the table, holding its last vertex forever after.
 
-def reserve_path_with_hold(
-    reservations: ReservationTable,
-    robot_id: int,
-    path: Sequence[Vertex],
-    start_time: int,
-    horizon: int,
-) -> None:
-    """Reserve `path` and hold its last vertex for the rest of `horizon`.
+        `rest_at_end=False` is the windowed (RHCR) case, where a path is a
+        slice of a longer journey and the agent keeps moving after it.
+        """
+        for offset, vertex in enumerate(path):
+            t = start_time + offset
+            self.vertex_reservations[(vertex, t)] = robot_id
+            claims = self.latest_claim.setdefault(vertex, {})
+            if claims.get(robot_id, -1) < t:
+                claims[robot_id] = t
+            if offset > 0:
+                self.edge_reservations[(path[offset - 1], vertex, t)] = robot_id
+        last_time = start_time + len(path) - 1
+        self.horizon_end = max(self.horizon_end, last_time)
+        if rest_at_end:
+            self.terminal_holds[path[-1]] = (robot_id, last_time)
 
-    A path shorter than `horizon` means the robot reaches (or already sits
-    at) its goal and stops there; without the trailing hold, a robot planned
-    later in the same call -- or in a later call, before this robot replans
-    -- could path straight through that cell once the explicit path
-    reservation ends, producing a real (not merely theoretical) collision.
-    """
-    reservations.reserve_path(robot_id, path, start_time)
-    last_time = start_time + len(path) - 1
-    if last_time < start_time + horizon:
-        reservations.reserve_hold(robot_id, path[-1], last_time + 1, start_time + horizon)
+    def reserve_hold(self, robot_id: int, vertex: Vertex, from_time: int, until_time: int) -> None:
+        """Reserve `vertex` for every timestep in [from_time, until_time]."""
+        for t in range(from_time, until_time + 1):
+            self.vertex_reservations[(vertex, t)] = robot_id
+        claims = self.latest_claim.setdefault(vertex, {})
+        if claims.get(robot_id, -1) < until_time:
+            claims[robot_id] = until_time
+        self.horizon_end = max(self.horizon_end, until_time)
 
 
+# --------------------------------------------------------------------------
+# Token Passing's search: reach the goal, however far, and be able to stay
+# --------------------------------------------------------------------------
 def space_time_astar(
     graph: GridGraph,
     start: Vertex,
     goal: Vertex,
     start_time: int,
     reservations: ReservationTable,
-    horizon: int,
     heuristic: Optional[Dict[Vertex, float]] = None,
     node_expansion_cap: Optional[int] = None,
     robot_id: Optional[int] = None,
-    require_goal: bool = True,
+    time_slack: Optional[int] = None,
+    budget: Optional[Budget] = None,
 ) -> Optional[List[Vertex]]:
-    """Time-expanded A* from `start` at `start_time` toward `goal`, avoiding `reservations`.
+    """Time-expanded A* from `start` at `start_time` to `goal`, avoiding `reservations`.
 
-    Returns the sequence of vertices occupied at start_time, start_time+1, ...
-    (inclusive of `start`). Waiting in place is always a legal action. Pure
-    function: never mutates `reservations`; callers reserve the result.
+    Returns the vertices occupied at start_time, start_time+1, ... inclusive of
+    `start`, ending at `goal` at a time from which the agent may rest there
+    indefinitely; `None` if no such path exists. Waiting in place is always a
+    legal action. Pure: never mutates `reservations`.
 
-    When `require_goal` is True (Token Passing's use, with a generous
-    `horizon`), a path is only returned if it actually reaches `goal` and can
-    hold there for the rest of `horizon`; otherwise `None`. When False
-    (RHCR's windowed use, where `horizon` is a short planning window
-    decoupled from how far away the goal actually is -- reaching it within
-    one window would be the exception, not the rule), the search instead
-    returns the best-effort full-length path: if goal is never reached, the
-    path to whichever state at exactly `start_time + horizon` has the
-    smallest remaining heuristic distance to `goal` (ties broken by A*'s
-    exploration order). Waiting the entire horizon is always a legal
-    fallback, so this practically always returns a path rather than `None`.
+    The search is bounded in *time* by the last reservation plus `time_slack`
+    rather than by a caller-chosen horizon, because Token Passing's paths are
+    as long as the journey is: a fixed horizon shorter than the goal distance
+    makes every call fail at once, which is a planner-shaped hole, not a
+    property of the algorithm.
+
+    `time_slack` defaults to the number of vertices in the graph, which makes
+    the bound *complete* rather than arbitrary: past the last reservation the
+    other agents are all resting, so the graph is static, and any path that
+    exists reaches the goal within `|V| - 1` further steps. Cutting the
+    search there therefore only ever rejects instances that had no answer --
+    and it is what keeps a failed search from expanding the whole
+    time-expanded space out to some round number of timesteps.
     """
     h = heuristic if heuristic is not None else graph.distance_map(goal)
     if h.get(start, float("inf")) == float("inf"):
         return None
 
-    end_time = start_time + horizon
+    if budget is not None:
+        cap = max(0, budget.remaining)
+        node_expansion_cap = cap if node_expansion_cap is None else min(node_expansion_cap, cap)
+    if time_slack is None:
+        time_slack = max(MIN_TIME_SLACK, len(graph))
+    end_time = max(reservations.horizon_end, start_time) + time_slack
     start_state = (start, start_time)
     g_score: Dict[Tuple[Vertex, int], int] = {start_state: 0}
     came_from: Dict[Tuple[Vertex, int], Tuple[Vertex, int]] = {}
@@ -143,126 +235,222 @@ def space_time_astar(
         (h.get(start, 0.0), next(_counter), start_state)
     ]
     expansions = 0
-    best_boundary: Optional[Tuple[float, Tuple[Vertex, int]]] = None
-
-    def _reconstruct(state: Tuple[Vertex, int]) -> List[Vertex]:
-        path = [state[0]]
-        while state in came_from:
-            state = came_from[state]
-            path.append(state[0])
-        path.reverse()
-        return path
+    vertex_res = reservations.vertex_reservations
+    edge_res = reservations.edge_reservations
+    terminal_holds = reservations.terminal_holds
 
     while open_heap:
-        _, _, (vertex, t) = heapq.heappop(open_heap)
+        _, _, state = heapq.heappop(open_heap)
+        vertex, t = state
+        expansions += 1
+        if node_expansion_cap is not None and expansions > node_expansion_cap:
+            if budget is not None:
+                budget.spend(expansions)
+            return None
+
+        if vertex == goal and reservations.rest_is_clear(goal, t, robot_id):
+            if budget is not None:
+                budget.spend(expansions)
+            return _reconstruct(came_from, state)
+
+        if t >= end_time:
+            continue
+
+        nt = t + 1
+        tentative_g = g_score[state] + 1
+        for nxt in (*graph.neighbors(vertex), vertex):
+            # `ReservationTable.is_free` inlined: this is the innermost loop
+            # of the whole baseline suite and the call plus its four attribute
+            # lookups cost more than the test itself
+            holder = vertex_res.get((nxt, nt))
+            if holder is not None and holder != robot_id:
+                continue
+            terminal = terminal_holds.get(nxt)
+            if terminal is not None and terminal[0] != robot_id and nt >= terminal[1]:
+                continue
+            swap = edge_res.get((nxt, vertex, nt))
+            if swap is not None and swap != robot_id:
+                continue
+            nxt_state = (nxt, nt)
+            if tentative_g < g_score.get(nxt_state, float("inf")):
+                g_score[nxt_state] = tentative_g
+                came_from[nxt_state] = state
+                heapq.heappush(
+                    open_heap,
+                    (tentative_g + h.get(nxt, float("inf")), next(_counter), nxt_state),
+                )
+    if budget is not None:
+        budget.spend(expansions)
+    return None
+
+
+# --------------------------------------------------------------------------
+# RHCR's search: resolve collisions inside the window, ignore them outside
+# --------------------------------------------------------------------------
+def bounded_horizon_astar(
+    graph: GridGraph,
+    start: Vertex,
+    goals: Sequence[Vertex],
+    start_time: int,
+    reservations: ReservationTable,
+    window: int,
+    heuristics: Optional[Sequence[Dict[Vertex, float]]] = None,
+    node_expansion_cap: Optional[int] = None,
+    robot_id: Optional[int] = None,
+) -> Optional[List[Vertex]]:
+    """Li et al. 2021's bounded-horizon single-agent search.
+
+    Plans through the agent's *sequence* of goals -- pickup then delivery --
+    and returns exactly `window + 1` vertices (start_time .. start_time+window),
+    padding with waits at the final goal if every goal is reached early.
+
+    "Bounded horizon" bounds *collision resolution*, not the journey: the path
+    is never required to reach a goal within the window, and the search
+    minimises f = (steps so far) + (remaining distance through the remaining
+    goals), so a robot 60 steps from its goal still spends its 10-step window
+    making 10 steps of progress rather than being told no path exists.
+
+    Returns `None` only if the goal sequence is unreachable in the static
+    graph; waiting in place for the whole window is otherwise always legal,
+    provided the start cell itself is not reserved out from under the agent.
+    """
+    goals = list(goals) or [start]
+    if heuristics is None:
+        heuristics = [graph.distance_map(g) for g in goals]
+
+    #: distance still to travel after finishing goal `i`, so the heuristic
+    #: stays admissible across the whole sequence rather than only the leg
+    tail = [0.0] * len(goals)
+    for i in range(len(goals) - 2, -1, -1):
+        leg = graph.route_distance(goals[i], goals[i + 1])
+        if leg == float("inf"):
+            return None
+        tail[i] = tail[i + 1] + leg
+
+    def h_of(vertex: Vertex, gi: int) -> float:
+        if gi >= len(goals):
+            return 0.0
+        return heuristics[gi].get(vertex, float("inf")) + tail[gi]
+
+    def advance(vertex: Vertex, gi: int) -> int:
+        while gi < len(goals) and vertex == goals[gi]:
+            gi += 1
+        return gi
+
+    if h_of(start, 0) == float("inf"):
+        return None
+
+    end_time = start_time + window
+    start_state = (start, start_time, advance(start, 0))
+    g_score: Dict[Tuple[Vertex, int, int], int] = {start_state: 0}
+    came_from: Dict[Tuple[Vertex, int, int], Tuple[Vertex, int, int]] = {}
+    open_heap = [(h_of(start, start_state[2]), next(_counter), start_state)]
+    expansions = 0
+    #: the best state seen at the window boundary, in case no goal sequence
+    #: completes inside it -- the usual outcome, not the exception
+    best: Optional[Tuple[Tuple[float, int], Tuple[Vertex, int, int]]] = None
+
+    while open_heap:
+        _, _, state = heapq.heappop(open_heap)
+        vertex, t, gi = state
         expansions += 1
         if node_expansion_cap is not None and expansions > node_expansion_cap:
             break
 
-        if vertex == goal and reservations.goal_is_clear(goal, t, end_time, robot_id):
-            return _reconstruct((vertex, t))
-
+        if gi >= len(goals):
+            # every goal visited: the agent rests here for the rest of the
+            # window, which is what RHCR does until its next replan
+            if reservations.is_free(vertex, t, robot_id=robot_id) and all(
+                reservations.is_free(vertex, u, moving_from=vertex, robot_id=robot_id)
+                for u in range(t + 1, end_time + 1)
+            ):
+                path = _reconstruct(came_from, state)
+                return path + [vertex] * (end_time - t)
+            # cannot rest here -- keep searching, waiting is still an option
         if t >= end_time:
-            if not require_goal:
-                h_val = h.get(vertex, float("inf"))
-                if best_boundary is None or h_val < best_boundary[0]:
-                    best_boundary = (h_val, (vertex, t))
+            key = (h_of(vertex, gi), g_score[state])
+            if best is None or key < best[0]:
+                best = (key, state)
             continue
 
         for nxt in (*graph.neighbors(vertex), vertex):
             nt = t + 1
             if not reservations.is_free(nxt, nt, moving_from=vertex, robot_id=robot_id):
                 continue
-            tentative_g = g_score[(vertex, t)] + 1
-            state = (nxt, nt)
-            if tentative_g < g_score.get(state, float("inf")):
-                g_score[state] = tentative_g
-                came_from[state] = (vertex, t)
-                f = tentative_g + h.get(nxt, float("inf"))
-                heapq.heappush(open_heap, (f, next(_counter), state))
+            tentative_g = g_score[state] + 1
+            nxt_state = (nxt, nt, advance(nxt, gi))
+            if tentative_g < g_score.get(nxt_state, float("inf")):
+                g_score[nxt_state] = tentative_g
+                came_from[nxt_state] = state
+                heapq.heappush(
+                    open_heap,
+                    (tentative_g + h_of(nxt, nxt_state[2]), next(_counter), nxt_state),
+                )
 
-    if not require_goal and best_boundary is not None:
-        return _reconstruct(best_boundary[1])
+    if best is not None:
+        return _reconstruct(came_from, best[1])
     return None
 
 
+def _reconstruct(came_from: Dict, state) -> List[Vertex]:
+    path = [state[0]]
+    while state in came_from:
+        state = came_from[state]
+        path.append(state[0])
+    path.reverse()
+    return path
+
+
+# --------------------------------------------------------------------------
+# prioritized planning over a window -- RHCR's fallback when PBS gives up
+# --------------------------------------------------------------------------
 def prioritized_plan(
     robots: Sequence["Robot"],
-    goals: Dict[int, Vertex],
+    goal_sequences: Dict[int, Sequence[Vertex]],
     reservations: ReservationTable,
     graph: GridGraph,
     start_time: int,
-    horizon: int,
+    window: int,
     node_expansion_cap: Optional[int] = None,
-    require_goal: bool = True,
+    order: Optional[Sequence[int]] = None,
 ) -> Dict[int, List[Vertex]]:
-    """Plan `robots` one at a time, in the given order, against a shared table.
+    """Plan `robots` one at a time against a shared table, in `order`.
 
-    Each robot's resulting path (or a one-cell "wait" fallback reserved for
-    the whole horizon if none is found) is committed into `reservations`
-    before the next robot is planned, so later robots route around earlier
-    ones. This is the "give up on joint optimality, just get a legal plan"
-    building block shared by Token Passing's normal operation, its
-    replanning-trigger pass, and RHCR's degrade-on-node-cap-exceeded fallback
-    -- one implementation instead of near-duplicates.
+    Each robot's path is committed into `reservations` before the next is
+    planned, so later robots route around earlier ones. This is PBS's leaf
+    operation (plan one agent under a fixed priority order) and RHCR's
+    degrade-gracefully fallback when the high-level search hits its node cap
+    -- Li et al. 2021 make the same tradeoff.
 
-    Before planning anyone, every robot in `robots` conservatively holds its
-    *current* cell for one extra timestep (`start_time + 1`). Without this, an
-    earlier robot in this same pass has no way to know a later, not-yet-planned
-    robot is physically sitting there right now, and can path straight into
-    it. A robot's own placeholder never blocks its own search (`is_free`
-    treats a cell held by its own id as free), so this only prevents others
-    from stepping into an occupied cell one step before its occupant has had
-    a chance to move -- it does not stop the occupant itself from moving away.
-
-    `require_goal` is forwarded to `space_time_astar` -- pass False when
-    `horizon` is a short rolling window decoupled from actual goal distance
-    (RHCR), so a robot too far from its goal to arrive within the window
-    still gets a legal best-effort path instead of a "no path found" wait.
+    Every path is exactly `window + 1` long, so the table describes the whole
+    window for every robot and a caller may execute any prefix of it.
     """
-    for robot in robots:
-        reservations.vertex_reservations.setdefault((robot.position, start_time + 1), robot.id)
-
+    by_id = {r.id: r for r in robots}
+    sequence = list(order) if order is not None else [r.id for r in robots]
     paths: Dict[int, List[Vertex]] = {}
-    for robot in robots:
-        goal = goals[robot.id]
-        path = space_time_astar(
-            graph,
-            robot.position,
-            goal,
-            start_time,
-            reservations,
-            horizon,
-            node_expansion_cap=node_expansion_cap,
-            robot_id=robot.id,
-            require_goal=require_goal,
+    for robot_id in sequence:
+        robot = by_id[robot_id]
+        path = bounded_horizon_astar(
+            graph, robot.position, goal_sequences[robot_id], start_time,
+            reservations, window, node_expansion_cap=node_expansion_cap,
+            robot_id=robot_id,
         )
-        if path is None:
-            path = [robot.position]
-            reservations.reserve_hold(robot.id, robot.position, start_time, start_time + horizon)
-        else:
-            reserve_path_with_hold(reservations, robot.id, path, start_time, horizon)
-        paths[robot.id] = path
+        if path is None or len(path) != window + 1:
+            path = [robot.position] * (window + 1)
+        reservations.reserve_path(robot_id, path, start_time, rest_at_end=False)
+        paths[robot_id] = path
     return paths
 
 
 def resolve_residual_conflicts(ordered_robots: Sequence["Robot"]) -> List[int]:
     """Force lower-priority robots to hold until no conflicts remain.
 
-    Both baseline planners build every `next_position` from a shared
-    reservation table, which should already make this a no-op in the common
-    case -- but a robot that becomes unable to find any path (see
-    `token_passing.TokenPassingPlanner`'s module docstring) can contend with
-    an already-committed higher-priority robot's move that was reserved
-    *before* the contention existed. Token Passing has no priority-inheritance
-    mechanism to resolve that the way PIBT would, so rather than let it reach
-    `validate.execute_moves` as an actual collision, this downgrades whichever
-    robot is later in `ordered_robots` (the simulator's existing priority
-    order) to stay at its current position instead, and repeats until stable.
-
-    Returns the ids of every robot forced to hold. A nonzero result is a real
-    finding about contention under a baseline without priority inheritance,
-    not a bug to hide -- callers should count it via their `stats()`.
+    A safety net, not a mechanism: both baselines derive every
+    `next_position` from a conflict-free set of committed paths, so this
+    should find nothing. It exists because a silent collision reaching
+    `validate.execute_moves` would abort the run, and because a nonzero count
+    is a real finding about the planner rather than something to hide --
+    both planners report it through `stats()`.
     """
     from ..validate import contains_swap_conflict, contains_vertex_conflict
 
@@ -279,8 +467,6 @@ def resolve_residual_conflicts(ordered_robots: Sequence["Robot"]) -> List[int]:
             a_id, b_id = vertex_clash
             robot_a, robot_b = by_id[a_id], by_id[b_id]
             if robot_a.next_position == robot_a.position:
-                # a isn't moving -- downgrading it would be a no-op; the
-                # conflict is b trying to move into a's occupied cell.
                 loser_id = b_id
             elif robot_b.next_position == robot_b.position:
                 loser_id = a_id
@@ -296,9 +482,10 @@ def resolve_residual_conflicts(ordered_robots: Sequence["Robot"]) -> List[int]:
 
 
 __all__ = [
+    "Budget",
     "ReservationTable",
-    "space_time_astar",
+    "bounded_horizon_astar",
     "prioritized_plan",
-    "reserve_path_with_hold",
     "resolve_residual_conflicts",
+    "space_time_astar",
 ]

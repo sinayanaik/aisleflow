@@ -28,6 +28,7 @@ PAGES = [
     "03-the-math.md",
     "04-parameters.md",
     "05-results.md",
+    "06-the-maps.md",
 ]
 
 

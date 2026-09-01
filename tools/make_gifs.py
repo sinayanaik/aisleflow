@@ -22,11 +22,12 @@ something enormous.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -34,6 +35,87 @@ sys.path.insert(0, str(ROOT / "src"))
 from lda_pibt.viz_compare import Beat, run_panel, save_comparison  # noqa: E402
 
 OUT_DIR = ROOT / "docs" / "gifs"
+DATA_DIR = ROOT / "docs" / "data"
+
+
+# --------------------------------------------------------------------------
+# measured numbers
+#
+# The narration quotes throughput -- "156 against 17 tasks per 1000 steps" --
+# and it used to quote it as a literal in the source. Every one of those
+# literals was wrong by the time anyone read it: the dataset was regenerated,
+# the sentences were not, and a GIF ended up telling a viewer that a planner
+# delivered nothing when the run playing underneath the caption delivered
+# plenty. The numbers are now looked up from `docs/data/` at render time and
+# substituted into `{left}` / `{right}` in the text, so they cannot drift.
+# --------------------------------------------------------------------------
+
+_MEASURED: Dict[str, Dict] = {}
+
+
+def _dataset(name: str) -> Optional[Dict]:
+    if name not in _MEASURED:
+        path = DATA_DIR / f"{name}.json"
+        _MEASURED[name] = json.loads(path.read_text()) if path.exists() else None
+    return _MEASURED[name]
+
+
+def measured_per_1000(map_name: str, variant: str) -> Optional[Dict[str, float]]:
+    """One planner's throughput on one map, per 1000 timesteps, from `docs/data/`.
+
+    Returns the mean and, where the suite recorded per-seed values, the
+    interval across them. Checks the baseline suite first (it has the
+    published planners) and then the ablation suite (it has every
+    configuration of this one).
+    """
+    for suite, mean_of in (
+        ("baselines", lambda row: row["fields"]["throughput"]["mean"]),
+        ("ablation", lambda row: row["throughput"]),
+    ):
+        payload = _dataset(suite)
+        if not payload or map_name not in payload.get("maps", {}):
+            continue
+        for row in payload["maps"][map_name]["rows"]:
+            if row["variant"] != variant:
+                continue
+            raw = (row.get("raw") or row.get("fields", {}).get("throughput", {})).get(
+                "throughput", row.get("fields", {}).get("throughput", {}).get("raw")
+            )
+            seeds = [1000.0 * v for v in raw] if raw else []
+            return {
+                "mean": 1000.0 * mean_of(row),
+                "lo": min(seeds) if seeds else 0.0,
+                "hi": max(seeds) if seeds else 0.0,
+            }
+    return None
+
+
+def fill(text: str, scenario: "Scenario") -> str:
+    """Substitute the measured numbers into a narration string.
+
+    `{left}` / `{right}` are the mean throughputs of the two panels;
+    `{left_range}` / `{right_range}` are the range across seeds, which matters
+    wherever a planner's seed-to-seed spread is the point -- a mean of 128
+    that covers everything from 65 to 190 describes a planner sitting on the
+    edge of failing, and a caption that only quotes the mean over an animation
+    of the bad draw is a caption arguing with its own picture.
+
+    A sentence whose number is missing from the dataset is dropped rather than
+    printed with a hole in it.
+    """
+    if "{" not in text:
+        return text
+    values = {
+        side: measured_per_1000(scenario.map_name, spec.variant)
+        for side, spec in zip(("left", "right"), scenario.panels)
+    }
+    if any(value is None for value in values.values()):
+        return ""
+    fields = {}
+    for side, value in values.items():
+        fields[side] = f"{value['mean']:.0f}"
+        fields[f"{side}_range"] = f"{value['lo']:.0f} to {value['hi']:.0f}"
+    return text.format(**fields)
 
 
 @dataclass(frozen=True)
@@ -80,7 +162,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         rate=0.8,
         timesteps=400,
         stride=2,
-        title="A queue that never resolves, and one that does",
+        title="Two ways of getting past a robot that is in the way",
         caption=(
             "warehouse_bottleneck, 16 robots, two halves joined by one corridor. "
             "Same map, same seed, same tasks."
@@ -89,7 +171,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             PanelSpec(
                 "token_passing",
                 "Token Passing",
-                "Ma et al. 2017 - reserve a whole path, or wait",
+                "Ma et al. 2017 - plan a whole path, then rest at its end",
             ),
             PanelSpec(
                 "full_lda_pibt",
@@ -98,32 +180,38 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
         ),
         watch_for=(
-            "The single clearest picture in the project. Token Passing plans each "
-            "robot a collision-free path through a reservation table and holds "
-            "position when it cannot find one. In a one-corridor map every robot "
-            "eventually queues nose-to-tail in that corridor, no robot can reserve "
-            "a path through the robots ahead of it, and nothing ever moves again: "
-            "watch the left panel turn entirely red and stay there while its "
-            "delivered count stops. The right panel is the same instant of the same "
-            "scenario under priority inheritance, where a blocked robot pushes the "
-            "robot ahead of it out of the way and the queue drains. This is the "
-            "failure mode PIBT was invented to remove, and it is structural: no "
-            "amount of tuning removes it from Token Passing. Measured over five "
-            "seeds on this map: 147 tasks per 1000 timesteps against 8."
+            "The clearest picture of the one structural difference between "
+            "these two families. Token Passing hands an agent a task only if "
+            "it can plan a whole collision-free path through pickup and "
+            "delivery against every other agent's committed path, and an "
+            "agent with no task rests where it stopped. On this map -- two "
+            "halves joined by a single six-cell corridor, with two parking "
+            "bays for sixteen robots -- resting robots regularly sit in the "
+            "corridor, and while one does, nobody on the left can plan a path "
+            "to anywhere on the right. Watch the left panel go quiet in "
+            "stretches: those are the intervals where no agent could be given "
+            "work at all. PIBT never plans a path it has to reserve, so there "
+            "is no search to fail: a blocked robot lends its rank to the robot "
+            "in its way and pushes, and a resting robot is simply displaced. "
+            "Measured over five seeds on this map: {right} tasks per 1000 "
+            "timesteps against {left}. Ma et al. prove Token Passing complete "
+            "on *well-formed* instances -- one parking endpoint per agent -- "
+            "which this map does not provide, and that is exactly the "
+            "assumption you are watching run out."
         ),
         beats=(
             Beat(0, "Same map, same 16 robots, same tasks. One corridor joins the "
-                    "two halves."),
-            Beat(40, "Robots reach the corridor. Token Passing must reserve a whole "
-                     "free path before it moves one."),
-            Beat(90, "Left: the corridor is full, so no free path exists to reserve "
-                     "— and a robot with no reservation waits."),
-            Beat(150, "Left: each robot now waits on a robot that is waiting on it. "
-                      "Red = stuck. The delivered count has stopped."),
-            Beat(230, "Right: PIBT lets a blocked robot PUSH the one ahead of it, so "
-                      "the same queue keeps draining."),
-            Beat(320, "Nothing on the left will move again — its count has stopped "
-                      "climbing. The failure is structural, not a tuning problem."),
+                    "two halves; there are two parking bays for sixteen robots."),
+            Beat(40, "Left: Token Passing gives an agent a task only if it can plan "
+                     "the whole path first, against everyone else's."),
+            Beat(90, "Left: an agent with no task rests where it stopped -- and here "
+                     "that is often inside the one corridor."),
+            Beat(150, "While it sits there, nobody can plan a path across the map, so "
+                      "no task can be handed out at all."),
+            Beat(230, "Right: PIBT plans no path to reserve. A blocked robot lends "
+                      "its rank to the robot ahead and pushes through."),
+            Beat(320, "Five seeds on this map: {right} against {left} tasks per 1000 "
+                      "steps. The difference is pushing, not scoring."),
         ),
     ),
     Scenario(
@@ -161,8 +249,8 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "construction - it can only break ties within a tier, never outrank a "
             "step of progress - and that is the point: it settles the ties that "
             "decide whether a corridor drains or thrashes. Measured over five "
-            "seeds on this map: 196 tasks per 1000 timesteps against 130, a 50% "
-            "gain from the cheapest term in the score."
+            "seeds on this map: {right} tasks per 1000 timesteps against {left}, "
+            "from the cheapest term in the score."
         ),
         beats=(
             Beat(0, "Same map, same 35 robots, same jobs. One term of the movement "
@@ -175,8 +263,8 @@ SCENARIOS: Tuple[Scenario, ...] = (
                       "to a direction and drain."),
             Beat(290, "The penalty never outranks progress — it is far too small. It "
                       "only decides ties, and the ties are what mattered."),
-            Beat(350, "Five seeds on this map: 196 against 130 tasks per 1000 steps. "
-                      "One term, +50%."),
+            Beat(350, "Five seeds on this map: {right} against {left} tasks per "
+                      "1000 steps, from one term."),
         ),
     ),
     Scenario(
@@ -187,16 +275,16 @@ SCENARIOS: Tuple[Scenario, ...] = (
         rate=1.0,
         timesteps=400,
         stride=2,
-        title="A planner that replans, against one that pushes",
+        title="Two planners at the edge of what the floor can carry",
         caption=(
             "warehouse_corridors, 35 robots. RHCR re-solves a windowed instance "
-            "every few steps; aisleflow resolves each conflict in place."
+            "every few steps; aisleflow resolves each conflict where it happens."
         ),
         panels=(
             PanelSpec(
                 "rhcr",
                 "RHCR",
-                "Li et al. 2021 - re-solve a bounded window, or hold",
+                "Li et al. 2021 - replan every h steps over a w-step window (PBS)",
             ),
             PanelSpec(
                 "full_lda_pibt",
@@ -205,33 +293,41 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
         ),
         watch_for=(
-            "The second published baseline, and it fails the same way the first "
-            "does. RHCR plans a bounded-horizon, collision-free set of paths and "
-            "replans on a rolling schedule, which works well when the windowed "
-            "instance is solvable. On five single-file corridors at this density "
-            "it usually is not: a robot whose windowed search finds no path holds "
-            "position, holding position makes the next window harder, and the "
-            "system settles into a state it cannot plan its way out of. Aisleflow "
-            "never solves an instance at all - it resolves each conflict locally "
-            "by lending priority to the robot in the way - so there is no search "
-            "to fail. Measured over five seeds on this map: 153 tasks per 1000 "
-            "timesteps against RHCR's 0.5. That is a large ratio and a weak "
-            "claim, and the results page says so: the comparison that carries "
-            "information is against plain lifelong PIBT, not against a baseline "
-            "that starves."
+            "RHCR is the strongest of the three published baselines and the "
+            "only one whose assumptions this warehouse does not break: it "
+            "replans every agent together every few timesteps over a short "
+            "window, resolving collisions inside it with priority-based search "
+            "and following the plan in between. Its mean here is {left} tasks "
+            "per 1000 timesteps against aisleflow's {right}, and the honest "
+            "reading of that pair is that they are indistinguishable: across "
+            "five seeds RHCR ranges {left_range} and aisleflow {right_range}, "
+            "and the permutation test does not separate them. Thirty-five "
+            "robots on five single-file corridors is right at what this floor "
+            "can carry, and which side of the edge a run lands on is close to "
+            "a coin flip. This animation is a seed where RHCR went over and "
+            "aisleflow did not, and the mechanism is worth watching for that "
+            "reason: the whole left panel turns red at once, because an agent "
+            "whose windowed search finds no plan holds position, holding "
+            "position makes the next window harder, and nothing in RHCR can "
+            "move a stopped agent that is not itself planning. Aisleflow "
+            "never solves an instance at all -- a blocked robot lends its rank "
+            "to the robot in the way and pushes -- so it has no search to "
+            "fail; on its own bad seeds it slows down instead of stopping. "
+            "One animation is one draw. Read the intervals."
         ),
         beats=(
             Beat(0, "Same map, same 35 robots, same jobs. Two ways of avoiding a "
-                    "collision."),
-            Beat(50, "Left: RHCR solves a bounded window of the whole instance, then "
-                     "replans a few steps later."),
-            Beat(120, "Left: with corridors this dense the window stops being "
-                      "solvable — and a robot with no plan holds position."),
-            Beat(200, "Holding position makes the next window harder. Red = stuck."),
+                    "collision, and a floor at the edge of what it can carry."),
+            Beat(50, "Left: RHCR replans every agent together, every few steps, over "
+                     "a short window, and follows the plan in between."),
+            Beat(120, "Left: at this density the windowed instance stops being "
+                      "solvable, and an agent with no plan holds position."),
+            Beat(200, "Holding position makes the next window harder. Red = stuck, "
+                      "and nothing in RHCR can move an agent that is not planning."),
             Beat(280, "Right never solves an instance: a blocked robot lends its rank "
-                      "to the robot in the way and pushes through."),
-            Beat(350, "Five seeds: 153 against 0.5 tasks per 1000 steps. A big ratio, "
-                      "but the honest comparison is plain PIBT — see figure 03."),
+                      "to the robot in the way and pushes, so it slows, not stops."),
+            Beat(350, "This is ONE seed. Over five, RHCR ranges {left_range} per 1000 "
+                      "steps and aisleflow {right_range}: these two are not separated."),
         ),
     ),
     Scenario(
@@ -267,9 +363,9 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "healthy queues get taken apart and rebuilt continuously and the "
             "delivered count barely moves. On the right the same detector must also "
             "see a wait-for cycle or a repeated configuration before it fires. "
-            "Measured over five seeds on this map: 156 tasks per 1000 timesteps "
-            "against 17, a nine-fold difference produced entirely by refusing to "
-            "act on the weakest of the three stall signals. Pooled over all four "
+            "Measured over five seeds on this map: {right} tasks per 1000 "
+            "timesteps against {left}, produced entirely by refusing to act on "
+            "the weakest of the three stall signals. Pooled over all four "
             "maps the sensitivity suite puts the corroboration rule at -54% "
             "(p < 0.001), which makes it the second most load-bearing thing in "
             "the planner."
@@ -285,8 +381,8 @@ SCENARIOS: Tuple[Scenario, ...] = (
                       "rebuilt — continuously. The delivered count barely moves."),
             Beat(280, "Right also needs a wait-for cycle or a repeated configuration "
                       "before it acts, so queues are left to drain."),
-            Beat(350, "Across five seeds: 156 against 17 tasks per 1000 steps, from "
-                      "refusing to act on the weakest of three stall signals."),
+            Beat(350, "Across five seeds: {right} against {left} tasks per 1000 steps, "
+                      "from refusing to act on the weakest of three stall signals."),
         ),
     ),
     Scenario(
@@ -322,10 +418,10 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "turn, keeps to its lane and steers around a crowd is taking a longer "
             "route than it needed to, and there was no congestion to justify it. "
             "The right panel simply delivers more, throughout. Over five seeds it "
-            "is 502 against 416 tasks per 1000 timesteps. The honest summary of "
-            "this project is that its congestion machinery wins on "
-            "aisle-constrained maps and loses on open ones, and this GIF is the "
-            "losing half."
+            "is {right} against {left} tasks per 1000 timesteps. The honest summary "
+            "of this project is that its congestion machinery wins where every "
+            "route crosses one chokepoint and loses where there is a way "
+            "round, and this GIF is the losing half."
         ),
         beats=(
             Beat(0, "The case this project LOSES, shown as plainly as the ones it "
@@ -338,8 +434,8 @@ SCENARIOS: Tuple[Scenario, ...] = (
                       "delivering more, throughout."),
             Beat(300, "Nothing here is stuck on either side. The cost is pure "
                       "overhead, not gridlock."),
-            Beat(350, "The machinery wins on aisle-constrained maps and loses on open "
-                      "ones. Five seeds: 416 against 502 per 1000 steps."),
+            Beat(350, "It wins where every route crosses one chokepoint, and loses "
+                      "where there is a way round. Five seeds: {left} against {right}."),
         ),
     ),
 )
@@ -370,13 +466,18 @@ def render(scenario: Scenario, quick: bool = False) -> Path:
         print(f"    {spec.variant:<28} {time.time() - started:5.1f}s  "
               f"{panels[-1].completed:>4} delivered")
 
+    beats = tuple(
+        Beat(beat.timestep, filled)
+        for beat in scenario.beats
+        if (filled := fill(beat.text, scenario))
+    )
     path = save_comparison(
         panels,
         OUT_DIR / scenario.filename,
         title=scenario.title,
         caption=scenario.caption,
         stride=stride,
-        beats=scenario.beats,
+        beats=beats,
         chart_series=scenario.chart_series,
     )
     print(f"    -> {path.relative_to(ROOT)}  ({path.stat().st_size / 1e6:.2f} MB)")
@@ -397,9 +498,12 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
         "panels of a frame share a map, a seed, a robot count, an arrival rate and a",
         "task stream -- they differ in the planner and nothing else.",
         "",
-        "The numbers quoted below are the ones in [../05-results.md](../05-results.md),",
-        "measured over five seeds; a single seeded run is one draw from that, so a",
-        "GIF shows the mechanism rather than the average.",
+        "The numbers quoted below are read out of `../data/` when the animations",
+        "are rendered, so they are the same numbers as in",
+        "[../05-results.md](../05-results.md) and cannot be left behind by a",
+        "regenerated dataset. They are means over five seeds; a single seeded run",
+        "is one draw from that, so a GIF shows the mechanism rather than the",
+        "average.",
         "",
         "Regenerate them all with:",
         "",
@@ -440,13 +544,17 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
             f"{scenario.rate}, {scenario.timesteps} timesteps, seed {scenario.seed}. "
             f"{panel_desc}.",
             "",
-            scenario.watch_for,
+            fill(scenario.watch_for, scenario),
             "",
         ]
-        if scenario.beats:
+        narration = [
+            (beat.timestep, filled)
+            for beat in scenario.beats
+            if (filled := fill(beat.text, scenario))
+        ]
+        if narration:
             lines += ["<details><summary>The narration, beat by beat</summary>", ""]
-            lines += [f"- **t = {beat.timestep}** -- {beat.text}"
-                      for beat in scenario.beats]
+            lines += [f"- **t = {t}** -- {text}" for t, text in narration]
             lines += ["", "</details>", ""]
         lines += [
             "```bash",

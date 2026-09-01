@@ -31,7 +31,8 @@ GIFS = ROOT / "docs" / "gifs"
 #: the budget `viz_compare.save_comparison` enforces when writing
 GIF_BUDGET_BYTES = 5 * 1024 * 1024
 
-SUITES = ("ablation", "baselines", "hypotheses", "paired", "factorial", "sensitivity",)
+SUITES = ("ablation", "baselines", "density", "hypotheses", "paired",
+          "factorial", "sensitivity")
 
 
 @pytest.mark.parametrize("suite", SUITES)
