@@ -167,7 +167,7 @@ class Params:
     validate_every_step: bool = True
 
     # ---- baseline planners (Token Passing, RHCR) --------------------------
-    #: unused by PIBT/TOLL-PIBT; only consumed by baselines.rhcr.RHCRPlanner
+    #: unused by PIBT/SPAR-PIBT; only consumed by baselines.rhcr.RHCRPlanner
     baseline_window: int = 10
     baseline_replan_period: int = 5
 

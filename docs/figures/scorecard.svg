@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="837.18pt" height="511.04736pt" viewBox="0 0 837.18 511.04736" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-09-01T03:26:59.643810</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 511.04736 
+L 837.18 511.04736 
+L 837.18 0 
+L 0 0 
+z
+" style="fill: #fcfcfb"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 93.32 478.68768 
+L 825.66 478.68768 
+L 825.66 103.837344 
+L 93.32 103.837344 
+z
+" style="fill: #fcfcfb"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(157.187297 87.088809)">plain lifelong</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(175.424672 97.410488)">PIBT</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(355.712656 87.088137)">Token</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(351.782859 97.410488)">Passing</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(521.266422 87.088809)">Token Passing</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(527.244766 97.410488)">+ recovery</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="734.1175" y="98.271328" transform="rotate(-0 734.1175 98.271328)">RHCR</text>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_5"/>
+     <g id="text_5">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(44.223875 149.230208)">bottleneck</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(16.208031 159.55256)">aisle-constrained</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_6"/>
+     <g id="text_6">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(51.782469 242.942792)">corridors</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(16.208031 253.265144)">aisle-constrained</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_7"/>
+     <g id="text_7">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(60.073406 336.65504)">narrow</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(46.146781 346.977392)">open floor</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_8"/>
+     <g id="text_8">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(54.475344 430.36796)">medium</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(46.146781 440.690312)">open floor</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 98.81255 109.460099 
+L 270.91245 109.460099 
+L 270.91245 191.927173 
+L 98.81255 191.927173 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #a6c3e4; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 281.89755 109.460099 
+L 453.99745 109.460099 
+L 453.99745 191.927173 
+L 281.89755 191.927173 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 464.98255 109.460099 
+L 637.08245 109.460099 
+L 637.08245 191.927173 
+L 464.98255 191.927173 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 648.06755 109.460099 
+L 820.16745 109.460099 
+L 820.16745 191.927173 
+L 648.06755 191.927173 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 98.81255 203.172683 
+L 270.91245 203.172683 
+L 270.91245 285.639757 
+L 98.81255 285.639757 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #b3cae5; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 281.89755 203.172683 
+L 453.99745 203.172683 
+L 453.99745 285.639757 
+L 281.89755 285.639757 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 464.98255 203.172683 
+L 637.08245 203.172683 
+L 637.08245 285.639757 
+L 464.98255 285.639757 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 648.06755 203.172683 
+L 820.16745 203.172683 
+L 820.16745 285.639757 
+L 648.06755 285.639757 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 98.81255 296.885267 
+L 270.91245 296.885267 
+L 270.91245 379.352341 
+L 98.81255 379.352341 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #e7bdbb; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 98.81255 390.597851 
+L 270.91245 390.597851 
+L 270.91245 473.064925 
+L 98.81255 473.064925 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #e7bbb8; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 281.89755 390.597851 
+L 453.99745 390.597851 
+L 453.99745 473.064925 
+L 281.89755 473.064925 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 464.98255 390.597851 
+L 637.08245 390.597851 
+L 637.08245 473.064925 
+L 464.98255 473.064925 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 648.06755 390.597851 
+L 820.16745 390.597851 
+L 820.16745 473.064925 
+L 648.06755 473.064925 
+z
+" clip-path="url(#pa7b4edfd45)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="138.454651" transform="rotate(-0 184.8625 138.454651)">1.27x</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="157.457702" transform="rotate(-0 184.8625 157.457702)">ahead, not significant</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="171.306465" transform="rotate(-0 184.8625 171.306465)">149 vs 118 per 1000 steps</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="184.374274" transform="rotate(-0 184.8625 184.374274)">p = 0.056</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="138.34801" transform="rotate(-0 367.9475 138.34801)">20x</text>
+   </g>
+   <g id="text_14">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="157.457702" transform="rotate(-0 367.9475 157.457702)">SPAR ahead</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="171.306465" transform="rotate(-0 367.9475 171.306465)">149 vs 8 per 1000 steps</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="184.374274" transform="rotate(-0 367.9475 184.374274)">p = 0.008</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="138.34801" transform="rotate(-0 551.0325 138.34801)">18x</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="157.457702" transform="rotate(-0 551.0325 157.457702)">SPAR ahead</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="171.306465" transform="rotate(-0 551.0325 171.306465)">149 vs 8 per 1000 steps</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="184.374274" transform="rotate(-0 551.0325 184.374274)">p = 0.008</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="138.34801" transform="rotate(-0 734.1175 138.34801)">13x</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="157.457702" transform="rotate(-0 734.1175 157.457702)">SPAR ahead</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="171.306465" transform="rotate(-0 734.1175 171.306465)">149 vs 12 per 1000 steps</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="184.374274" transform="rotate(-0 734.1175 184.374274)">p = 0.008</text>
+   </g>
+   <g id="text_25">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="232.167235" transform="rotate(-0 184.8625 232.167235)">1.21x</text>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="251.170287" transform="rotate(-0 184.8625 251.170287)">ahead, not significant</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="265.019049" transform="rotate(-0 184.8625 265.019049)">158 vs 130 per 1000 steps</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="278.086858" transform="rotate(-0 184.8625 278.086858)">p = 0.063</text>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(340.95875 224.174579)">delivers</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(322.535 236.765204)">nothing at all</text>
+   </g>
+   <g id="text_30">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="251.170287" transform="rotate(-0 367.9475 251.170287)">SPAR wins</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="265.019049" transform="rotate(-0 367.9475 265.019049)">158 vs 0 per 1000 steps</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="278.086858" transform="rotate(-0 367.9475 278.086858)">p = 0.008</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(524.04375 224.174579)">delivers</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(505.62 236.765204)">nothing at all</text>
+   </g>
+   <g id="text_34">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="251.170287" transform="rotate(-0 551.0325 251.170287)">SPAR wins</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="265.019049" transform="rotate(-0 551.0325 265.019049)">158 vs 0 per 1000 steps</text>
+   </g>
+   <g id="text_36">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="278.086858" transform="rotate(-0 551.0325 278.086858)">p = 0.008</text>
+   </g>
+   <g id="text_37">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="232.060594" transform="rotate(-0 734.1175 232.060594)">315x</text>
+   </g>
+   <g id="text_38">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="251.170287" transform="rotate(-0 734.1175 251.170287)">SPAR ahead</text>
+   </g>
+   <g id="text_39">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="265.019049" transform="rotate(-0 734.1175 265.019049)">158 vs 0 per 1000 steps</text>
+   </g>
+   <g id="text_40">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="278.086858" transform="rotate(-0 734.1175 278.086858)">p = 0.008</text>
+   </g>
+   <g id="text_41">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="325.773179" transform="rotate(-0 184.8625 325.773179)">0.82x</text>
+   </g>
+   <g id="text_42">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="344.882871" transform="rotate(-0 184.8625 344.882871)">SPAR behind</text>
+   </g>
+   <g id="text_43">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="358.731633" transform="rotate(-0 184.8625 358.731633)">289 vs 354 per 1000 steps</text>
+   </g>
+   <g id="text_44">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="371.799442" transform="rotate(-0 184.8625 371.799442)">p = 0.016</text>
+   </g>
+   <g id="text_45">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(354.138062 335.531984)">not run</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(345.423 344.654062)">on this map</text>
+   </g>
+   <g id="text_46">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(537.223063 335.531984)">not run</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(528.508 344.654062)">on this map</text>
+   </g>
+   <g id="text_47">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(720.308062 335.531984)">not run</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(711.593 344.654062)">on this map</text>
+   </g>
+   <g id="text_48">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="419.485763" transform="rotate(-0 184.8625 419.485763)">0.81x</text>
+   </g>
+   <g id="text_49">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="438.595455" transform="rotate(-0 184.8625 438.595455)">SPAR behind</text>
+   </g>
+   <g id="text_50">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="452.444217" transform="rotate(-0 184.8625 452.444217)">405 vs 502 per 1000 steps</text>
+   </g>
+   <g id="text_51">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="184.8625" y="465.512026" transform="rotate(-0 184.8625 465.512026)">p = 0.008</text>
+   </g>
+   <g id="text_52">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="419.485763" transform="rotate(-0 367.9475 419.485763)">101x</text>
+   </g>
+   <g id="text_53">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="438.595455" transform="rotate(-0 367.9475 438.595455)">SPAR ahead</text>
+   </g>
+   <g id="text_54">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="452.444217" transform="rotate(-0 367.9475 452.444217)">405 vs 4 per 1000 steps</text>
+   </g>
+   <g id="text_55">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="367.9475" y="465.512026" transform="rotate(-0 367.9475 465.512026)">p = 0.008</text>
+   </g>
+   <g id="text_56">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="419.387325" transform="rotate(-0 551.0325 419.387325)">15x</text>
+   </g>
+   <g id="text_57">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="438.595455" transform="rotate(-0 551.0325 438.595455)">SPAR ahead</text>
+   </g>
+   <g id="text_58">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="452.444217" transform="rotate(-0 551.0325 452.444217)">405 vs 27 per 1000 steps</text>
+   </g>
+   <g id="text_59">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="551.0325" y="465.512026" transform="rotate(-0 551.0325 465.512026)">p = 0.008</text>
+   </g>
+   <g id="text_60">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="419.485763" transform="rotate(-0 734.1175 419.485763)">28x</text>
+   </g>
+   <g id="text_61">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="438.595455" transform="rotate(-0 734.1175 438.595455)">SPAR ahead</text>
+   </g>
+   <g id="text_62">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="452.444217" transform="rotate(-0 734.1175 452.444217)">405 vs 14 per 1000 steps</text>
+   </g>
+   <g id="text_63">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="734.1175" y="465.512026" transform="rotate(-0 734.1175 465.512026)">p = 0.008</text>
+   </g>
+  </g>
+  <g id="text_64">
+   <text style="font-weight: 700; font-size: 11.5px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #0b0b0b" x="11.52" y="20.258203" transform="rotate(-0 11.52 20.258203)">Is SPAR-PIBT better? One cell per rival per map</text>
+  </g>
+  <g id="text_65">
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 37.549502)">Each cell is SPAR-PIBT's throughput divided by that rival's on that map: above 1.00x SPAR delivers more, below 1.00x it delivers less.</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 47.751826)">Against both published baselines SPAR wins everywhere by 13x to 315x. Against the plain PIBT it extends it is ahead on the two aisle-constrained maps</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 57.95415)">and behind on the two open ones -- and at five seeds only the two losses clear p &lt; 0.05.</text>
+  </g>
+  <g id="text_66">
+   <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #898781" x="14.004" y="497.845719" transform="rotate(-0 14.004 497.845719)">5 seeds x 400 timesteps, Poisson arrivals, generated 2026-08-31T18:46:55Z from SPAR @ e38a849 by experiments/run_all.py</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pa7b4edfd45">
+   <rect x="93.32" y="103.837344" width="732.34" height="374.850336"/>
+  </clipPath>
+ </defs>
+</svg>

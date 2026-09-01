@@ -181,8 +181,8 @@ $O(|V| + |E|)$ per commit.
 
 \begin{caveat}
 This was the fix an earlier review expected to matter most. It does not: on the
-bundled maps its measured effect on throughput is between $\pm 0.000$ and
-$\pm 0.011$, because a single one-way aisle almost never disconnects a ladder
+bundled maps its measured effect on throughput is between $\pm 0$ and
+$\pm 11$ tasks per 1000 timesteps, because a single one-way aisle almost never disconnects a ladder
 graph, so the guard hardly ever fires. The collapse it was meant to cure was a
 liveness failure (\Cref{sec:aisle-decision}), not a connectivity failure. It
 ships as a flag so the null result stays reproducible.

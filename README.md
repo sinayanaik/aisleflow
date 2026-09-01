@@ -1,22 +1,22 @@
-# TOLL — Tolled One-way Lanes for Lifelong pickup-and-delivery
+# SPAR — Soft-Priced Aisle Reversal
 
 **Direction as a price, not a rule: aisle-managed PIBT for lifelong multi-agent
 pickup and delivery.**
 
-A robot may drive the wrong way down a one-way aisle. It pays a toll for doing
-so. That single decision — a traffic rule as a *term in the objective* rather
+Aisles reverse their direction on demand, and a robot that drives the wrong
+way down one is not forbidden but *priced*. That single decision — a traffic rule as a *term in the objective* rather
 than a *constraint on the domain* — is worth between 1.9× and 3.7× throughput
 over the same rule enforced the usual way, and it is what this project is
 about.
 
-**TOLL** is the method; **TOLL-PIBT** is its planner, an extension of
+**SPAR** is the method; **SPAR-PIBT** is its planner, an extension of
 [Priority Inheritance with Backtracking](https://www.alphaxiv.org/abs/1901.11282)
 (Okumura, Machida, Défago, Tamura) to lifelong warehouse MAPD. This repository
 is a complete, runnable Python implementation and — as of this benchmark pass —
 an independently-verified evaluation of it.
 
 > The repository and the Python package predate the name and still read
-> `aisleflow` and `lda_pibt`. `TOLL` and `TOLL-PIBT` are the method and its
+> `aisleflow` and `lda_pibt`. `SPAR` and `SPAR-PIBT` are the method and its
 > planner everywhere else.
 
 The design principle from the proposal is preserved throughout:
@@ -36,9 +36,9 @@ needed for animations.
 Everything below is committed, so it opens straight from GitHub &mdash; no
 clone, no LaTeX, no PowerPoint, no Python:
 
-- **[The paper](docs/pdf/toll-paper.pdf)** (PDF, 48pp) &mdash; the problem
+- **[The paper](docs/pdf/spar-paper.pdf)** (PDF, 48pp) &mdash; the problem
   stated formally, the four prior methods and how each one fails in a narrow
-  lifelong warehouse, what TOLL-PIBT changes and why, the whole system in full
+  lifelong warehouse, what SPAR-PIBT changes and why, the whole system in full
   with numbered equations and algorithms, and what the measurements said.
   Source: [`docs/latex/`](docs/latex/).
 - **[The results dashboard](docs/dashboard.html)** &mdash; pick a map, pick a
@@ -52,10 +52,10 @@ clone, no LaTeX, no PowerPoint, no Python:
   each one a claim shown rather than asserted.
 - **[The figures](docs/figures/)** &mdash; the eight result figures, generated
   from [`docs/data/`](docs/data/).
-- **[Project-review deck](docs/pdf/toll-mapf-presentation.pdf)** (PDF, 37
+- **[Project-review deck](docs/pdf/spar-mapf-presentation.pdf)** (PDF, 37
   slides) &mdash; forty years of MAPF, the gap this project set out to close,
   and what the measurements said. Also available
-  [with speaker notes](docs/pdf/toll-mapf-presentation-notes.pdf).
+  [with speaker notes](docs/pdf/spar-mapf-presentation-notes.pdf).
   Source: [`docs/deck/slides.html`](docs/deck/slides.html).
 - [`docs/implementation-notes.md`](docs/implementation-notes.md) maps each spec
   section to the function that implements it.
@@ -77,7 +77,7 @@ in the single connecting corridor, no robot can reserve a path through the
 robots ahead of it, and nothing moves again for the rest of the run. Right: the
 same scenario under priority inheritance, where a blocked robot pushes the robot
 ahead of it out of the way.* The other four animations &mdash; including
-[the one where TOLL loses](docs/gifs/05-open-map-honesty.gif) &mdash; are
+[the one where SPAR loses](docs/gifs/05-open-map-honesty.gif) &mdash; are
 in [`docs/gifs/README.md`](docs/gifs/README.md).
 
 ---
@@ -363,23 +363,53 @@ question from "does anyone starve?".
 
 ## Results
 
-**The short version, as a picture:**
+### Is SPAR-PIBT better? One cell per rival per map
 
-![Throughput on three maps: TOLL ahead on the aisle-shaped maps, behind on the open one, both baselines far behind everywhere](docs/figures/headline.svg)
+![Scorecard: SPAR-PIBT's throughput divided by each rival's, on every map](docs/figures/scorecard.svg)
 
-TOLL's aisle layer is ahead by 21&ndash;27% on the two aisle-shaped maps
-and behind by 18&ndash;19% on the two open ones; at five seeds the losses are
-significant and the wins are not yet (p = 0.056 and 0.063). Both published
-baselines are two orders of magnitude behind on every map, significantly, at 20x
-to 300x the cost per timestep. [`docs/dashboard.html`](docs/dashboard.html) lets
-you check any of that on any metric, and
-[`docs/figures/`](docs/figures/) has the other seven figures &mdash; including
+Every cell is **SPAR-PIBT's throughput divided by that rival's**: above 1.00x it
+delivers more work, below 1.00x it delivers less.
+
+| map | class | SPAR-PIBT | plain PIBT | Token Passing | RHCR | verdict for SPAR |
+|---|---|---:|---:|---:|---:|---|
+| bottleneck | aisle-constrained | **149** | 118 | 8 | 12 | ✅ beats all four rivals |
+| corridors | aisle-constrained | **158** | 130 | 0 | 0.5 | ✅ beats all four rivals |
+| narrow | open floor | 289 | **354** | — | — | ❌ behind plain PIBT |
+| medium | open floor | 405 | **502** | 27 | 14 | ❌ behind plain PIBT |
+
+*Tasks delivered per 1000 timesteps, 5 seeds x 400 steps. 149 means 149 tasks
+out of every 1000 steps of simulated time. SPAR-PIBT here is
+`aisle_direction_only`, the best-throughput SPAR configuration on all four maps.
+A dash means that baseline suite was not run on that map.*
+
+**In three sentences.** Against the two published lifelong baselines SPAR-PIBT
+wins on every map by **13x to 315x**, at a twentieth to a three-hundredth of
+their cost per timestep, at the strongest significance five seeds can express
+(p = 0.008) &mdash; and Token Passing delivers *nothing at all* on `corridors`.
+Against **plain lifelong PIBT**, the planner it extends and the comparison that
+actually tests the aisle layer, it is ahead by **27% and 21%** on the two
+aisle-constrained maps and behind by **18% and 19%** on the two open-floor ones;
+at five seeds the two losses are significant and the two wins are not yet
+(p = 0.056 and 0.063). Inside the method, pricing counterflow instead of
+forbidding it is worth **1.9x to 3.7x** throughput and is the largest effect
+measured anywhere in this system.
+
+**Where to look next.** [`docs/dashboard.html`](docs/dashboard.html) checks any
+of that on any metric and any map;
+[`docs/figures/`](docs/figures/) has the other eight figures &mdash; including
 [which mechanisms actually earn their cost](docs/figures/forest.svg), which is
 the one to look at if you only look at one.
+
+![Throughput on three maps: SPAR ahead on the aisle-constrained maps, behind on the open one, both baselines far behind everywhere](docs/figures/headline.svg)
 
 Everything in this section is regenerated from
 [`docs/data/`](docs/data/) by `python3 experiments/run_all.py`; the tables below
 are the same runs, read as tables.
+
+> **Units below.** The scorecard above reports throughput per **1000**
+> timesteps, because 149 and 118 are easier to compare than 0.149 and 0.118.
+> The detailed tables that follow are the raw experiment output and stay in
+> **tasks per timestep**: multiply by 1000 to line them up with the scorecard.
 
 `python experiments/run_ablation.py --seeds 5`, 400 timesteps, mean of 5 seeds.
 `thr` = tasks completed per timestep, `svc` = mean service time, `sw/1k` =
@@ -451,7 +481,7 @@ here so that stays visible rather than reading as a null result.
 ### Baselines: comparison against external algorithms
 
 Every table above is this codebase compared against itself: a feature flag on
-or off, same PIBT core underneath. None of it says how TOLL-PIBT or plain
+or off, same PIBT core underneath. None of it says how SPAR-PIBT or plain
 lifelong PIBT stack up against independently-implemented algorithms from the
 literature — until now, that comparison didn't exist in this repo.
 
@@ -527,7 +557,7 @@ mechanism, so a queue that forms never resolves. RHCR's windowed joint
 replanning does modestly better but is still nowhere close, at 56× to 356× the
 cost per step.
 
-`full_lda_pibt` now sits alongside `lifelong_pibt` on the two aisle-shaped
+`full_lda_pibt` now sits alongside `lifelong_pibt` on the two aisle-constrained
 maps rather than far behind it: it wins on `warehouse_bottleneck` (0.14 vs
 0.13, p = 0.016) and is statistically indistinguishable on
 `warehouse_corridors` (0.13 vs 0.14, p = 0.157), where it previously lost 0.02

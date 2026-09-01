@@ -130,7 +130,7 @@ def test_heatmaps_have_grid_shape(session, kind):
 # ------------------------------------------------------------ http surface
 def test_index_page_is_served(base_url):
     html = urllib.request.urlopen(base_url + "/").read().decode()
-    assert "TOLL-PIBT" in html
+    assert "SPAR-PIBT" in html
     assert "<canvas" in html
 
 

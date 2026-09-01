@@ -66,9 +66,14 @@ Over a horizon of $T$ timesteps, with $K$ tasks completed, the primary
 objective is \textbf{throughput}
 \begin{equation}
   \Theta = \frac{K}{T} \quad \text{(tasks per timestep)},
+  \qquad
+  \Theta_{1000} = 1000\,\Theta,
   \label{eq:throughput}
 \end{equation}
-subject to the joint plan being conflict-free at every step. Makespan --- the
+subject to the joint plan being conflict-free at every step. Every figure and
+table in \Cref{sec:results} reports $\Theta_{1000}$ rather than $\Theta$: the
+same measurement, stated per 1000 timesteps, because 149 and 118 are easier to
+tell apart than $0.149$ and $0.118$. Makespan --- the
 standard objective for one-shot MAPF --- is undefined here: there is no last
 task. Sum-of-costs is likewise unavailable, since the set of costs is not
 fixed in advance.
@@ -87,9 +92,9 @@ The measurements in this document are taken in \textbf{saturation}, and this
 must be stated before any of them is quoted.
 
 The arrival rate $\lambda$ is set well above what the floor can serve. On
-\variant{warehouse\_medium} tasks arrive at $\lambda = 1.5$ per timestep and
-the best configuration completes about $0.50$ per timestep; on
-\variant{warehouse\_bottleneck}, $\lambda = 0.8$ against $0.15$ served. Between
+\variant{warehouse\_medium} tasks arrive at $\lambda = 1.5$ per timestep ---
+1500 per 1000 timesteps --- and the best configuration completes about 502 per
+1000; on \variant{warehouse\_bottleneck}, 800 offered against 149 served. Between
 an eighth and a third of offered demand is served (\Cref{tab:scenarios}); the
 backlog grows without bound for the whole run. Three consequences follow, and all three are
 routinely misread.
@@ -99,8 +104,8 @@ routinely misread.
 is always another task waiting, so no planner is ever idle for want of work and
 $\Theta$ is exactly the floor's service capacity under that planner. This is
 why $\Theta$ is the primary objective and why differences in it are meaningful
-even when they look small: $0.50$ against $0.31$ tasks per timestep is a $61\%$
-difference in the capacity of the warehouse.
+even when they look small: 502 against 313 tasks per 1000 timesteps is a
+$61\%$ difference in the capacity of the warehouse.
 
 \item \textbf{Service time is censored, and the censoring is not random.}
 $\mathrm{svc}(\tau)$ exists only for completed tasks. A planner that serves

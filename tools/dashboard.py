@@ -56,7 +56,7 @@ TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TOLL results</title>
+<title>SPAR results</title>
 <style>
 :root {
   color-scheme: light;
@@ -170,7 +170,7 @@ code { font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 12.5
 </head>
 <body>
 <main>
-  <h1>TOLL: is it better?</h1>
+  <h1>SPAR: is it better?</h1>
   <p class="lede">
     Ahead on the maps it was designed for, behind on open ones, and far ahead of
     both published baselines everywhere. The wins are not yet significant at five
@@ -183,8 +183,9 @@ code { font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 12.5
     <p><strong>Every run here is saturated.</strong> Tasks arrive faster than any
     planner can serve them, so the backlog grows all run and throughput is not
     "how busy it was" &mdash; it is the warehouse's service capacity under that
-    planner. That is why 0.50 against 0.31 tasks per timestep is a 61% difference
-    and not a rounding error.</p>
+    planner. That is why 502 against 313 tasks per 1000 timesteps is a 61% difference
+    and not a rounding error. <strong>Throughput is reported per 1000
+    timesteps</strong> throughout this page and the paper.</p>
     <p><strong>Service time only counts tasks that finished.</strong> A planner
     that gives up on the hard tasks reports a beautiful mean service time. Both
     external baselines do exactly that here: near-zero throughput beside some of
@@ -238,9 +239,9 @@ const HEADLINE = ["lifelong_pibt", "full_lda_pibt", "aisle_direction_only",
 
 const LABELS = {
   lifelong_pibt: "plain lifelong PIBT",
-  full_lda_pibt: "TOLL (full)",
-  aisle_direction_only: "TOLL (aisle direction)",
-  aisle_managed_pibt: "TOLL (aisle managed)",
+  full_lda_pibt: "SPAR (full)",
+  aisle_direction_only: "SPAR (aisle direction)",
+  aisle_managed_pibt: "SPAR (aisle managed)",
   hysteresis_pibt: "PIBT + hysteresis",
   directional_pibt: "PIBT + robot direction",
   turning_cost_only: "PIBT + turning cost",
@@ -264,8 +265,11 @@ const LABELS = {
 // the sentence that says what it means. "higher"/"lower" is carried explicitly
 // so no verdict depends on remembering a sign.
 const METRICS = [
-  {key: "throughput", label: "throughput (tasks per timestep)", better: "higher",
-   digits: 3, blurb: "The warehouse's service capacity under this planner."},
+  {key: "throughput", label: "throughput (tasks per 1000 timesteps)",
+   better: "higher", digits: 0, scale: 1000,
+   blurb: "The warehouse's service capacity under this planner. Reported per "
+          + "1000 steps so the numbers are integers: 149 means 149 tasks "
+          + "delivered out of every 1000 timesteps."},
   {key: "completed_tasks", label: "tasks delivered", better: "higher", digits: 0,
    blurb: "Total deliveries over the run."},
   {key: "mean_service_time", label: "mean service time (timesteps)", better: "lower",
@@ -303,6 +307,14 @@ function labelOf(v) { return LABELS[v] || v.replace(/_/g, " "); }
 function shortMap(name) { return name.replace("warehouse_", ""); }
 function fmt(value, digits) {
   return Number(value).toFixed(digits);
+}
+
+// Some metrics are stored in one unit and read in another -- throughput is
+// recorded per timestep and displayed per 1000, because 0.149 and 0.118 look
+// alike and 149 and 118 do not. The scale lives on the metric, so every
+// display path converts and no computation does.
+function fmtM(value, def) {
+  return fmt(value * (def.scale || 1), def.digits);
 }
 
 // ---------------------------------------------------------------------------
@@ -432,7 +444,7 @@ function drawChart() {
     svg.appendChild(el("line", {x1: x, y1: padTop - 8, x2: x,
       y2: height - padBottom + 4, class: "grid-line"}));
     svg.appendChild(el("text", {x: x, y: height - padBottom + 20,
-      class: "tick", "text-anchor": "middle"}, fmt(value, def.digits)));
+      class: "tick", "text-anchor": "middle"}, fmtM(value, def)));
   }
 
   rows.forEach((row, index) => {
@@ -457,7 +469,7 @@ function drawChart() {
     group.appendChild(el("text", {x: plotLeft - 10, y: y + 14,
       class: "name", "text-anchor": "end"}, labelOf(row.variant)));
     group.appendChild(el("text", {x: scale(Math.max(row.mean, row.hi || 0)) + 10,
-      y: y + 14, class: "value-label"}, fmt(row.mean, def.digits)));
+      y: y + 14, class: "value-label"}, fmtM(row.mean, def)));
     group.appendChild(el("rect", {x: 0, y: y - 6, width: width,
       height: rowHeight, fill: "transparent"}));
 
@@ -479,7 +491,7 @@ function drawChart() {
   legend.textContent = "";
   const entries = [
     ["var(--series-1)", "plain lifelong PIBT (the reference)"],
-    ["var(--series-2)", "TOLL variants"],
+    ["var(--series-2)", "SPAR variants"],
     ["var(--series-3)", "Token Passing"],
     ["var(--series-4)", "RHCR"]
   ];
@@ -510,10 +522,10 @@ function showTooltip(event, row, def, verdict) {
   name.textContent = labelOf(row.variant);
   const value = document.createElement("div");
   value.className = "tt-value";
-  value.textContent = fmt(row.mean, def.digits);
+  value.textContent = fmtM(row.mean, def);
   const interval = document.createElement("div");
   interval.textContent =
-    `95% interval ${fmt(row.lo, def.digits)} to ${fmt(row.hi, def.digits)}` +
+    `95% interval ${fmtM(row.lo, def)} to ${fmtM(row.hi, def)}` +
     (row.raw ? ` \\u00b7 ${row.raw.length} seeds` : "");
   const meaning = document.createElement("div");
   meaning.className = "tt-verdict";
@@ -554,8 +566,8 @@ function drawTable() {
     const tr = document.createElement("tr");
     const cells = [
       [labelOf(row.variant), false],
-      [fmt(row.mean, def.digits), true],
-      [`${fmt(row.lo, def.digits)} \\u2013 ${fmt(row.hi, def.digits)}`, true],
+      [fmtM(row.mean, def), true],
+      [`${fmtM(row.lo, def)} \\u2013 ${fmtM(row.hi, def)}`, true],
       [row.p === null || row.p === undefined ? "\\u2014"
         : (row.p < 0.001 ? "< 0.001" : row.p.toFixed(3)), true],
       [verdictFor(row, reference, def), false]
@@ -594,7 +606,7 @@ function ratio(mapName, variant, against) {
   return 100 * (a - b) / b;
 }
 
-// The p-value of the best TOLL configuration against plain PIBT, from
+// The p-value of the best SPAR configuration against plain PIBT, from
 // the ablation suite's per-seed values. A percentage without it invites the
 // reader to believe a 27% lead at p = 0.06 is settled.
 function bestP(mapName) {
@@ -644,9 +656,9 @@ function drawTiles() {
   const host = document.getElementById("tiles");
   host.textContent = "";
 
-  // best TOLL configuration against plain PIBT, per map family
+  // best SPAR configuration against plain PIBT, per map family
   const families = [
-    {label: "on aisle-shaped maps", maps: MAP_ORDER.filter(m => DESIGNED_FOR.has(m))},
+    {label: "on aisle-constrained maps", maps: MAP_ORDER.filter(m => DESIGNED_FOR.has(m))},
     {label: "on open maps", maps: MAP_ORDER.filter(m => !DESIGNED_FOR.has(m))}
   ];
   for (const family of families) {
@@ -667,10 +679,10 @@ function drawTiles() {
         : ` Not significant at five seeds (p up to ${Math.max(...ps).toFixed(3)}) ` +
           "\u2014 the direction is consistent, the evidence is thin.";
     host.appendChild(tile(
-      `TOLL ${family.label}`,
+      `SPAR ${family.label}`,
       `${mean >= 0 ? "+" : ""}${mean.toFixed(0)}%`,
       mean >= 0 ? "win" : "loss",
-      "Best TOLL configuration against plain lifelong PIBT on " +
+      "Best SPAR configuration against plain lifelong PIBT on " +
       family.maps.map(shortMap).join(" and ") + "." + strength
     ));
   }
@@ -685,7 +697,7 @@ function drawTiles() {
   }
   if (gaps.length) {
     host.appendChild(tile(
-      "TOLL vs the published baselines",
+      "SPAR vs the published baselines",
       "far ahead",
       "win",
       "Token Passing and RHCR deliver near zero on every map tested here, at " +
@@ -773,7 +785,7 @@ function buildControls() {
     const button = document.createElement("button");
     button.textContent = shortMap(mapName) + (DESIGNED_FOR.has(mapName) ? " \\u2605" : "");
     button.title = DESIGNED_FOR.has(mapName)
-      ? "an aisle-shaped map: the case the method is for"
+      ? "an aisle-constrained map: the case the method is for"
       : "an open map";
     button.setAttribute("aria-pressed", String(mapName === state.map));
     button.addEventListener("click", () => {
@@ -824,7 +836,7 @@ function provenance() {
   }
   const node = document.getElementById("provenance");
   node.textContent =
-    "Generated by tools/dashboard.py from docs/data/ \\u00b7 TOLL @ " +
+    "Generated by tools/dashboard.py from docs/data/ \\u00b7 SPAR @ " +
     (DATA.ablation || DATA.baselines).meta.git_sha + " \\u00b7 " + parts.join(" \\u00b7 ");
 }
 

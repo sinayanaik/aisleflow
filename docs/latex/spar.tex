@@ -1,7 +1,7 @@
-% TOLL: Tolled One-way Lanes for Lifelong MAPD
+% SPAR: Soft-Priced Aisle Reversal
 %
 % Build with:   python3 tools/build_docs.py paper
-% or directly:  latexmk -lualatex -interaction=nonstopmode docs/latex/toll.tex
+% or directly:  latexmk -lualatex -interaction=nonstopmode docs/latex/spar.tex
 %
 % LuaLaTeX rather than pdfLaTeX, because the worked-example boxes are verbatim
 % transcripts of program output and contain box-drawing characters and Greek
@@ -17,9 +17,9 @@
 
 \input{preamble}
 
-\title{\textbf{TOLL}\\[0.2em]
-  \large \textnormal{\textbf{T}olled \textbf{O}ne-way \textbf{L}anes for
-  \textbf{L}ifelong pickup-and-delivery}\\[0.55em]
+\title{\textbf{SPAR}\\[0.2em]
+  \large \textnormal{\textbf{S}oft-\textbf{P}riced \textbf{A}isle
+  \textbf{R}eversal for lifelong multi-agent pickup and delivery}\\[0.55em]
   \large Direction as a price, not a rule}
 \author{}
 \date{}
@@ -40,10 +40,11 @@ timestep at a time and has no notion of an aisle at all. The obvious extension
 is to give aisles directions, as a warehouse floor manager would: make a
 contended corridor one-way while the traffic in it is one-way.
 
-This document describes \textbf{TOLL} --- \emph{Tolled One-way Lanes for
-Lifelong pickup-and-delivery} --- and its planner \textbf{TOLL-PIBT}, and
-reports what happened when it was measured. The name is the claim: a robot may
-drive the wrong way down a one-way aisle, and pays a toll for doing so. Its central design decision is negative and, we
+This document describes \textbf{SPAR} --- \emph{Soft-Priced Aisle
+Reversal} --- and its planner \textbf{SPAR-PIBT}, and
+reports what happened when it was measured. The name is the claim: aisles
+\emph{reverse} on demand, and a robot that drives the wrong way down one is
+not forbidden but \emph{priced}. Its central design decision is negative and, we
 argue, general: a one-way rule must enter the planner as a \textbf{term in the
 objective}, never as a \textbf{constraint on the domain}. Deleting a
 counterflow move from a robot's candidate set --- the natural implementation,
@@ -62,15 +63,22 @@ its time dismantling ordinary queues.
 We evaluate against two published lifelong baselines --- Token Passing and
 RHCR --- and against every ablation of the method itself, with bootstrap
 confidence intervals and permutation tests over five seeds. The result is
-scoped rather than universal, and we report it that way. Against both external
-baselines TOLL wins decisively and significantly on every map tested, at a
-twentieth to a three-hundredth of their cost per timestep. Against plain
-lifelong PIBT its aisle layer is ahead by 21--27\% on the two aisle-shaped maps
-and behind by 18--19\% on the two open ones --- and at five seeds the losses
-are significant while the wins ($p = 0.056$ and $0.063$) are not yet. The
-mechanisms above are, wherever their mechanism can act at all. The final
-sections say exactly where that boundary falls, and what it would take to
-settle the part that is still open.
+scoped rather than universal, and we report it that way, verdict first
+(\Cref{sec:results-answer}). Against both published baselines SPAR-PIBT
+delivers $13\times$ to $315\times$ their throughput on every map tested, at a
+twentieth to a three-hundredth of their cost per timestep, at the strongest
+significance five seeds can express; Token Passing delivers nothing at all on
+the hardest map. Against plain lifelong PIBT --- the planner SPAR extends, and
+the comparison that actually tests the aisle layer --- the answer splits by map
+class: ahead by 27\% and 21\% on the two \emph{aisle-constrained} maps, where a
+contended aisle has no route around it, and behind by 18\% and 19\% on the two
+\emph{open-floor} maps, where cross-aisles provide one. At five seeds the two
+losses are significant and the two wins ($p = 0.056$ and $0.063$) are not yet,
+though the mechanism's own metrics --- a quarter less driving per delivered
+task, half the head-on conflicts --- are significant exactly where throughput is
+not. The three mechanisms above are established wherever their mechanism can
+act at all. The final sections say exactly where that boundary falls, and what
+it would take to settle the part that is still open.
 \end{abstract}
 
 \vfill
@@ -82,8 +90,8 @@ Source, simulator and every number in this document:
 Figures regenerate from \texttt{docs/data/}; worked examples regenerate from the code.\\[0.4em]
 \footnotesize
 The repository and the Python package predate this name and still read
-\texttt{aisleflow} and \texttt{lda\_pibt}; \texttt{TOLL} and
-\texttt{TOLL-PIBT} are the method and its planner throughout this document.
+\texttt{aisleflow} and \texttt{lda\_pibt}; \texttt{SPAR} and
+\texttt{SPAR-PIBT} are the method and its planner throughout this document.
 \end{center}
 
 \clearpage

@@ -1,4 +1,4 @@
-\section{What TOLL-PIBT changes, and why it is different}
+\section{What SPAR-PIBT changes, and why it is different}
 \label{sec:contribution}
 
 \begin{lede}
@@ -36,7 +36,7 @@ ways to enforce a one-way rule are:
   \label{eq:soft}
 \end{align}
 \Cref{eq:hard} is what the original specification for this system called for,
-and what a one-way rule ordinarily means. \Cref{eq:soft} is what TOLL-PIBT
+and what a one-way rule ordinarily means. \Cref{eq:soft} is what SPAR-PIBT
 does: the move stays in the set, sorted to the back, and is taken when nothing
 better is available.
 
@@ -126,7 +126,7 @@ It is the largest single effect measured anywhere in this system. \Cref{fig:fore
 mechanism, and \Cref{sec:results-mechanisms} gives the table.
 
 \begin{caveat}
-The general form of this finding is worth stating separately from TOLL-PIBT,
+The general form of this finding is worth stating separately from SPAR-PIBT,
 because it applies to any local, push-based planner: \emph{a traffic rule
 imposed as a hard constraint removes the freedom that local conflict resolution
 runs on.} If the planner resolves blockages by displacement, every constraint
@@ -158,7 +158,7 @@ near-equal measure. The imbalance sits inside the dead band forever, and an
 aisle that committed a direction once holds it for the rest of the run while
 half its traffic waits.
 
-TOLL-PIBT adds a maximum green $T_{\max}$: past $T_{\max}$ steps in one
+SPAR-PIBT adds a maximum green $T_{\max}$: past $T_{\max}$ steps in one
 direction, \emph{any} opposing demand at all forces the aisle to drain and
 flip. This gives a bounded-wait property that the dead band alone does not.
 
@@ -209,11 +209,11 @@ recovery's upper levels are drastic: temporary reverse movement, escape-vertex
 assignment, waypoint hijack (\Cref{sec:recovery-levels}). Queues get taken
 apart and rebuilt continuously.
 
-TOLL-PIBT requires corroboration: a group must show signal 1 \emph{and} at least
+SPAR-PIBT requires corroboration: a group must show signal 1 \emph{and} at least
 one of signals 2 or 3 before escalation begins. Signals 2 and 3 are the ones
 with a genuine deadlock semantics --- a circular wait, or a state the system
 has demonstrably returned to. On \variant{warehouse\_corridors} this is worth
-$0.134$ against $0.022$ tasks per timestep ($p = 0.008$), a six-fold difference
+$134$ against $22$ tasks per 1000 timesteps ($p = 0.008$), a six-fold difference
 obtained entirely by declining to act on the weakest evidence. On the other
 maps it points the same way without clearing five-seed significance. The fourth comparison
 animation shows both.
@@ -233,24 +233,27 @@ $\mathcal{A}$:
 
 \begin{table}[H]
 \centering
-\small
+\footnotesize
 \begin{tabular}{@{}llr@{}}
 \toprule
 \textbf{Planner} & \textbf{Per-timestep cost} & \textbf{Measured (ms/step)} \\
 \midrule
 PIBT \citep{okumura2019pibt}
   & $O(|A|(\Delta(G) + F + \log|A|))$ & 0.4--1.0 \\
-TOLL-PIBT (this work)
-  & $+\,O(|A| + |\mathcal{A}|)$ aisle bookkeeping & 1.4--4.4 \\
+SPAR-PIBT, headline config.
+  & $+\,O(|A| + |\mathcal{A}|)$ aisle bookkeeping & 0.6--2.0 \\
+SPAR-PIBT, all mechanisms
+  & same, with entry admission and recovery & 1.4--4.4 \\
 Token Passing \citep{ma2017tp}
   & $O(|A| \cdot \mathrm{A}^\ast(|V| \cdot T_{\mathrm{horizon}}))$ & 32--222 \\
 RHCR \citep{li2021rhcr}
   & windowed CBS, exponential in conflicts, capped & 43--98 \\
 \bottomrule
 \end{tabular}
-\caption{Per-timestep cost. Measured columns are means over five seeds on the
-three baseline maps of \Cref{sec:results}; the spread is across maps and fleet
-sizes. The aisle layer costs a small constant factor over PIBT; both
+\caption{Per-timestep cost. Measured columns are means over five seeds; the
+spread is across the four maps of \Cref{sec:results}. The headline
+configuration is \variant{aisle\_direction\_only}, the one
+\Cref{tab:scorecard} reports. The aisle layer costs a small constant factor over PIBT; both
 path-planning baselines cost one to two orders of magnitude more.}
 \label{tab:complexity}
 \end{table}
@@ -276,5 +279,5 @@ against $0.016$ and $0.008$). The fifth comparison animation is the losing
 case, shown at the same size as the winning ones.
 
 So the claim this document defends is precise: the mechanisms of this section
-are established, the scoping of the aisle layer to aisle-shaped maps is
+are established, the scoping of the aisle layer to aisle-constrained maps is
 consistent and not yet significant, and \Cref{tab:honest} says which is which.

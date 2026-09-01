@@ -1,9 +1,51 @@
-\section{Glossary of symbols}
+\section{Glossary of names and symbols}
 \label{sec:glossary}
 
 \begin{lede}
-Every symbol used above, in one table, with the module that owns it.
+Every name and every symbol used above, in two tables, with the module or
+code identifier that owns it.
 \end{lede}
+
+\subsection{Names}
+\label{sec:glossary-names}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{0.24\linewidth}p{0.50\linewidth}p{0.20\linewidth}@{}}
+\toprule
+\textbf{Name} & \textbf{Meaning} & \textbf{In the code} \\
+\midrule
+\textbf{SPAR} & \emph{Soft-Priced Aisle Reversal}: the method. Aisles reverse
+their committed direction on demand (\emph{reversal}), and a move against the
+committed direction is priced rather than forbidden (\emph{soft-priced}). &
+\code{aisleflow} \\
+\textbf{SPAR-PIBT} & The planner: SPAR's aisle layer over unmodified PIBT. &
+\code{lda\_pibt} \\
+headline configuration & \variant{aisle\_direction\_only}: aisle-level
+direction control with priced counterflow, no entry admission. The
+best-throughput SPAR configuration on all four maps, and what
+``SPAR-PIBT'' means in \Cref{sec:results} unless stated otherwise. &
+\code{config.ABLATIONS} \\
+every mechanism enabled & \variant{full\_lda\_pibt}: the top rung of the
+ablation ladder. Not the best configuration on any map here. &
+\code{config.ABLATIONS} \\
+aisle-constrained map & A map on which a robot in a contended aisle has no
+route around it: \variant{bottleneck}, \variant{corridors}. The case SPAR is
+for. & \code{maps/} \\
+open-floor map & A map whose cross-aisles give that robot a detour:
+\variant{narrow}, \variant{medium}. & \code{maps/} \\
+plain lifelong PIBT & PIBT with lifelong task assignment and no aisle layer:
+the reference every comparison is against. & \variant{lifelong\_pibt} \\
+\bottomrule
+\end{tabular}
+\caption{The names this document uses, and what each one is in the repository.
+The package predates the name and still reads \code{aisleflow} and
+\code{lda\_pibt}.}
+\label{tab:names}
+\end{table}
+
+\subsection{Symbols}
+\label{sec:glossary-symbols}
 
 \begin{longtable}{@{}p{0.20\linewidth}p{0.55\linewidth}p{0.19\linewidth}@{}}
 \toprule
@@ -45,6 +87,7 @@ $B(i, \tau)$ & route bottleneck-blocking estimate & \code{assignment.py} \\
 $\Delta_i(t)$ & one-step route-distance progress & \code{deadlock.py} \\
 $t_{\mathrm{blocked}}, t_{\mathrm{deadlock}}$ & stall and deadlock thresholds & \code{config.py} \\
 $\Theta$ & throughput, tasks per timestep & \code{metrics.py} \\
+$\Theta_{1000}$ & the same quantity per 1000 timesteps, $1000\,\Theta$ --- the unit every figure and table in \Cref{sec:results} reports & \code{metrics.py} \\
 $\mathcal{J}$ & Jain's fairness index over completion counts, $\in (0,1]$ & \code{metrics.py} \\
 $\lambda$ & task arrival rate, tasks per timestep & \code{task.py} \\
 $\INF$ & the unreachable-distance sentinel & \code{types.py} \\

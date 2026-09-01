@@ -84,7 +84,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "full_lda_pibt",
-                "TOLL-PIBT",
+                "SPAR-PIBT",
                 "a blocked robot pushes the robot ahead of it",
             ),
         ),
@@ -123,7 +123,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "aisle_direction_only",
-                "Direction as a price (TOLL)",
+                "Direction as a price (SPAR)",
                 "counterflow costs 8; a step of progress is worth 10",
             ),
         ),
@@ -162,7 +162,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "aisle_direction_only",
-                "Hysteresis + maximum green (TOLL)",
+                "Hysteresis + maximum green (SPAR)",
                 "past T_max, opposing demand forces a drain and flip",
             ),
         ),
@@ -202,7 +202,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "recovery_only",
-                "Corroborated stalls only (TOLL)",
+                "Corroborated stalls only (SPAR)",
                 "also needs a wait-for cycle or repeated configuration",
             ),
         ),
@@ -230,12 +230,12 @@ SCENARIOS: Tuple[Scenario, ...] = (
         title="Where the aisle layer costs more than it earns",
         caption=(
             "warehouse_medium, 40 robots, an open grid warehouse. "
-            "This is the case TOLL loses, shown as plainly as the ones it wins."
+            "This is the case SPAR loses, shown as plainly as the ones it wins."
         ),
         panels=(
             PanelSpec(
                 "full_lda_pibt",
-                "TOLL-PIBT",
+                "SPAR-PIBT",
                 "aisles commit directions; detours are the price",
             ),
             PanelSpec(
@@ -252,8 +252,9 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "shortest route runs against a committed direction either detours or "
             "pays the counterflow penalty, and there was no congestion to justify "
             "either. The right panel simply delivers more, throughout. Over five "
-            "seeds it is 0.50 against 0.31 tasks per step. The honest summary of "
-            "this project is that its aisle layer wins on aisle-shaped maps and "
+            "seeds it is 502 against 313 tasks per 1000 timesteps. The honest "
+            "summary of "
+            "this project is that its aisle layer wins on aisle-constrained maps and "
             "loses on open ones, and this GIF is the losing half."
         ),
     ),

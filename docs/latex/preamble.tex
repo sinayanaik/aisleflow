@@ -1,4 +1,4 @@
-% Preamble for toll.tex. LuaLaTeX only.
+% Preamble for spar.tex. LuaLaTeX only.
 
 \usepackage{geometry}
 \geometry{a4paper, margin=27mm, top=25mm, bottom=27mm}
@@ -79,10 +79,23 @@
 \algrenewcommand\algorithmicensure{\textbf{Output:}}
 \floatname{algorithm}{Algorithm}
 
+% Verdict marks. The results tables are read by people who want the answer
+% before the argument, so every comparison carries a word and a glyph, never a
+% colour alone.
+\usepackage{pifont}
+\definecolor{winc}{HTML}{18762F}
+\definecolor{lossc}{HTML}{B3261E}
+\definecolor{opencolour}{HTML}{9A6700}
+\newcommand{\wins}{\textcolor{winc}{\ding{51}}}
+\newcommand{\loses}{\textcolor{lossc}{\ding{55}}}
+\newcommand{\unclear}{\textcolor{opencolour}{\ding{110}}}
+% throughput, always reported per 1000 timesteps: 149 rather than 0.149
+\newcommand{\tput}[1]{#1}
+
 \usepackage[round,authoryear]{natbib}
 \usepackage[hidelinks,bookmarks=true,bookmarksnumbered=true]{hyperref}
 \hypersetup{
-  pdftitle={TOLL: Tolled One-way Lanes for Lifelong pickup-and-delivery},
+  pdftitle={SPAR: Soft-Priced Aisle Reversal},
   pdfsubject={Multi-agent pickup and delivery},
   colorlinks=true, linkcolor=inkblue, citecolor=inkblue, urlcolor=inkblue,
 }
@@ -102,7 +115,7 @@
 }
 
 % A generated worked example. Everything inside one of these is written by
-% tools/worked_examples.py; see the header of toll.tex.
+% tools/worked_examples.py; see the header of spar.tex.
 \newtcolorbox{workedexample}{
   breakable, enhanced, colback=boxbg, colframe=rulegrey,
   boxrule=0.6pt, arc=1.5pt,
@@ -116,6 +129,17 @@
   boxrule=0pt, leftrule=2pt, arc=0pt, outer arc=0pt,
   left=8pt, right=8pt, top=6pt, bottom=6pt,
   fontupper=\small, #1
+}
+
+% The answer before the argument: one box per section that has a headline
+% finding, stating it in the fewest words that remain true.
+\definecolor{verdictbg}{HTML}{EEF3FA}
+\newtcolorbox{verdict}[1][The short answer]{
+  breakable, enhanced, colback=verdictbg, colframe=inkblue,
+  boxrule=0pt, leftrule=3pt, arc=0pt, outer arc=0pt,
+  left=9pt, right=9pt, top=7pt, bottom=7pt,
+  fonttitle=\small\bfseries, title={#1}, coltitle=inkblue,
+  attach title to upper={\par\vspace{3pt}},
 }
 
 % Fixed-width transcripts (ASCII diagrams, generated tables) that must not

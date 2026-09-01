@@ -71,7 +71,7 @@ python3 tools/make_gifs.py --only recovery
 
 **warehouse_medium**, 40 robots, arrival rate 1.5, 400 timesteps, seed 0. `full_lda_pibt` vs `lifelong_pibt`.
 
-Every mechanism in this project buys something and costs something. On a map with many parallel routes and no scarce single-file aisle, the thing aisle management buys - orderly flow through a contended corridor - is not scarce, while the thing it costs is: a robot whose shortest route runs against a committed direction either detours or pays the counterflow penalty, and there was no congestion to justify either. The right panel simply delivers more, throughout. Over five seeds it is 0.50 against 0.31 tasks per step. The honest summary of this project is that its aisle layer wins on aisle-shaped maps and loses on open ones, and this GIF is the losing half.
+Every mechanism in this project buys something and costs something. On a map with many parallel routes and no scarce single-file aisle, the thing aisle management buys - orderly flow through a contended corridor - is not scarce, while the thing it costs is: a robot whose shortest route runs against a committed direction either detours or pays the counterflow penalty, and there was no congestion to justify either. The right panel simply delivers more, throughout. Over five seeds it is 502 against 313 tasks per 1000 timesteps. The honest summary of this project is that its aisle layer wins on aisle-constrained maps and loses on open ones, and this GIF is the losing half.
 
 ```bash
 python3 tools/make_gifs.py --only open-map
