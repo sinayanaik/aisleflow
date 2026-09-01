@@ -48,9 +48,6 @@ that map rather than about the algorithm: it has no parking bays, so with 35
 agents every one of its five single-file runs has an idle agent standing in it
 before the first task is handed out.
 
-Even this split decision is a weaker claim than it looks, and the next figure
-is why.
-
 ## …and what that comparison is worth
 
 ![Throughput against robot count for every planner on two maps, showing where each one stops scaling](figures/02-throughput-vs-robots.svg)

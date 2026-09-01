@@ -45,7 +45,7 @@ delivering, and the chart under it flattens at the same moment.
 
 **warehouse_bottleneck**, 16 robots, arrival rate 0.8, 400 timesteps, seed 0. `token_passing` vs `full_lda_pibt`.
 
-The clearest picture of the one structural difference between these two families. Token Passing hands an agent a task only if it can plan a whole collision-free path through pickup and delivery against every other agent's committed path, and an agent with no task rests where it stopped. On this map -- two halves joined by a single six-cell corridor, with two parking bays for sixteen robots -- resting robots regularly sit in the corridor, and while one does, nobody on the left can plan a path to anywhere on the right. Watch the left panel go quiet in stretches: those are the intervals where no agent could be given work at all. PIBT never plans a path it has to reserve, so there is no search to fail: a blocked robot lends its rank to the robot in its way and pushes, and a resting robot is simply displaced. Measured over five seeds on this map: 147 tasks per 1000 timesteps against 94. Ma et al. prove Token Passing complete on *well-formed* instances -- one parking endpoint per agent -- which this map does not provide, and that is exactly the assumption you are watching run out.
+The clearest picture of the one structural difference between these two families. Token Passing hands an agent a task only if it can plan a whole collision-free path through pickup and delivery against every other agent's committed path, and an agent with no task rests where it stopped. On this map -- two halves joined by a single six-cell corridor, with two parking bays for sixteen robots -- resting robots regularly sit in the corridor, and while one does, nobody on the left can plan a path to anywhere on the right. Watch the left panel go quiet in stretches: those are the intervals where no agent could be given work at all. PIBT never plans a path it has to reserve, so there is no search to fail: a blocked robot lends its rank to the robot in its way and pushes, and a resting robot is simply displaced. Measured over five seeds on this map: 147 tasks per 1000 timesteps against 98. Ma et al. prove Token Passing complete on *well-formed* instances -- one parking endpoint per agent -- which this map does not provide, and that is exactly the assumption you are watching run out.
 
 <details><summary>The narration, beat by beat</summary>
 
@@ -54,7 +54,7 @@ The clearest picture of the one structural difference between these two families
 - **t = 90** -- Left: an agent with no task rests where it stopped -- and here that is often inside the one corridor.
 - **t = 150** -- While it sits there, nobody can plan a path across the map, so no task can be handed out at all.
 - **t = 230** -- Right: PIBT plans no path to reserve. A blocked robot lends its rank to the robot ahead and pushes through.
-- **t = 320** -- Five seeds on this map: 147 against 94 tasks per 1000 steps. The difference is pushing, not scoring.
+- **t = 320** -- Five seeds on this map: 147 against 98 tasks per 1000 steps. The difference is pushing, not scoring.
 
 </details>
 
@@ -91,7 +91,7 @@ python3 tools/make_gifs.py --only turning-cost
 
 **warehouse_corridors**, 35 robots, arrival rate 1.0, 400 timesteps, seed 0. `rhcr` vs `full_lda_pibt`.
 
-RHCR is the strongest of the three published baselines and the only one whose assumptions this warehouse does not break: it replans every agent together every few timesteps over a short window, resolving collisions inside it with priority-based search and following the plan in between. Its mean here is 128 tasks per 1000 timesteps against aisleflow's 153, and the honest reading of that pair is that they are indistinguishable: across five seeds RHCR ranges 30 to 198 and aisleflow 45 to 198, and the permutation test does not separate them. Thirty-five robots on five single-file corridors is right at what this floor can carry, and which side of the edge a run lands on is close to a coin flip. This animation is a seed where RHCR went over and aisleflow did not, and the mechanism is worth watching for that reason: the whole left panel turns red at once, because an agent whose windowed search finds no plan holds position, holding position makes the next window harder, and nothing in RHCR can move a stopped agent that is not itself planning. Aisleflow never solves an instance at all -- a blocked robot lends its rank to the robot in the way and pushes -- so it has no search to fail; on its own bad seeds it slows down instead of stopping. One animation is one draw. Read the intervals.
+RHCR is the strongest of the three published baselines and the only one whose assumptions this warehouse does not break: it replans every agent together every few timesteps over a short window, resolving collisions inside it with priority-based search and following the plan in between. Its mean here is 94 tasks per 1000 timesteps against aisleflow's 153, and the honest reading of that pair is that they are indistinguishable: across five seeds RHCR ranges 48 to 150 and aisleflow 45 to 198, and the permutation test does not separate them. Thirty-five robots on five single-file corridors is right at what this floor can carry, and which side of the edge a run lands on is close to a coin flip. This animation is a seed where RHCR went over and aisleflow did not, and the mechanism is worth watching for that reason: the whole left panel turns red at once, because an agent whose windowed search finds no plan holds position, holding position makes the next window harder, and nothing in RHCR can move a stopped agent that is not itself planning. Aisleflow never solves an instance at all -- a blocked robot lends its rank to the robot in the way and pushes -- so it has no search to fail; on its own bad seeds it slows down instead of stopping. One animation is one draw. Read the intervals.
 
 <details><summary>The narration, beat by beat</summary>
 
@@ -100,7 +100,7 @@ RHCR is the strongest of the three published baselines and the only one whose as
 - **t = 120** -- Left: at this density the windowed instance stops being solvable, and an agent with no plan holds position.
 - **t = 200** -- Holding position makes the next window harder. Red = stuck, and nothing in RHCR can move an agent that is not planning.
 - **t = 280** -- Right never solves an instance: a blocked robot lends its rank to the robot in the way and pushes, so it slows, not stops.
-- **t = 350** -- This is ONE seed. Over five, RHCR ranges 30 to 198 per 1000 steps and aisleflow 45 to 198: these two are not separated.
+- **t = 350** -- This is ONE seed. Over five, RHCR ranges 48 to 150 per 1000 steps and aisleflow 45 to 198: these two are not separated.
 
 </details>
 
