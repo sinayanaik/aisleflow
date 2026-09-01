@@ -5,9 +5,11 @@ Every panel is a real run of the simulator in this repository, and the two
 panels of a frame share a map, a seed, a robot count, an arrival rate and a
 task stream -- they differ in the planner and nothing else.
 
-These were rendered before the aisle-direction layer was removed, so any
-one-way tinting they show describes a mechanism the planner no longer has;
-the planner comparison each one makes still stands. Regenerate them with:
+The numbers quoted below are the ones in [../05-results.md](../05-results.md),
+measured over five seeds; a single seeded run is one draw from that, so a
+GIF shows the mechanism rather than the average.
+
+Regenerate them all with:
 
 ```bash
 python3 tools/make_gifs.py            # needs pillow: pip install -e ".[viz]"
@@ -40,7 +42,7 @@ delivering, and the chart under it flattens at the same moment.
 
 **warehouse_bottleneck**, 16 robots, arrival rate 0.8, 400 timesteps, seed 0. `token_passing` vs `full_lda_pibt`.
 
-The single clearest picture in the project. Token Passing plans each robot a collision-free path through a reservation table and holds position when it cannot find one. In a one-corridor map every robot eventually queues nose-to-tail in that corridor, no robot can reserve a path through the robots ahead of it, and nothing ever moves again: watch the left panel turn entirely red and stay there while its delivered count stops. The right panel is the same instant of the same scenario under priority inheritance, where a blocked robot pushes the robot ahead of it out of the way and the queue drains. This is the failure mode PIBT was invented to remove, and it is structural: no amount of tuning removes it from Token Passing.
+The single clearest picture in the project. Token Passing plans each robot a collision-free path through a reservation table and holds position when it cannot find one. In a one-corridor map every robot eventually queues nose-to-tail in that corridor, no robot can reserve a path through the robots ahead of it, and nothing ever moves again: watch the left panel turn entirely red and stay there while its delivered count stops. The right panel is the same instant of the same scenario under priority inheritance, where a blocked robot pushes the robot ahead of it out of the way and the queue drains. This is the failure mode PIBT was invented to remove, and it is structural: no amount of tuning removes it from Token Passing. Measured over five seeds on this map: 147 tasks per 1000 timesteps against 8.
 
 <details><summary>The narration, beat by beat</summary>
 
@@ -49,7 +51,7 @@ The single clearest picture in the project. Token Passing plans each robot a col
 - **t = 90** -- Left: the corridor is full, so no free path exists to reserve — and a robot with no reservation waits.
 - **t = 150** -- Left: each robot now waits on a robot that is waiting on it. Red = stuck. The delivered count has stopped.
 - **t = 230** -- Right: PIBT lets a blocked robot PUSH the one ahead of it, so the same queue keeps draining.
-- **t = 320** -- Nothing on the left will move again — the count is frozen at zero. The failure is structural, not a tuning problem.
+- **t = 320** -- Nothing on the left will move again — its count has stopped climbing. The failure is structural, not a tuning problem.
 
 </details>
 
@@ -57,50 +59,50 @@ The single clearest picture in the project. Token Passing plans each robot a col
 python3 tools/make_gifs.py --only gridlock
 ```
 
-## One-way as a constraint, one-way as a price
+## The cheapest term in the score, and what it buys
 
-![One-way as a constraint, one-way as a price](02-hard-vs-soft-direction.gif)
+![The cheapest term in the score, and what it buys](02-turning-cost-on-a-tight-floor.gif)
 
-**warehouse_corridors**, 35 robots, arrival rate 1.0, 400 timesteps, seed 0. `aisle_direction_hard` vs `aisle_direction_only`.
+**warehouse_corridors**, 35 robots, arrival rate 1.0, 400 timesteps, seed 0. `lifelong_pibt` vs `turning_cost_only`.
 
-The core argument of the method, as a picture. Both panels commit the same aisle directions; they differ only in what a committed direction does to a move that opposes it. On the left it removes the move from the candidate set, which is what the specification literally says and what most one-way schemes do - and priority inheritance needs a robot to always have somewhere to be pushed, so deleting that option strands whole corridors. On the right the same move survives and simply costs 8, less than the 10 a step of progress is worth, so a robot drives the wrong way when that is the only way through and pays for it. Measured over five seeds this is worth between 1.9x and 3.1x throughput - the largest single effect in the repository.
+The largest single win in the repository, and it is one term. Both panels run the same lifelong PIBT on the same corridors with the same jobs; the right one additionally charges a robot for reversing direction. In a single-file corridor a robot that oscillates blocks everything behind it in both directions, and the whole queue spends its time undoing the previous step. The penalty is small by construction - it can only break ties within a tier, never outrank a step of progress - and that is the point: it settles the ties that decide whether a corridor drains or thrashes. Measured over five seeds on this map: 196 tasks per 1000 timesteps against 130, a 50% gain from the cheapest term in the score.
 
 <details><summary>The narration, beat by beat</summary>
 
-- **t = 0** -- Both sides commit the SAME one-way directions. They differ only in what that does to a move going the wrong way.
-- **t = 50** -- Left: a counterflow move is deleted outright. Right: it survives, priced at 8 against the 10 a step of progress earns.
-- **t = 120** -- Priority inheritance needs somewhere to push a blocked robot. Delete counterflow and whole corridors have nowhere.
-- **t = 200** -- Left: corridors strand, and the red spreads. Right: robots drive the wrong way only when nothing else gets through.
-- **t = 290** -- Right pays for each of those wrong-way steps and still delivers far more.
-- **t = 350** -- One rule, two enforcements. Across five seeds at 1000 steps, pricing it beats deleting it by 1.9x-3.1x.
+- **t = 0** -- Same map, same 35 robots, same jobs. One term of the movement score apart.
+- **t = 50** -- Both sides score a step toward the goal at 10. The right side also charges a robot for reversing.
+- **t = 120** -- Left: in a single-file corridor an oscillating robot blocks everything behind it, both ways.
+- **t = 200** -- Right: the turning cost breaks that tie, so corridors commit to a direction and drain.
+- **t = 290** -- The penalty never outranks progress — it is far too small. It only decides ties, and the ties are what mattered.
+- **t = 350** -- Five seeds on this map: 196 against 130 tasks per 1000 steps. One term, +50%.
 
 </details>
 
 ```bash
-python3 tools/make_gifs.py --only hard-vs-soft
+python3 tools/make_gifs.py --only turning-cost
 ```
 
-## An aisle that never flips, and one that must
+## A planner that replans, against one that pushes
 
-![An aisle that never flips, and one that must](03-maximum-green-starvation.gif)
+![A planner that replans, against one that pushes](03-rhcr-replanning-stalls.gif)
 
-**warehouse_narrow**, 30 robots, arrival rate 1.2, 400 timesteps, seed 0. `aisle_direction_no_max_green` vs `aisle_direction_only`.
+**warehouse_corridors**, 35 robots, arrival rate 1.0, 400 timesteps, seed 0. `rhcr` vs `full_lda_pibt`.
 
-Hysteresis is only half a traffic signal. A dead band and a minimum lock bound how soon an aisle may change direction and say nothing about how long it may keep one - and a warehouse with pickups down one side and deliveries down the other produces near-balanced demand by construction, so the imbalance never breaks the band. On the left the aisle tints settle and stop changing: robots wanting the other direction wait, and keep waiting. On the right the same aisles reach their maximum green, turn purple as they DRAIN, and commit the opposite direction once empty. Drain-before-reverse is visible in every flip: the aisle empties before it turns, so no two robots ever meet head-on inside it. This is what makes the aisle layer starvation-free rather than merely non-flapping.
+The second published baseline, and it fails the same way the first does. RHCR plans a bounded-horizon, collision-free set of paths and replans on a rolling schedule, which works well when the windowed instance is solvable. On five single-file corridors at this density it usually is not: a robot whose windowed search finds no path holds position, holding position makes the next window harder, and the system settles into a state it cannot plan its way out of. Aisleflow never solves an instance at all - it resolves each conflict locally by lending priority to the robot in the way - so there is no search to fail. Measured over five seeds on this map: 153 tasks per 1000 timesteps against RHCR's 0.5. That is a large ratio and a weak claim, and the results page says so: the comparison that carries information is against plain lifelong PIBT, not against a baseline that starves.
 
 <details><summary>The narration, beat by beat</summary>
 
-- **t = 0** -- Aisle tint is the committed one-way direction; the arrows show which way it flows.
-- **t = 60** -- Left has hysteresis only: an aisle keeps its direction until demand imbalance breaks the dead band.
-- **t = 130** -- Pickups down one side, deliveries down the other, so demand stays near-balanced — the band never breaks.
-- **t = 190** -- Right adds a maximum green: past T_max the aisle turns purple, DRAINS empty, then commits the other way.
-- **t = 260** -- Draining before reversing is why no two robots ever meet head-on inside an aisle.
-- **t = 330** -- Both sides deliver about the same here. The chart is the claim: left's aisles barely flip, so waiting robots keep waiting.
+- **t = 0** -- Same map, same 35 robots, same jobs. Two ways of avoiding a collision.
+- **t = 50** -- Left: RHCR solves a bounded window of the whole instance, then replans a few steps later.
+- **t = 120** -- Left: with corridors this dense the window stops being solvable — and a robot with no plan holds position.
+- **t = 200** -- Holding position makes the next window harder. Red = stuck.
+- **t = 280** -- Right never solves an instance: a blocked robot lends its rank to the robot in the way and pushes through.
+- **t = 350** -- Five seeds: 153 against 0.5 tasks per 1000 steps. A big ratio, but the honest comparison is plain PIBT — see figure 03.
 
 </details>
 
 ```bash
-python3 tools/make_gifs.py --only max-green
+python3 tools/make_gifs.py --only rhcr
 ```
 
 ## Rescuing a deadlock, and rescuing a queue
@@ -109,16 +111,16 @@ python3 tools/make_gifs.py --only max-green
 
 **warehouse_corridors**, 35 robots, arrival rate 1.0, 400 timesteps, seed 0. `recovery_uncorroborated` vs `recovery_only`.
 
-In dense lifelong traffic, 'this robot has not progressed for a while' does not describe a deadlock - it describes an ordinary queue. On the left that signal alone escalates recovery, whose upper levels reverse robots, send them to escape vertices and hijack their waypoints; healthy queues get taken apart and rebuilt continuously and the delivered count barely moves. On the right the same detector must also see a wait-for cycle or a repeated configuration before it fires. Measured on this map: 0.134 tasks per step against 0.022, a six-fold difference produced entirely by refusing to act on the weakest of the three stall signals.
+In dense lifelong traffic, 'this robot has not progressed for a while' does not describe a deadlock - it describes an ordinary queue. On the left that signal alone escalates recovery, whose upper levels reverse robots, send them to escape vertices and hijack their waypoints; healthy queues get taken apart and rebuilt continuously and the delivered count barely moves. On the right the same detector must also see a wait-for cycle or a repeated configuration before it fires. Measured over five seeds on this map: 156 tasks per 1000 timesteps against 17, a nine-fold difference produced entirely by refusing to act on the weakest of the three stall signals. Pooled over all four maps the sensitivity suite puts the corroboration rule at -54% (p < 0.001), which makes it the second most load-bearing thing in the planner.
 
 <details><summary>The narration, beat by beat</summary>
 
 - **t = 0** -- Both sides run the SAME seven-level recovery. They differ only in what is allowed to trigger it.
-- **t = 50** -- Left fires on one signal alone: no progress for t_blocked steps.
+- **t = 50** -- Left fires on one signal alone: no progress for stall_steps steps.
 - **t = 120** -- But in dense lifelong traffic that signal describes an ordinary queue, not a deadlock.
 - **t = 200** -- Left: healthy queues are reversed, sent to escape vertices and rebuilt — continuously. The delivered count barely moves.
 - **t = 280** -- Right also needs a wait-for cycle or a repeated configuration before it acts, so queues are left to drain.
-- **t = 350** -- Across five seeds: 0.134 tasks per step against 0.022, from refusing to act on the weakest of three stall signals.
+- **t = 350** -- Across five seeds: 156 against 17 tasks per 1000 steps, from refusing to act on the weakest of three stall signals.
 
 </details>
 
@@ -126,22 +128,22 @@ In dense lifelong traffic, 'this robot has not progressed for a while' does not 
 python3 tools/make_gifs.py --only recovery
 ```
 
-## Where the aisle layer costs more than it earns
+## Where the congestion machinery costs more than it earns
 
-![Where the aisle layer costs more than it earns](05-open-map-honesty.gif)
+![Where the congestion machinery costs more than it earns](05-open-map-honesty.gif)
 
 **warehouse_medium**, 40 robots, arrival rate 1.5, 400 timesteps, seed 0. `full_lda_pibt` vs `lifelong_pibt`.
 
-Every mechanism in this project buys something and costs something. On a map with many parallel routes and no scarce single-file aisle, the thing aisle management buys - orderly flow through a contended corridor - is not scarce, while the thing it costs is: a robot whose shortest route runs against a committed direction either detours or pays the counterflow penalty, and there was no congestion to justify either. The right panel simply delivers more, throughout. Over five seeds it is 502 against 313 tasks per 1000 timesteps. The honest summary of this project is that its aisle layer wins on aisle-constrained maps and loses on open ones, and this GIF is the losing half.
+Every mechanism in this project buys something and costs something. On a map with many parallel routes and no scarce single-file aisle, the thing this machinery buys - orderly flow through a contended corridor - is not scarce, while the thing it costs is: a robot that declines to turn, keeps to its lane and steers around a crowd is taking a longer route than it needed to, and there was no congestion to justify it. The right panel simply delivers more, throughout. Over five seeds it is 502 against 416 tasks per 1000 timesteps. The honest summary of this project is that its congestion machinery wins on aisle-constrained maps and loses on open ones, and this GIF is the losing half.
 
 <details><summary>The narration, beat by beat</summary>
 
 - **t = 0** -- The case this project LOSES, shown as plainly as the ones it wins.
 - **t = 50** -- An open grid: many parallel routes, and no scarce single-file aisle to fight over.
-- **t = 130** -- Left still commits aisle directions, so some robots detour or pay counterflow — with no congestion to justify either.
-- **t = 220** -- Right has no aisle layer at all, and simply keeps delivering more, throughout.
+- **t = 130** -- Left still pays to keep its lane and avoid the crowd — with no congestion to justify either.
+- **t = 220** -- Right scores progress and nothing else, and simply keeps delivering more, throughout.
 - **t = 300** -- Nothing here is stuck on either side. The cost is pure overhead, not gridlock.
-- **t = 350** -- Aisle management wins on aisle-constrained maps and loses on open ones. Five seeds: 313 against 502 per 1000 steps.
+- **t = 350** -- The machinery wins on aisle-constrained maps and loses on open ones. Five seeds: 416 against 502 per 1000 steps.
 
 </details>
 

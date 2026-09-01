@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="822.043844pt" height="511.04736pt" viewBox="0 0 822.043844 511.04736" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-09-01T09:17:42.300464</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 511.04736 
+L 822.043844 511.04736 
+L 822.043844 0 
+L 0 0 
+z
+" style="fill: #fcfcfb"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 93.32 478.68768 
+L 796.5 478.68768 
+L 796.5 135.638717 
+L 93.32 135.638717 
+z
+" style="fill: #fcfcfb"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(168.982656 118.88951)">Token</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(165.052859 129.211862)">Passing</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(327.246422 118.890182)">Token Passing</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(333.224766 129.211862)">+ recovery</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="532.8075" y="130.072702" transform="rotate(-0 532.8075 130.072702)">RHCR</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(680.927297 118.890182)">plain lifelong</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(699.164672 129.211862)">PIBT</text>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_5"/>
+     <g id="text_5">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(44.223875 177.05641)">bottleneck</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(16.208031 187.378761)">aisle-constrained</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_6"/>
+     <g id="text_6">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(51.782469 262.818651)">corridors</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(16.208031 273.141002)">aisle-constrained</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_7"/>
+     <g id="text_7">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(60.073406 348.580555)">narrow</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(46.146781 358.902907)">open floor</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_8"/>
+     <g id="text_8">
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(54.475344 434.343132)">medium</text>
+      <text style="font-size: 8.6px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(46.146781 444.665483)">open floor</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 98.59385 140.784452 
+L 263.84115 140.784452 
+L 263.84115 216.255223 
+L 98.59385 216.255223 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 274.38885 140.784452 
+L 439.63615 140.784452 
+L 439.63615 216.255223 
+L 274.38885 216.255223 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 450.18385 140.784452 
+L 615.43115 140.784452 
+L 615.43115 216.255223 
+L 450.18385 216.255223 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 625.97885 140.784452 
+L 791.22615 140.784452 
+L 791.22615 216.255223 
+L 625.97885 216.255223 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #b0c9e5; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 98.59385 226.546692 
+L 263.84115 226.546692 
+L 263.84115 302.017464 
+L 98.59385 302.017464 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 274.38885 226.546692 
+L 439.63615 226.546692 
+L 439.63615 302.017464 
+L 274.38885 302.017464 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 450.18385 226.546692 
+L 615.43115 226.546692 
+L 615.43115 302.017464 
+L 450.18385 302.017464 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 625.97885 226.546692 
+L 791.22615 226.546692 
+L 791.22615 302.017464 
+L 625.97885 302.017464 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #8fb5e1; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 625.97885 312.308933 
+L 791.22615 312.308933 
+L 791.22615 387.779705 
+L 625.97885 387.779705 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #e9c9c7; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 98.59385 398.071174 
+L 263.84115 398.071174 
+L 263.84115 473.541946 
+L 98.59385 473.541946 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 274.38885 398.071174 
+L 439.63615 398.071174 
+L 439.63615 473.541946 
+L 274.38885 473.541946 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 450.18385 398.071174 
+L 615.43115 398.071174 
+L 615.43115 473.541946 
+L 450.18385 473.541946 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #2a78d6; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 625.97885 398.071174 
+L 791.22615 398.071174 
+L 791.22615 473.541946 
+L 625.97885 473.541946 
+z
+" clip-path="url(#pab6d87d0c4)" style="fill: #e8c3c1; stroke: #fcfcfb; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="167.791418" transform="rotate(-0 181.2175 167.791418)">21x</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="184.886075" transform="rotate(-0 181.2175 184.886075)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="197.542598" transform="rotate(-0 181.2175 197.542598)">155 vs 8 per 1000 steps</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="209.497359" transform="rotate(-0 181.2175 209.497359)">p = 0.008</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="167.677746" transform="rotate(-0 357.0125 167.677746)">16x</text>
+   </g>
+   <g id="text_14">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="184.886075" transform="rotate(-0 357.0125 184.886075)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="197.542598" transform="rotate(-0 357.0125 197.542598)">155 vs 10 per 1000 steps</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="209.497359" transform="rotate(-0 357.0125 209.497359)">p = 0.008</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="167.684777" transform="rotate(-0 532.8075 167.684777)">13x</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="184.886075" transform="rotate(-0 532.8075 184.886075)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="197.542598" transform="rotate(-0 532.8075 197.542598)">155 vs 12 per 1000 steps</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="209.497359" transform="rotate(-0 532.8075 209.497359)">p = 0.008</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="167.791418" transform="rotate(-0 708.6025 167.791418)">1.22x</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="184.886075" transform="rotate(-0 708.6025 184.886075)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="197.542598" transform="rotate(-0 708.6025 197.542598)">155 vs 127 per 1000 steps</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="209.497359" transform="rotate(-0 708.6025 209.497359)">p = 0.008</text>
+   </g>
+   <g id="text_25">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(154.22875 245.561003)">delivers</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(135.805 258.151628)">nothing at all</text>
+   </g>
+   <g id="text_26">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="270.648315" transform="rotate(-0 181.2175 270.648315)">AISLEFLOW WINS</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="283.304839" transform="rotate(-0 181.2175 283.304839)">181 vs 0 per 1000 steps</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="295.259599" transform="rotate(-0 181.2175 295.259599)">p = 0.008</text>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(330.02375 245.561003)">delivers</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', sans-serif; fill: #ffffff" transform="translate(311.6 258.151628)">nothing at all</text>
+   </g>
+   <g id="text_30">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="270.648315" transform="rotate(-0 357.0125 270.648315)">AISLEFLOW WINS</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="283.304839" transform="rotate(-0 357.0125 283.304839)">181 vs 0 per 1000 steps</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="295.259599" transform="rotate(-0 357.0125 295.259599)">p = 0.008</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="253.447018" transform="rotate(-0 532.8075 253.447018)">362x</text>
+   </g>
+   <g id="text_34">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="270.648315" transform="rotate(-0 532.8075 270.648315)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="283.304839" transform="rotate(-0 532.8075 283.304839)">181 vs 0.5 per 1000 steps</text>
+   </g>
+   <g id="text_36">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="295.259599" transform="rotate(-0 532.8075 295.259599)">p = 0.008</text>
+   </g>
+   <g id="text_37">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="253.447018" transform="rotate(-0 708.6025 253.447018)">1.39x</text>
+   </g>
+   <g id="text_38">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="270.648315" transform="rotate(-0 708.6025 270.648315)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_39">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="283.304839" transform="rotate(-0 708.6025 283.304839)">181 vs 130 per 1000 steps</text>
+   </g>
+   <g id="text_40">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="295.259599" transform="rotate(-0 708.6025 295.259599)">p = 0.008</text>
+   </g>
+   <g id="text_41">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(167.408062 347.457499)">not run</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(158.693 356.579577)">on this map</text>
+   </g>
+   <g id="text_42">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(343.203062 347.457499)">not run</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(334.488 356.579577)">on this map</text>
+   </g>
+   <g id="text_43">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(518.998063 347.457499)">not run</text>
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; fill: #898781" transform="translate(510.283 356.579577)">on this map</text>
+   </g>
+   <g id="text_44">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="339.209259" transform="rotate(-0 708.6025 339.209259)">0.87x</text>
+   </g>
+   <g id="text_45">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="356.410556" transform="rotate(-0 708.6025 356.410556)">AISLEFLOW BEHIND</text>
+   </g>
+   <g id="text_46">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="369.06708" transform="rotate(-0 708.6025 369.06708)">309 vs 354 per 1000 steps</text>
+   </g>
+   <g id="text_47">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="381.02184" transform="rotate(-0 708.6025 381.02184)">p = 0.016</text>
+   </g>
+   <g id="text_48">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="424.9715" transform="rotate(-0 181.2175 424.9715)">106x</text>
+   </g>
+   <g id="text_49">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="442.172797" transform="rotate(-0 181.2175 442.172797)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_50">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="454.82932" transform="rotate(-0 181.2175 454.82932)">426 vs 4 per 1000 steps</text>
+   </g>
+   <g id="text_51">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="181.2175" y="466.784081" transform="rotate(-0 181.2175 466.784081)">p = 0.008</text>
+   </g>
+   <g id="text_52">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="424.9715" transform="rotate(-0 357.0125 424.9715)">53x</text>
+   </g>
+   <g id="text_53">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="442.172797" transform="rotate(-0 357.0125 442.172797)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_54">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="454.82932" transform="rotate(-0 357.0125 454.82932)">426 vs 8 per 1000 steps</text>
+   </g>
+   <g id="text_55">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="357.0125" y="466.784081" transform="rotate(-0 357.0125 466.784081)">p = 0.008</text>
+   </g>
+   <g id="text_56">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="424.9715" transform="rotate(-0 532.8075 424.9715)">29x</text>
+   </g>
+   <g id="text_57">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="442.172797" transform="rotate(-0 532.8075 442.172797)">AISLEFLOW AHEAD</text>
+   </g>
+   <g id="text_58">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="454.82932" transform="rotate(-0 532.8075 454.82932)">426 vs 14 per 1000 steps</text>
+   </g>
+   <g id="text_59">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="532.8075" y="466.784081" transform="rotate(-0 532.8075 466.784081)">p = 0.008</text>
+   </g>
+   <g id="text_60">
+    <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="424.9715" transform="rotate(-0 708.6025 424.9715)">0.85x</text>
+   </g>
+   <g id="text_61">
+    <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="442.172797" transform="rotate(-0 708.6025 442.172797)">AISLEFLOW BEHIND</text>
+   </g>
+   <g id="text_62">
+    <text style="font-size: 7.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="454.82932" transform="rotate(-0 708.6025 454.82932)">426 vs 502 per 1000 steps</text>
+   </g>
+   <g id="text_63">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #0b0b0b" x="708.6025" y="466.784081" transform="rotate(-0 708.6025 466.784081)">p = 0.008</text>
+   </g>
+   <g id="line2d_9">
+    <path d="M 103.8677 109.910045 
+L 610.1573 109.910045 
+" style="fill: none; stroke: #c3c2b7; stroke-width: 1.2; stroke-linecap: square"/>
+   </g>
+   <g id="text_64">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="357.0125" y="101.223285" transform="rotate(-0 357.0125 101.223285)">published lifelong planners -- aisleflow wins every cell</text>
+   </g>
+   <g id="line2d_10">
+    <path d="M 631.2527 109.910045 
+L 785.9523 109.910045 
+" style="fill: none; stroke: #c3c2b7; stroke-width: 1.2; stroke-linecap: square"/>
+   </g>
+   <g id="text_65">
+    <text style="font-size: 7.6px; font-family: 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="708.6025" y="101.223285" transform="rotate(-0 708.6025 101.223285)">the planner aisleflow extends -- it wins two, loses two</text>
+   </g>
+  </g>
+  <g id="text_66">
+   <text style="font-weight: 700; font-size: 11.5px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #0b0b0b" x="11.52" y="20.258203" transform="rotate(-0 11.52 20.258203)">Is aisleflow better? One cell per rival per map</text>
+  </g>
+  <g id="text_67">
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 37.549502)">Each cell divides aisleflow's throughput by that rival's on that map, so 2.00x means aisleflow delivered twice as many tasks.</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 47.751826)">Blue: aisleflow ahead. Red: aisleflow behind. Against all three published baselines it wins every cell, by 13x to 362x, and in 2 cells the baseline delivered nothing at all,</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 57.95415)">because their space-time search keeps failing in dense traffic and a robot that cannot plan simply waits. Against the plain PIBT it extends it is ahead on the two</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(11.52 68.156475)">aisle-constrained maps and behind on the two open ones -- congestion machinery pays where congestion is the constraint, and costs where it is not.</text>
+  </g>
+  <g id="text_68">
+   <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #898781" x="14.004" y="497.845719" transform="rotate(-0 14.004 497.845719)">5 seeds x 400 timesteps, Poisson arrivals, generated 2026-09-01T07:18:59Z from aisleflow @ b00ff91 by experiments/run_all.py</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pab6d87d0c4">
+   <rect x="93.32" y="135.638717" width="703.18" height="343.048963"/>
+  </clipPath>
+ </defs>
+</svg>

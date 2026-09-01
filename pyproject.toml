@@ -33,4 +33,11 @@ lda_pibt = ["gui/static/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-q"
+# `slow` is deselected by default: it is the wide baseline sweep, which costs
+# more than the rest of the suite put together and re-proves on four extra maps
+# what the three core maps already prove. `pytest -m slow` runs just it,
+# `pytest -m ""` runs everything.
+addopts = "-q -m 'not slow'"
+markers = [
+  "slow: full-coverage sweeps, deselected by default (run with `pytest -m slow`)",
+]

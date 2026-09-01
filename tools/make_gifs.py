@@ -93,7 +93,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "full_lda_pibt",
-                "SPAR-PIBT",
+                "aisleflow",
                 "a blocked robot pushes the robot ahead of it",
             ),
         ),
@@ -108,7 +108,8 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "scenario under priority inheritance, where a blocked robot pushes the "
             "robot ahead of it out of the way and the queue drains. This is the "
             "failure mode PIBT was invented to remove, and it is structural: no "
-            "amount of tuning removes it from Token Passing."
+            "amount of tuning removes it from Token Passing. Measured over five "
+            "seeds on this map: 147 tasks per 1000 timesteps against 8."
         ),
         beats=(
             Beat(0, "Same map, same 16 robots, same tasks. One corridor joins the "
@@ -121,118 +122,117 @@ SCENARIOS: Tuple[Scenario, ...] = (
                       "Red = stuck. The delivered count has stopped."),
             Beat(230, "Right: PIBT lets a blocked robot PUSH the one ahead of it, so "
                       "the same queue keeps draining."),
-            Beat(320, "Nothing on the left will move again — the count is frozen "
-                      "at zero. The failure is structural, not a tuning problem."),
+            Beat(320, "Nothing on the left will move again — its count has stopped "
+                      "climbing. The failure is structural, not a tuning problem."),
         ),
     ),
     Scenario(
-        key="hard-vs-soft",
-        filename="02-hard-vs-soft-direction.gif",
+        key="turning-cost",
+        filename="02-turning-cost-on-a-tight-floor.gif",
         map_name="warehouse_corridors",
         robots=35,
         rate=1.0,
         timesteps=400,
         stride=2,
-        title="One-way as a constraint, one-way as a price",
+        title="The cheapest term in the score, and what it buys",
         caption=(
             "warehouse_corridors, 35 robots, five parallel single-file corridors. "
-            "The same aisle directions, enforced two different ways."
+            "One term of the movement score apart; everything else identical."
         ),
         panels=(
             PanelSpec(
-                "aisle_direction_hard",
-                "Direction as a hard rule",
-                "counterflow moves deleted from the candidate set",
+                "lifelong_pibt",
+                "Plain lifelong PIBT",
+                "progress only: no turning cost, no lane bonus, no crowding",
             ),
             PanelSpec(
-                "aisle_direction_only",
-                "Direction as a price (SPAR)",
-                "counterflow costs 8; a step of progress is worth 10",
+                "turning_cost_only",
+                "One term added: turning cost (aisleflow)",
+                "reversing costs a fraction of a step of progress",
             ),
         ),
         watch_for=(
-            "The core argument of the method, as a picture. Both panels commit the "
-            "same aisle directions; they differ only in what a committed direction "
-            "does to a move that opposes it. On the left it removes the move from "
-            "the candidate set, which is what the specification literally says and "
-            "what most one-way schemes do - and priority inheritance needs a robot "
-            "to always have somewhere to be pushed, so deleting that option strands "
-            "whole corridors. On the right the same move survives and simply costs "
-            "8, less than the 10 a step of progress is worth, so a robot drives the "
-            "wrong way when that is the only way through and pays for it. Measured "
-            "over five seeds this is worth between 1.9x and 3.1x throughput - the "
-            "largest single effect in the repository."
+            "The largest single win in the repository, and it is one term. Both "
+            "panels run the same lifelong PIBT on the same corridors with the same "
+            "jobs; the right one additionally charges a robot for reversing "
+            "direction. In a single-file corridor a robot that oscillates blocks "
+            "everything behind it in both directions, and the whole queue spends "
+            "its time undoing the previous step. The penalty is small by "
+            "construction - it can only break ties within a tier, never outrank a "
+            "step of progress - and that is the point: it settles the ties that "
+            "decide whether a corridor drains or thrashes. Measured over five "
+            "seeds on this map: 196 tasks per 1000 timesteps against 130, a 50% "
+            "gain from the cheapest term in the score."
         ),
         beats=(
-            Beat(0, "Both sides commit the SAME one-way directions. They differ only "
-                    "in what that does to a move going the wrong way."),
-            Beat(50, "Left: a counterflow move is deleted outright. Right: it "
-                     "survives, priced at 8 against the 10 a step of progress earns."),
-            Beat(120, "Priority inheritance needs somewhere to push a blocked robot. "
-                      "Delete counterflow and whole corridors have nowhere."),
-            Beat(200, "Left: corridors strand, and the red spreads. Right: robots "
-                      "drive the wrong way only when nothing else gets through."),
-            Beat(290, "Right pays for each of those wrong-way steps and still "
-                      "delivers far more."),
-            Beat(350, "One rule, two enforcements. Across five seeds at 1000 "
-                      "steps, pricing it beats deleting it by 1.9x-3.1x."),
+            Beat(0, "Same map, same 35 robots, same jobs. One term of the movement "
+                    "score apart."),
+            Beat(50, "Both sides score a step toward the goal at 10. The right side "
+                     "also charges a robot for reversing."),
+            Beat(120, "Left: in a single-file corridor an oscillating robot blocks "
+                      "everything behind it, both ways."),
+            Beat(200, "Right: the turning cost breaks that tie, so corridors commit "
+                      "to a direction and drain."),
+            Beat(290, "The penalty never outranks progress — it is far too small. It "
+                      "only decides ties, and the ties are what mattered."),
+            Beat(350, "Five seeds on this map: 196 against 130 tasks per 1000 steps. "
+                      "One term, +50%."),
         ),
     ),
     Scenario(
-        key="max-green",
-        filename="03-maximum-green-starvation.gif",
-        map_name="warehouse_narrow",
-        robots=30,
-        rate=1.2,
+        key="rhcr",
+        filename="03-rhcr-replanning-stalls.gif",
+        map_name="warehouse_corridors",
+        robots=35,
+        rate=1.0,
         timesteps=400,
         stride=2,
-        title="An aisle that never flips, and one that must",
+        title="A planner that replans, against one that pushes",
         caption=(
-            "warehouse_narrow, 30 robots, four 5-cell single-file aisles per bank. "
-            "Aisle tint is the committed direction; the arrow is the way it flows."
+            "warehouse_corridors, 35 robots. RHCR re-solves a windowed instance "
+            "every few steps; aisleflow resolves each conflict in place."
         ),
         panels=(
             PanelSpec(
-                "aisle_direction_no_max_green",
-                "Hysteresis only",
-                "held until the imbalance breaks the dead band",
+                "rhcr",
+                "RHCR",
+                "Li et al. 2021 - re-solve a bounded window, or hold",
             ),
             PanelSpec(
-                "aisle_direction_only",
-                "Hysteresis + maximum green (SPAR)",
-                "past T_max, opposing demand forces a drain and flip",
+                "full_lda_pibt",
+                "aisleflow",
+                "a blocked robot pushes the robot ahead of it",
             ),
         ),
         watch_for=(
-            "Hysteresis is only half a traffic signal. A dead band and a minimum "
-            "lock bound how soon an aisle may change direction and say nothing "
-            "about how long it may keep one - and a warehouse with pickups down one "
-            "side and deliveries down the other produces near-balanced demand by "
-            "construction, so the imbalance never breaks the band. On the left the "
-            "aisle tints settle and stop changing: robots wanting the other "
-            "direction wait, and keep waiting. On the right the same aisles reach "
-            "their maximum green, turn purple as they DRAIN, and commit the "
-            "opposite direction once empty. Drain-before-reverse is visible in "
-            "every flip: the aisle empties before it turns, so no two robots ever "
-            "meet head-on inside it. This is what makes the aisle layer "
-            "starvation-free rather than merely non-flapping."
+            "The second published baseline, and it fails the same way the first "
+            "does. RHCR plans a bounded-horizon, collision-free set of paths and "
+            "replans on a rolling schedule, which works well when the windowed "
+            "instance is solvable. On five single-file corridors at this density "
+            "it usually is not: a robot whose windowed search finds no path holds "
+            "position, holding position makes the next window harder, and the "
+            "system settles into a state it cannot plan its way out of. Aisleflow "
+            "never solves an instance at all - it resolves each conflict locally "
+            "by lending priority to the robot in the way - so there is no search "
+            "to fail. Measured over five seeds on this map: 153 tasks per 1000 "
+            "timesteps against RHCR's 0.5. That is a large ratio and a weak "
+            "claim, and the results page says so: the comparison that carries "
+            "information is against plain lifelong PIBT, not against a baseline "
+            "that starves."
         ),
         beats=(
-            Beat(0, "Aisle tint is the committed one-way direction; the arrows show "
-                    "which way it flows."),
-            Beat(60, "Left has hysteresis only: an aisle keeps its direction until "
-                     "demand imbalance breaks the dead band."),
-            Beat(130, "Pickups down one side, deliveries down the other, so demand "
-                      "stays near-balanced — the band never breaks."),
-            Beat(190, "Right adds a maximum green: past T_max the aisle turns purple, "
-                      "DRAINS empty, then commits the other way."),
-            Beat(260, "Draining before reversing is why no two robots ever meet "
-                      "head-on inside an aisle."),
-            Beat(330, "Both sides deliver about the same here. The chart is the "
-                      "claim: left's aisles barely flip, so waiting robots keep "
-                      "waiting."),
+            Beat(0, "Same map, same 35 robots, same jobs. Two ways of avoiding a "
+                    "collision."),
+            Beat(50, "Left: RHCR solves a bounded window of the whole instance, then "
+                     "replans a few steps later."),
+            Beat(120, "Left: with corridors this dense the window stops being "
+                      "solvable — and a robot with no plan holds position."),
+            Beat(200, "Holding position makes the next window harder. Red = stuck."),
+            Beat(280, "Right never solves an instance: a blocked robot lends its rank "
+                      "to the robot in the way and pushes through."),
+            Beat(350, "Five seeds: 153 against 0.5 tasks per 1000 steps. A big ratio, "
+                      "but the honest comparison is plain PIBT — see figure 03."),
         ),
-        chart_series="flips",
     ),
     Scenario(
         key="recovery",
@@ -255,7 +255,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
             ),
             PanelSpec(
                 "recovery_only",
-                "Corroborated stalls only (SPAR)",
+                "Corroborated stalls only (aisleflow)",
                 "also needs a wait-for cycle or repeated configuration",
             ),
         ),
@@ -267,9 +267,12 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "healthy queues get taken apart and rebuilt continuously and the "
             "delivered count barely moves. On the right the same detector must also "
             "see a wait-for cycle or a repeated configuration before it fires. "
-            "Measured on this map: 0.134 tasks per step against 0.022, a six-fold "
-            "difference produced entirely by refusing to act on the weakest of the "
-            "three stall signals."
+            "Measured over five seeds on this map: 156 tasks per 1000 timesteps "
+            "against 17, a nine-fold difference produced entirely by refusing to "
+            "act on the weakest of the three stall signals. Pooled over all four "
+            "maps the sensitivity suite puts the corroboration rule at -54% "
+            "(p < 0.001), which makes it the second most load-bearing thing in "
+            "the planner."
         ),
         beats=(
             Beat(0, "Both sides run the SAME seven-level recovery. They differ only "
@@ -282,7 +285,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
                       "rebuilt — continuously. The delivered count barely moves."),
             Beat(280, "Right also needs a wait-for cycle or a repeated configuration "
                       "before it acts, so queues are left to drain."),
-            Beat(350, "Across five seeds: 0.134 tasks per step against 0.022, from "
+            Beat(350, "Across five seeds: 156 against 17 tasks per 1000 steps, from "
                       "refusing to act on the weakest of three stall signals."),
         ),
     ),
@@ -294,49 +297,49 @@ SCENARIOS: Tuple[Scenario, ...] = (
         rate=1.5,
         timesteps=400,
         stride=2,
-        title="Where the aisle layer costs more than it earns",
+        title="Where the congestion machinery costs more than it earns",
         caption=(
             "warehouse_medium, 40 robots, an open grid warehouse. "
-            "This is the case SPAR loses, shown as plainly as the ones it wins."
+            "This is the case aisleflow loses, shown as plainly as the ones it wins."
         ),
         panels=(
             PanelSpec(
                 "full_lda_pibt",
-                "SPAR-PIBT",
-                "aisles commit directions; detours are the price",
+                "aisleflow",
+                "turning cost, lane bonus, crowding and recovery, all on",
             ),
             PanelSpec(
                 "lifelong_pibt",
                 "Plain lifelong PIBT",
-                "no direction, no reservations, no aisle layer",
+                "progress only: every scoring term switched off",
             ),
         ),
         watch_for=(
             "Every mechanism in this project buys something and costs something. On "
             "a map with many parallel routes and no scarce single-file aisle, the "
-            "thing aisle management buys - orderly flow through a contended "
-            "corridor - is not scarce, while the thing it costs is: a robot whose "
-            "shortest route runs against a committed direction either detours or "
-            "pays the counterflow penalty, and there was no congestion to justify "
-            "either. The right panel simply delivers more, throughout. Over five "
-            "seeds it is 502 against 313 tasks per 1000 timesteps. The honest "
-            "summary of "
-            "this project is that its aisle layer wins on aisle-constrained maps and "
-            "loses on open ones, and this GIF is the losing half."
+            "thing this machinery buys - orderly flow through a contended corridor "
+            "- is not scarce, while the thing it costs is: a robot that declines to "
+            "turn, keeps to its lane and steers around a crowd is taking a longer "
+            "route than it needed to, and there was no congestion to justify it. "
+            "The right panel simply delivers more, throughout. Over five seeds it "
+            "is 502 against 416 tasks per 1000 timesteps. The honest summary of "
+            "this project is that its congestion machinery wins on "
+            "aisle-constrained maps and loses on open ones, and this GIF is the "
+            "losing half."
         ),
         beats=(
             Beat(0, "The case this project LOSES, shown as plainly as the ones it "
                     "wins."),
             Beat(50, "An open grid: many parallel routes, and no scarce single-file "
                      "aisle to fight over."),
-            Beat(130, "Left still commits aisle directions, so some robots detour or "
-                      "pay counterflow — with no congestion to justify either."),
-            Beat(220, "Right has no aisle layer at all, and simply keeps delivering "
-                      "more, throughout."),
+            Beat(130, "Left still pays to keep its lane and avoid the crowd — with no "
+                      "congestion to justify either."),
+            Beat(220, "Right scores progress and nothing else, and simply keeps "
+                      "delivering more, throughout."),
             Beat(300, "Nothing here is stuck on either side. The cost is pure "
                       "overhead, not gridlock."),
-            Beat(350, "Aisle management wins on aisle-constrained maps and loses on "
-                      "open ones. Five seeds: 313 against 502 per 1000 steps."),
+            Beat(350, "The machinery wins on aisle-constrained maps and loses on open "
+                      "ones. Five seeds: 416 against 502 per 1000 steps."),
         ),
     ),
 )
@@ -394,6 +397,10 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
         "panels of a frame share a map, a seed, a robot count, an arrival rate and a",
         "task stream -- they differ in the planner and nothing else.",
         "",
+        "The numbers quoted below are the ones in [../05-results.md](../05-results.md),",
+        "measured over five seeds; a single seeded run is one draw from that, so a",
+        "GIF shows the mechanism rather than the average.",
+        "",
         "Regenerate them all with:",
         "",
         "```bash",
@@ -413,11 +420,8 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
         "| Grey dot | a robot with no task yet |",
         "| **Red dot** | that robot has not moved for 15 timesteps |",
         "| **Red frame + GRIDLOCKED** | most of that panel's robots are stuck |",
-        "| Blue / orange aisle tint | the aisle has committed a one-way direction; the arrows show which way |",
-        "| Purple aisle tint | the aisle is DRAINING: emptying before it reverses |",
         "| Big number | tasks delivered so far, green on whichever side is ahead |",
-        "| Chart | the quantity named at its left -- tasks delivered, or aisle "
-        "direction flips -- over the whole run, drawn as it plays |",
+        "| Chart | tasks delivered over the whole run, drawn as it plays |",
         "| Band along the bottom | what is happening in this part of the run, and why |",
         "",
         "One colour rule carries most of the argument: **red means stuck**, and",
