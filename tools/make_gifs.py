@@ -418,10 +418,11 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "turn, keeps to its lane and steers around a crowd is taking a longer "
             "route than it needed to, and there was no congestion to justify it. "
             "The right panel simply delivers more, throughout. Over five seeds it "
-            "is {right} against {left} tasks per 1000 timesteps. The honest summary "
-            "of this project is that its congestion machinery wins where every "
-            "route crosses one chokepoint and loses where there is a way "
-            "round, and this GIF is the losing half."
+            "is {right} against {left} tasks per 1000 timesteps. The honest "
+            "summary of this project is that its congestion machinery wins "
+            "where the aisles are long and single-file and loses where they "
+            "are short with more than one way round, and this GIF is the "
+            "losing half."
         ),
         beats=(
             Beat(0, "The case this project LOSES, shown as plainly as the ones it "
@@ -434,8 +435,8 @@ SCENARIOS: Tuple[Scenario, ...] = (
                       "delivering more, throughout."),
             Beat(300, "Nothing here is stuck on either side. The cost is pure "
                       "overhead, not gridlock."),
-            Beat(350, "It wins where every route crosses one chokepoint, and loses "
-                      "where there is a way round. Five seeds: {left} against {right}."),
+            Beat(350, "It wins where the aisles are long and single-file, and loses "
+                      "where they are short. Five seeds: {left} against {right}."),
         ),
     ),
 )

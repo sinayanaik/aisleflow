@@ -58,28 +58,37 @@ is why.
 A single bar chart measures a planner at one point on a curve. Sweep the
 robot count instead and the shape of the comparison changes completely:
 
-| Planner | `corridors`, 5 robots | `corridors`, 40 robots | `medium`, 5 robots | `medium`, 40 robots |
-| --- | ---: | ---: | ---: | ---: |
-| aisleflow | 84 | 152 | 108 | 418 |
-| Token Passing | **104** | 0 | **121** | 62 |
-| TP + task swaps | 79 | 0 | 107 | 57 |
-| RHCR | 74 | 39 | 118 | **489** |
+| Planner | `corridors` 5 | `corridors` 20 | `corridors` 40 | `medium` 5 | `medium` 20 | `medium` 40 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| aisleflow | 84 | 152 | **152** | 108 | 272 | 418 |
+| Token Passing | **104** | 24 | 0 | 121 | 146 | 52 |
+| TP + task swaps | 78 | 26 | 0 | 107 | 142 | 48 |
+| RHCR | 81 | **165** | 82 | **126** | **373** | **497** |
 
 *Tasks per 1000 timesteps, 3 seeds. Bold is the best in that column.*
 
-**On a quiet floor Token Passing is the strongest planner in the study**, on
-both maps. That is the number that says the implementations are right: a
-faithful published algorithm, on an instance inside its assumptions, beats the
-thing this project ships. Everything below it on the bar chart is what happens
-as those assumptions are taken away.
+Three things fall out of that table, and none of them is visible in the bar
+chart above it.
 
-**Why Token Passing falls away.** Ma et al. prove TP complete on *well-formed*
-MAPD instances — every agent has a parking endpoint to rest at, and any two
-endpoints are joined by a path traversing no other endpoint. An idle Token
-Passing agent stays where it finished. On a floor with one-cell-wide aisles
-and two parking bays for thirty agents, where it finished is in somebody's
-way, and enough idle agents cut the warehouse into pieces that no path
-crosses. `warehouse_corridors` has **no** parking bays at all
+**On a quiet floor Token Passing is the strongest planner in the study.** At
+five robots on `corridors` it delivers 104 against aisleflow's 84, and on
+`medium` it is level with everything else. That is the number that says these
+implementations are right: a faithful published algorithm, on an instance
+inside its own assumptions, beating the thing this project ships.
+
+**RHCR is ahead of aisleflow almost everywhere.** It leads at every density on
+`medium` and up to 20 robots on `corridors`. The single region where aisleflow
+is clearly better is **single-file corridors at high density** — 152 against
+82 at 40 robots — which is exactly the regime its congestion machinery was
+built for, and is a much narrower claim than the bar chart alone suggests.
+
+**Token Passing falls away as the floor fills.** Ma et al. prove TP complete
+on *well-formed* MAPD instances — every agent has a parking endpoint to rest
+at, and any two endpoints are joined by a path traversing no other endpoint.
+An idle Token Passing agent stays where it finished. On a floor with
+one-cell-wide aisles and two parking bays for thirty agents, where it finished
+is in somebody's way, and enough idle agents cut the warehouse into pieces
+that no path crosses. `warehouse_corridors` has **no** parking bays at all
 ([page 06](06-the-maps.md)), which is why the line reaches exactly zero rather
 than merely declining.
 
@@ -87,32 +96,23 @@ PIBT has no such assumption, because it never plans a path it has to reserve.
 A blocked robot lends its rank to the robot in its way and pushes; an idle
 robot in a corridor is displaced by the first busy robot that needs the cell.
 **That difference — not the scoring terms, not the crowding model, not the
-recovery ladder — is what the right-hand ends of those curves are measuring.**
-It is a property of PIBT, which this project did not invent.
-
-**RHCR does not have that problem** and is the strongest baseline throughout:
-it tracks aisleflow closely on `corridors` up to 20 robots and is ahead of it
-across the whole of `medium`, peaking at 489 against 418. At the headline
-`corridors` scenario the two are **not separated** — 128 against 153 on the
-mean, but RHCR's five seeds range from 30 to 198 and aisleflow's from 45 to
-198, and a permutation test between them returns p = 0.73. Thirty-five robots on five
-single-file corridors is right at what that floor can carry, and which side of
-the edge a run lands on is close to a coin flip. RHCR's own failure arrives at
-40 robots, where the windowed instance stops being solvable often enough that
-its throughput falls to 39.
+recovery ladder — is what separates the two families at the right-hand ends of
+those curves.** It is a property of PIBT, which this project did not invent.
 
 So: the comparison against these three establishes that the planner is in the
 right league and inherits PIBT's robustness to density. It does not establish
-that anything *this project added* was worth adding — RHCR beats it on the one
-open floor without any of it. For that, the reference has to be plain lifelong
-PIBT, aisleflow with every one of its mechanisms switched off, and that
-comparison is the rest of this page.
+that anything *this project added* was worth adding — RHCR reaches higher
+throughput than aisleflow on most of this grid without any of it. For that,
+the reference has to be plain lifelong PIBT, aisleflow with every one of its
+mechanisms switched off, and that comparison is the rest of this page.
 
 ## The finding that matters most
 
-Every mechanism this planner adds on top of plain lifelong PIBT helps on a
-tight floor and hurts on an open one. Across the four maps, **the full
-configuration is not the best on any of them**:
+This is the comparison the project is actually about, and the one it cannot
+duck: plain lifelong PIBT is aisleflow with every mechanism switched off, run
+on the same maps, seeds and job streams. Every mechanism added on top helps
+where an aisle is long and single-file and hurts where it is not. Across the
+four maps, **the full configuration is not the best on any of them**:
 
 <!-- generated:ladder -->
 | Configuration | bottleneck | corridors | narrow | medium |
@@ -133,16 +133,19 @@ mechanism. If more were always better, the green "best here" marker would sit
 on the bottom rung of all four panels. It sits there on none of them.
 
 On `bottleneck` and `corridors` the best rung buys 22% and 50% over plain
-PIBT. Both have a chokepoint every route crosses: one six-cell corridor
-joining the halves, or five 22-cell single-file runs. On `narrow` and `medium`
-there is more than one way round, plain PIBT is itself the best rung — by 13%
-and 15% over the best configuration that adds anything — and every addition
-costs.
+PIBT. Both commit a robot to a long single-file run it cannot turn round in:
+the six-cell corridor joining the halves, or a 22-cell rung of the ladder. On
+`narrow` and `medium` the aisles are short enough to back out of, plain PIBT
+is itself the best rung — by 13% and 15% over the best configuration that adds
+anything — and every addition costs.
 
 This is not a defect to hide; it is the most useful thing the study produced.
 It says the machinery is *congestion machinery*, and it earns its keep exactly
-where congestion is the binding constraint. Where there is a way round,
-getting out of the robots' way is the better strategy.
+where congestion is the binding constraint. Where a robot can back out of an
+aisle cheaply, getting out of the robots' way is the better strategy. The
+density sweep says the same thing from the other direction: the one region
+where aisleflow is clearly ahead of RHCR is single-file corridors at high
+density.
 
 **Practical consequence:** pick the configuration for the floor, not the other
 way round. `turning_cost_only` is the best single choice for tight maps,
@@ -257,13 +260,19 @@ is better without it.
   of the floor, not responsiveness, and the queue grows without bound behind
   every planner. Service time under saturation is a function of how long the
   run was, so it is recorded but not compared across planners.
-- **The published baselines are measured outside their design envelope, and
-  that is stated rather than scored.** Token Passing and TPTS assume a
-  well-formed MAPD instance (see [page 06](06-the-maps.md)); RHCR does not,
-  and it is competitive everywhere and ahead of aisleflow on `medium`. Read
-  the density figure before reading anything into the bar chart: on a quiet
-  floor Token Passing is the *best* planner in the study, which is what says
-  the implementations are right.
+- **Two of the three published baselines are measured outside their design
+  envelope, and that is stated rather than scored.** Token Passing and TPTS
+  assume a well-formed MAPD instance (see [page 06](06-the-maps.md)) and none
+  of these maps is one at these robot counts. RHCR has no such assumption, and
+  it is ahead of aisleflow at most points on the density grid. Read the
+  density figure before reading anything into the bar chart: on a quiet floor
+  Token Passing is the *best* planner in the study, which is what says the
+  implementations are right.
+- **Five seeds does not separate much.** Of the four aisleflow-against-RHCR
+  differences in the headline table, one is significant at p < 0.05. The
+  figure marks the rest `n.s.` rather than letting a mean difference read as a
+  result, and the honest summary of that table is "within noise on three
+  floors, behind on the fourth".
 - **Four maps.** Every conclusion here is about `warehouse_bottleneck`,
   `warehouse_corridors`, `warehouse_narrow` and `warehouse_medium` at the
   robot counts and arrival rates in the dataset's `meta.scenarios`. A knob
