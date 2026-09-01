@@ -177,6 +177,48 @@ def headline_table(baselines: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def ladder_table(ablation: Dict[str, Any]) -> str:
+    """Throughput per map for each rung of the ablation ladder.
+
+    The point of showing all four maps rather than a mean is that the mean
+    hides a sign flip: the mechanisms help where the floor is tight and hurt
+    where it is open.
+    """
+    RUNGS = [
+        ("lifelong_pibt", "plain lifelong PIBT"),
+        ("turning_cost_only", "+ turning cost"),
+        ("lane_bonus_only", "+ stay-in-lane bonus"),
+        ("congestion_only", "+ crowding"),
+        ("full_lda_pibt", "+ deadlock recovery (full)"),
+    ]
+    maps = list(ablation["maps"])
+    lines = [
+        "| Configuration | " + " | ".join(m.replace("warehouse_", "") for m in maps) + " |",
+        "| --- | " + " | ".join("---:" for _ in maps) + " |",
+    ]
+    best = {}
+    for m in maps:
+        rows = {r["variant"]: r for r in ablation["maps"][m]["rows"]}
+        best[m] = max((rows[v]["throughput"] for v, _ in RUNGS if v in rows), default=0.0)
+    for variant, label in RUNGS:
+        cells = []
+        for m in maps:
+            rows = {r["variant"]: r for r in ablation["maps"][m]["rows"]}
+            if variant not in rows:
+                cells.append("—")
+                continue
+            value = rows[variant]["throughput"]
+            cells.append(f"**{value:.3f}**" if value >= best[m] else f"{value:.3f}")
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    meta = ablation["meta"]
+    lines += [
+        "",
+        f"*Tasks per timestep; **bold** is the best configuration for that map. "
+        f"{meta['seeds']} seeds x {meta['timesteps']} steps, git `{meta['git_sha']}`.*",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> int:
     sens = load("sensitivity")
     changed = []
@@ -184,6 +226,12 @@ def main() -> int:
         changed.append("04-parameters.md:parameters")
     if splice(DOCS / "05-results.md", "sensitivity", sensitivity_table(sens)):
         changed.append("05-results.md:sensitivity")
+
+    ablation_path = DATA / "ablation.json"
+    if ablation_path.exists():
+        if splice(DOCS / "05-results.md", "ladder",
+                  ladder_table(json.loads(ablation_path.read_text()))):
+            changed.append("05-results.md:ladder")
 
     baselines_path = DATA / "baselines.json"
     if baselines_path.exists():

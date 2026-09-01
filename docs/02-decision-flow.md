@@ -86,15 +86,13 @@ That property is asserted by a test, so a future term cannot quietly break it.
 ```mermaid
 stateDiagram-v2
     [*] --> Moving
-    Moving --> Stalled: no progress for<br/>stall_steps (10)
+    Moving --> Stalled: no progress for stall_steps (10)
     Stalled --> Moving: it was just a queue
-    Stalled --> Jammed: <b>and</b> a wait-for cycle<br/>or a repeated configuration
+    Stalled --> Jammed: AND a wait-for cycle or a repeated configuration
     note right of Stalled
-        Both signals are required.
-        "Nobody moved" alone is
-        normal queueing -- treating
-        it as a jam costs ~31%
-        of throughput.
+        Both signals are required. "Nobody moved"
+        alone is ordinary queueing; treating that
+        as a jam costs 54% of throughput.
     end note
     Jammed --> L1: escalate one level per step
     L1: 1. recompute routes

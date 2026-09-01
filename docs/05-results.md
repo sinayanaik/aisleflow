@@ -7,13 +7,13 @@ Tasks delivered per timestep, against every planner we can compare with.
 <!-- generated:headline -->
 | Planner | bottleneck | corridors | medium |
 | --- | ---: | ---: | ---: |
-| **This planner** | 0.145 | 0.121 | 0.313 |
-| Plain lifelong PIBT | 0.118 | 0.131 | 0.502 |
+| **This planner** | 0.147 | 0.153 | 0.416 |
+| Plain lifelong PIBT | 0.127 | 0.131 | 0.502 |
 | Token Passing | 0.007 | 0.000 | 0.004 |
-| Token Passing + recovery | 0.008 | 0.000 | 0.027 |
+| Token Passing + recovery | 0.010 | 0.000 | 0.008 |
 | RHCR | 0.011 | 0.001 | 0.014 |
 
-*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `e38a849`.*
+*Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `b00ff91`.*
 <!-- /generated:headline -->
 
 **Read the baselines honestly.** Token Passing and RHCR score close to zero on
@@ -23,6 +23,40 @@ lifelong traffic it keeps failing. The comparison that carries information is
 the **plain lifelong PIBT** row — same collision resolution, none of the
 scoring, matching or recovery machinery. That is the number to judge this
 planner by.
+
+## The finding that matters most
+
+Every mechanism this planner adds on top of plain lifelong PIBT helps on a
+tight floor and hurts on an open one. Across the four maps, **the full
+configuration is not the best on any of them**:
+
+<!-- generated:ladder -->
+| Configuration | bottleneck | corridors | narrow | medium |
+| --- | ---: | ---: | ---: | ---: |
+| plain lifelong PIBT | 0.127 | 0.131 | **0.354** | **0.502** |
+| + turning cost | 0.152 | **0.196** | 0.269 | 0.411 |
+| + stay-in-lane bonus | **0.155** | 0.181 | 0.256 | 0.424 |
+| + crowding | 0.147 | 0.178 | 0.309 | 0.426 |
+| + deadlock recovery (full) | 0.147 | 0.153 | 0.291 | 0.416 |
+
+*Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `b00ff91`.*
+<!-- /generated:ladder -->
+
+On `bottleneck` and `corridors` — narrow, one-cell corridors with real
+chokepoints — the extra terms buy 16–50% over plain PIBT. On `narrow` and
+`medium`, which are open floors with room to go around, plain PIBT wins by
+20–30% and every addition costs.
+
+This is not a defect to hide; it is the most useful thing the study produced.
+It says the machinery is *congestion machinery*, and it earns its keep exactly
+where congestion is the binding constraint. On an open floor, getting out of
+the robots' way is the better strategy.
+
+**Practical consequence:** pick the configuration for the floor, not the other
+way round. `turning_cost_only` is the best single choice for tight maps,
+`lifelong_pibt` for open ones, and `full_lda_pibt` is the safe middle that is
+never worst. The defaults ship as the full configuration because it is the one
+with a deadlock safety net, not because it wins the throughput table.
 
 ## What this pass changed
 
