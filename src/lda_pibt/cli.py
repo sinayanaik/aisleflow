@@ -23,8 +23,14 @@ BASELINE_PLANNERS = {
     "rhcr": RHCRPlanner,
 }
 
-#: everything `--variant` accepts
+#: what `--variant` accepts wherever the whole simulator is being run
 VARIANT_CHOICES = sorted(ABLATIONS) + sorted(BASELINE_PLANNERS)
+
+#: what the GUI accepts. Its inspector answers "why did this robot not move
+#: there?" out of `PIBTPlanner.explain_candidates`, and a baseline planner has
+#: no candidates to explain -- it committed to a path several timesteps ago.
+#: Offering the names there would put a KeyError behind a dropdown.
+GUI_VARIANT_CHOICES = sorted(ABLATIONS)
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
@@ -231,7 +237,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     gui = sub.add_parser("gui", help="interactive browser GUI")
     _add_common(gui)
-    gui.add_argument("--variant", choices=VARIANT_CHOICES, default="full_lda_pibt")
+    gui.add_argument("--variant", choices=GUI_VARIANT_CHOICES, default="full_lda_pibt")
     gui.add_argument("--host", default="127.0.0.1")
     gui.add_argument("--port", type=int, default=8000)
     gui.add_argument("--no-browser", action="store_true")

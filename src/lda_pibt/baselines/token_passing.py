@@ -314,8 +314,11 @@ class TokenPassingPlanner:
         # Token Passing deadlocks at t = 0 on `warehouse_bottleneck`, where 16
         # agents resting on 83 cells cut the floor into pieces before a single
         # task has been handed out.
-        unreachable_work = bool(task_queue.available(timestep)) and not available
-        blocking = unreachable_work or any(
+        # reaching here means the agent has no task and did not get one, either
+        # because nothing was reachable or because nothing could be planned;
+        # both are "there is work and this agent cannot serve any of it"
+        unserved_work = bool(task_queue.available(timestep))
+        blocking = unserved_work or any(
             task.delivery == robot.position
             for task in task_queue.tasks.values()
             if task.status is not TaskStatus.COMPLETED
@@ -490,10 +493,10 @@ class TokenPassingPlanner:
         self.forced_holds += len(forced)
 
         for robot in ordered_robots:
+            path = self.paths.get(robot.id) or [robot.position]
             if robot.id in forced:
                 self.paths[robot.id] = [robot.position]
             else:
-                path = self.paths[robot.id]
                 self.paths[robot.id] = path[1:] if len(path) > 1 else path
 
     def stats(self) -> Dict[str, Any]:

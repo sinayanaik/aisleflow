@@ -384,26 +384,31 @@ def figure_vs_baselines():
     strip_frame(ax)
     value_grid(ax, axis="y")
 
-    # the shutouts, named with the map's own numbers rather than asserted
+    # the shutouts, named with the map's own numbers rather than asserted --
+    # and named with the planners that actually scored zero, rather than
+    # assuming which one it was
     sys.path.insert(0, str(ROOT / "src"))
     from lda_pibt.warehouse import Warehouse
 
-    shutouts = sorted({
-        short_map(m)
-        for m in maps for v, _ in series
-        if (_throughput(payload, m, v) or (1,))[0] <= 0
-    })
+    shutouts: Dict[str, List[str]] = {}
+    for map_name in maps:
+        for variant, label in series:
+            entry = _throughput(payload, map_name, variant)
+            if entry is not None and entry[0] <= 0:
+                shutouts.setdefault(map_name, []).append(label)
     footnote = ""
     if shutouts:
-        worst = f"warehouse_{shutouts[0]}"
+        worst = next(iter(shutouts))
         bays = len(Warehouse.from_file(ROOT / "maps" / f"{worst}.map").parking_vertices)
+        who = " and ".join(shutouts[worst])
         footnote = (
-            f"\n† A Token Passing agent with no task rests where it stopped, and "
-            f"`{shutouts[0]}` offers {bays} parking bays for "
+            f"\n† {who} rest an agent with no task where it stopped, and "
+            f"`{short_map(worst)}` offers {bays} parking bays for "
             f"{payload['maps'][worst]['robots']} agents. Every one of its "
-            f"single-file runs has\nan agent standing in it before the first "
+            f"single-file runs\nhas an agent standing in it before the first "
             f"task is handed out, so no path across the map can be planned at "
-            f"all. This is the completeness assumption failing, not a tie-break."
+            f"all. This is the completeness assumption failing, not a "
+            f"tie-break."
         )
 
     top = header(

@@ -65,7 +65,7 @@ class _PBSNode:
     #: agent id -> agents that must yield to it (it has higher priority)
     lower: Dict[int, Set[int]]
     paths: Dict[int, List[Vertex]]
-    cost: int = 0
+    cost: float = 0.0
 
 
 class RHCRPlanner:
@@ -94,9 +94,13 @@ class RHCRPlanner:
         self.window = max(1, params.baseline_window)
         self.replan_period = max(1, min(params.baseline_replan_period, self.window))
         self.paths: Dict[int, List[Vertex]] = {}
+        #: the goal sequence each committed path was planned for, so a robot
+        #: handed a new task mid-window can be spotted and repaired
+        self._planned_for: Dict[int, List[Vertex]] = {}
         self._last_replan_time: Optional[int] = None
 
         self.replans = 0
+        self.repairs = 0
         self.pbs_expansions = 0
         self.pbs_fallbacks = 0
         self.low_level_calls = 0
@@ -121,6 +125,7 @@ class RHCRPlanner:
         for robot in ordered_robots:
             robot.reset_step_state()
 
+        goals = {r.id: self._goal_sequence(r) for r in ordered_robots}
         due = (
             self._last_replan_time is None
             or timestep - self._last_replan_time >= self.replan_period
@@ -130,10 +135,12 @@ class RHCRPlanner:
             )
         )
         if due:
-            goals = {r.id: self._goal_sequence(r) for r in ordered_robots}
             self.paths = self._plan_window(ordered_robots, goals, timestep)
+            self._planned_for = {i: list(g) for i, g in goals.items()}
             self._last_replan_time = timestep
             self.replans += 1
+        else:
+            self._repair_reassigned(ordered_robots, goals, timestep)
 
         for robot in ordered_robots:
             path = self.paths.get(robot.id) or [robot.position]
@@ -149,6 +156,50 @@ class RHCRPlanner:
                 self.paths[robot.id] = [robot.position]
             else:
                 self.paths[robot.id] = path[1:] if len(path) > 1 else path
+
+    def _repair_reassigned(
+        self,
+        robots: Sequence[Robot],
+        goals: Dict[int, List[Vertex]],
+        timestep: int,
+    ) -> None:
+        """Re-plan, between periodic replans, any robot whose goal changed.
+
+        RHCR's agents follow their committed window plan between replans, and
+        in Li et al. that costs nothing because an agent is given its *next*
+        goal before it reaches the current one. Here task assignment is online
+        and greedy, so a robot that completes a delivery mid-window is handed
+        a fresh task its committed plan knows nothing about -- and, since that
+        plan ends by waiting at the goal it already reached, it stands still
+        until the next periodic replan. Measured at 7% of robot-steps on
+        `warehouse_medium`.
+
+        This is the documented simplification: such a robot gets a
+        single-agent repair against every other robot's *committed* remaining
+        path, which is reserved first, so the repaired plan cannot collide
+        with the window plan it is being spliced into.
+        """
+        stale = [
+            robot for robot in robots
+            if self._planned_for.get(robot.id) != goals[robot.id]
+        ]
+        if not stale:
+            return
+        stale_ids = {robot.id for robot in stale}
+        table = ReservationTable()
+        for robot in robots:
+            if robot.id in stale_ids:
+                continue
+            path = self.paths.get(robot.id) or [robot.position]
+            table.reserve_path(robot.id, path, timestep, rest_at_end=False)
+        repaired = prioritized_plan(
+            stale, goals, table, self.graph, timestep, self.window,
+            node_expansion_cap=self.node_expansion_cap,
+        )
+        self.paths.update(repaired)
+        for robot in stale:
+            self._planned_for[robot.id] = list(goals[robot.id])
+        self.repairs += len(stale)
 
     # ------------------------------------------------------------------ PBS
     def _plan_window(
@@ -169,7 +220,7 @@ class RHCRPlanner:
             # the place to depend on that
             path = self._single(robot, goals[robot.id], free, timestep)
             root.paths[robot.id] = path or [robot.position] * (self.window + 1)
-        root.cost = self._cost(root.paths)
+        root.cost = self._cost(root.paths, goals)
 
         stack: List[_PBSNode] = [root]
         expansions = 0
@@ -197,7 +248,7 @@ class RHCRPlanner:
                     continue
                 if not self._replan_below(child, low, by_id, goals, timestep):
                     continue
-                child.cost = self._cost(child.paths)
+                child.cost = self._cost(child.paths, goals)
                 children.append(child)
             # depth-first, cheaper child explored first: push it last
             for child in sorted(children, key=lambda c: -c.cost):
@@ -311,9 +362,22 @@ class RHCRPlanner:
                 return t
         return None
 
-    @staticmethod
-    def _cost(paths: Dict[int, List[Vertex]]) -> int:
-        return sum(len(p) for p in paths.values())
+    def _cost(self, paths: Dict[int, List[Vertex]], goals: Dict[int, List[Vertex]]) -> float:
+        """How much journey the whole plan still has left at the window's end.
+
+        The natural PBS cost -- sum of path lengths -- is constant here:
+        every bounded-horizon path is exactly `window + 1` long by
+        construction, so it ranked every node identically and the
+        cheapest-child-first ordering did nothing at all. What actually
+        differs between two window plans is how far the agents got, so the
+        cost is the remaining distance from where each one ends up.
+        """
+        total = 0.0
+        for robot_id, path in paths.items():
+            goal = goals[robot_id][-1] if goals.get(robot_id) else path[-1]
+            distance = self.graph.route_distance(path[-1], goal)
+            total += distance if distance != float("inf") else float(len(self.graph))
+        return total
 
     def _prioritized_fallback(
         self,
@@ -330,6 +394,7 @@ class RHCRPlanner:
     def stats(self) -> Dict[str, Any]:
         return {
             "rhcr_replans": self.replans,
+            "rhcr_mid_window_repairs": self.repairs,
             "rhcr_pbs_expansions": self.pbs_expansions,
             "rhcr_pbs_fallbacks": self.pbs_fallbacks,
             "rhcr_low_level_calls": self.low_level_calls,
