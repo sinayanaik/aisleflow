@@ -1,0 +1,126 @@
+\section{Prior methods, and how each one fails here}
+\label{sec:related}
+
+\begin{lede}
+Four families of solution, in increasing order of how much they give up for
+speed. Each is described by what it optimises, what one timestep costs it, and
+the specific way it breaks in a narrow lifelong warehouse --- because that
+failure mode is what the next section is designed around.
+\end{lede}
+
+\subsection{Optimal MAPF: CBS and its relatives}
+\label{sec:related-cbs}
+
+Conflict-Based Search \citep{sharon2015cbs} solves one-shot MAPF optimally with
+a two-level search: a low level plans each agent independently, and a high
+level branches on the first conflict found between two agents' paths, adding a
+constraint forbidding one of them from the conflicting vertex or edge at that
+time and replanning only that agent. It is complete and optimal for sum-of-costs,
+and it is exponential in the number of conflicts --- which in a dense warehouse
+corridor is very nearly the number of agent pairs.
+
+Two properties disqualify it as-is here. First, cost: the high-level tree grows
+with contention, and contention is exactly the condition of interest. Second,
+and more fundamental, CBS answers a one-shot question. In a lifelong setting
+goals change continuously, so the plan CBS produces is stale before it is
+finished. Every practical lifelong system built on CBS therefore truncates it,
+which is what RHCR does.
+
+\subsection{PIBT: one timestep, decided locally}
+\label{sec:related-pibt}
+
+Priority Inheritance with Backtracking \citep{okumura2019pibt} abandons
+multi-step planning entirely. At every timestep, robots are considered in
+descending priority order; each takes the best-scoring legal move available to
+it. If the cell it wants is occupied by a robot that has not yet decided, the
+requesting robot \emph{lends its priority} to the occupant and asks it to move
+first --- recursively. If the occupant can find no legal move, the request
+backtracks and the requester tries its next candidate. \Cref{sec:pibt} gives
+the recursion in full.
+
+Two properties matter for everything that follows.
+
+\begin{enumerate}
+\item \textbf{Cost.} One timestep is $O(|A|(\Delta(G) + F + \log|A|))$ for a
+fleet $A$, maximum degree $\Delta(G)$ and per-candidate scoring cost $F$. On
+the maps used here this is 0.4--1.0\,ms per step, one to two orders of
+magnitude below either baseline in \Cref{sec:results}.
+
+\item \textbf{The push property.} Priority inheritance works because a robot
+asked to move can, in general, be pushed somewhere. PIBT's progress guarantee
+is proved under the assumption that every edge of $G$ lies on a simple cycle;
+informally, a robot displaced from a cell always has an alternative. This
+assumption is not a technicality --- \Cref{sec:contribution-soft} shows that
+the natural way to implement one-way aisles \emph{violates it by construction},
+and that this, rather than anything about direction control as an idea, was the
+cause of every collapse previously attributed to the aisle layer.
+\end{enumerate}
+
+What PIBT does not have is any notion of structure above a single cell. It
+cannot know that a corridor is a corridor, cannot commit a corridor to one
+direction, and cannot coordinate two robots that will meet in ten timesteps.
+Every robot's decision is local and one step deep. That is the gap this work
+addresses.
+
+\subsection{Token Passing: reserve a path, or wait}
+\label{sec:related-tp}
+
+Token Passing \citep{ma2017tp} is the standard lifelong-MAPD baseline for
+exactly this pickup-and-delivery setting. A token circulates; a robot holding
+it plans a collision-free path to its goal through a shared reservation table
+using cooperative A$^\ast$ over $(\text{vertex}, \text{time})$ states, commits
+that path into the table, and passes the token on. A robot that cannot find a
+path waits in place.
+
+Its failure mode in a narrow warehouse is structural, not a matter of tuning:
+\textbf{Token Passing has no mechanism by which a blocked robot can displace
+the robot blocking it}. Once robots queue nose-to-tail in a single-file
+corridor, no robot in the queue can reserve a path through the robots ahead of
+it, every robot's search fails, every robot waits, and the configuration is
+absorbing --- it never resolves for the rest of the run. On
+\variant{warehouse\_bottleneck}, whose two halves are joined by one corridor,
+all 16 robots reach this state and the run completes essentially no tasks. The
+first comparison animation in \code{docs/gifs/} shows precisely this, beside
+the same scenario under priority inheritance.
+
+This is the failure PIBT was invented to remove, and it is worth being explicit
+that observing it here is a confirmation of the published analysis rather than
+a criticism of Token Passing: the algorithm was never claimed to be live in
+maps without alternative routes.
+
+\subsection{RHCR: rolling-horizon windowed CBS}
+\label{sec:related-rhcr}
+
+Rolling-Horizon Collision Resolution \citep{li2021rhcr} makes CBS lifelong by
+bounding it in time. Every \param{replan\_period} timesteps all robots are
+jointly replanned over a window of \param{window} timesteps using CBS
+restricted to that window; conflicts beyond the window's edge are simply not
+resolved yet, on the reasoning that they will be replanned before they arrive.
+Between replans, individual stale paths are repaired.
+
+RHCR is the strongest of the three published methods for this setting and its
+design target is large: hundreds of robots on warehouses far bigger than the
+ones used here, where a rolling horizon pays for itself against full CBS. At
+the scale measured in this document, with untuned window parameters
+($10/5$), it costs 43--98\,ms per timestep --- against 0.4--4.4\,ms for the
+PIBT variants --- and does not convert that cost into throughput. We report
+this as a property of \emph{this baseline at this scale with these defaults}
+and not as a claim about RHCR generally; \Cref{sec:results-caveats} states the
+caveat again where the numbers appear.
+
+\subsection{Directional and structural traffic control}
+\label{sec:related-directional}
+
+Making corridors one-way is not a new idea; warehouse floors have been run that
+way by human traffic rules for as long as there have been warehouses, and
+highway-style directional layouts appear throughout the MAPF and AGV
+literature. The design decisions that distinguish proposals are: at what
+granularity a direction is decided (a whole map, a corridor, an edge), how
+often it may change, and --- the question this work turns out to hinge on ---
+\textbf{what a committed direction does to a move that opposes it}.
+
+The usual answer is that it forbids it. A one-way corridor is one-way; a move
+against it is not legal; the planner never sees it. Under a planner that plans
+whole paths, this is harmless: the path simply routes around. Under PIBT it is
+not harmless at all, for the reason given in \Cref{sec:related-pibt}, and that
+is the subject of the next section.

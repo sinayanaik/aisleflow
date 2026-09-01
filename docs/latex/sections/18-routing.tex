@@ -1,0 +1,31 @@
+\section{Routing}
+\label{sec:routing}
+
+\begin{lede}
+How a robot works out a path to its next waypoint, and when that path is
+recomputed.
+\end{lede}
+
+By default \code{Router.route} is \code{graph.shortest\_route}
+(\Cref{sec:graph-distances}) --- plain BFS descent. When
+\param{direction\_aware\_routing} is enabled \emph{and}
+\param{direction\_control} is \code{"aisle"}, it instead runs a weighted
+A$^\ast$ using the BFS distance map as an admissible and consistent heuristic:
+\begin{align}
+  \mathrm{penalty}(u, v) &=
+  \begin{cases}
+    0 & a(v) \text{ is \textbf{none} or \textsc{open}},\\
+    \param{route\_direction\_penalty} & a(v) \text{ is \textsc{draining}},\\
+    0 & \text{the traversal direction matches } a(v)\text{'s},\\
+    \param{route\_direction\_penalty} & \text{otherwise,}
+  \end{cases}\\
+  \mathrm{cost}(u, v) &= 1 + \mathrm{penalty}(u, v),
+\end{align}
+with \param{route\_direction\_penalty} $= 6.0$ by default.
+
+The rationale is stated in the module's own docstring: PIBT looks exactly one
+step ahead, so directional information has to be baked into the \emph{route}
+itself, or a robot will sit at an aisle entrance repeatedly proposing the same
+badly-scoring move until the aisle flips. Note that this is a routing
+preference, not a legality rule: an expensive edge is still an edge, in keeping
+with \Cref{sec:contribution-soft}.

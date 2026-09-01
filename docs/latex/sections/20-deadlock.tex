@@ -1,0 +1,123 @@
+\section{Deadlock detection and recovery}
+\label{sec:deadlock}
+
+\begin{lede}
+How the system tells a genuine deadlock apart from ordinary queueing --- which
+in dense lifelong traffic is most of what it sees --- and the seven
+increasingly drastic things it tries once it is sure.
+\end{lede}
+
+\subsection{Three distinct stall signals}
+\label{sec:deadlock-signals}
+
+Three related but different counters live on \code{Robot}, and they are worth
+disambiguating precisely because they feed different formulas:
+
+\begin{center}\small
+\begin{tabular}{@{}p{0.22\linewidth}p{0.42\linewidth}p{0.28\linewidth}@{}}
+\toprule
+\textbf{Counter} & \textbf{Meaning} & \textbf{Reset} \\
+\midrule
+\code{waiting\_time} & steps spent physically stationary while not yet at the waypoint & on any move, or on reaching the waypoint \\
+\code{blocked\_time} & consecutive steps the PIBT recursion returned \textsc{invalid} & on any \textsc{valid} result \\
+\code{no\_progress\_steps} & consecutive steps $\Dg{w}(x_i)$ did not strictly decrease & on any route-distance improvement \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Progress signal}
+
+\begin{equation}
+  \Delta_i(t) = \Dg{w}(\pos{i}{t-1}) - \Dg{w}(\pos{i}{t}).
+\end{equation}
+\code{update\_progress} treats a robot as not stalled whenever it is idle,
+already at its waypoint, or at distance 0; otherwise it increments
+\code{no\_progress\_steps} unless the distance strictly decreased and both ends
+were finite. Then
+\begin{equation}
+  \mathrm{is\_blocked}(i) \iff
+    \code{no\_progress\_steps} \geq t_{\mathrm{blocked}}
+    \ \vee\
+    \code{blocked\_time} \geq t_{\mathrm{blocked}},
+  \qquad t_{\mathrm{blocked}} = 10.
+\end{equation}
+
+\subsection{Repeated configurations and the wait-for graph}
+\label{sec:deadlock-detection}
+
+\paragraph{Repeated configuration.} With period $k = 4$, on the 16-entry
+position history deque:
+\begin{equation}
+  \mathrm{repeated}(i) \iff
+    \mathrm{history}[-k{:}] = \mathrm{history}[-2k : -k],
+\end{equation}
+that is, the robot's last $k$ positions exactly equal the $k$ before them.
+
+\paragraph{Wait-for dependency graph.} An edge $i \rightarrow j$ exists exactly
+when robot $i$'s \code{waiting\_for\_robot}, set during the
+priority-inheritance step of \Cref{alg:pibt}, is robot $j$. \code{find\_cycles}
+runs an iterative white/grey/black DFS to find every simple directed cycle. A
+cycle here is a genuine circular wait --- $i$ waits for $j$, \dots, waits for
+$i$ --- the textbook signature of deadlock.
+
+\code{detect\_deadlocked\_groups} combines two signals: any cycle in the
+wait-for graph containing at least one currently-blocked robot, and a
+BFS-connected-component clustering of the \emph{remaining} blocked robots
+within $\max(2, R_{\mathrm{local}})$ hops of each other. The second pass
+catches deadlocks that do not present as a clean wait-for cycle --- several
+robots each stuck against static geometry in the same area --- without needing a
+global traversal. Group lifetimes are tracked by \code{frozenset} membership
+keys across timesteps, which is what makes ``detected'', ``recovered'' and
+``unrecovered'' distinguishable.
+
+\begin{caveat}
+\textbf{Corroboration.} With \param{require\_deadlock\_corroboration} (the
+default), a group must show the progress signal \emph{and} at least one of a
+wait-for cycle or a repeated configuration. The specification named three stall
+signals and the implementation treated the weakest as sufficient --- which in
+dense lifelong traffic describes an ordinary queue, not a deadlock. Recovery
+therefore escalated on healthy robots, and levels 5--7 below cost far more than
+they saved: $0.022$ tasks per step against $0.134$ on
+\variant{warehouse\_corridors}. \Cref{sec:contribution-corroboration} explains
+why this stayed invisible for so long.
+\end{caveat}
+
+\subsection{Seven-level progressive recovery}
+\label{sec:recovery-levels}
+
+\code{recover\_from\_deadlock} escalates \textbf{one level per timestep} a
+given group persists, applying the next level's remedy each time the group is
+still detected:
+
+\begin{enumerate}
+\item \textbf{Recompute routes} --- from scratch for every robot in the group.
+  The cheapest possible fix: perhaps the route was merely stale.
+\item \textbf{Recompute affected aisles} --- force \code{lock\_until} $= t$ on
+  the group's current and next aisles, allowing an immediate re-decision
+  instead of waiting out the lock; reopen an affected aisle if it is empty,
+  force it to \textsc{draining} if it is occupied and directional.
+\item \textbf{Release stale reservations} held by the group.
+\item \textbf{Raise blocked priorities} ---
+  $p_i \mathrel{+}= k_b \cdot \code{no\_progress\_steps}$, an escalating boost
+  on top of \Cref{eq:priority}.
+\item \textbf{Allow temporary reverse movement} ---
+  \code{allow\_reverse\_until} $= t + t_{\mathrm{blocked}}$, with a shorter
+  grace period for ignoring direction entirely.
+\item \textbf{Assign escape vertices} --- route each member to its nearest
+  unoccupied, unclaimed parking or passing bay, falling back to any
+  degree-$\geq 3$ vertex, and set its state to \textsc{recovery}, which also
+  grants $P_{\mathrm{emergency}}$.
+\item \textbf{Run the local fallback planner} --- the last resort: drop all
+  directional constraints for the group for $t_{\mathrm{deadlock}}$ steps,
+  release reservations, restore task-directed state for anyone mid-recovery.
+\end{enumerate}
+
+If a group is still detected after level 7, that remedy is reapplied each
+subsequent timestep and the group is counted once, not repeatedly, as
+unrecovered.
+
+\paragraph{Why one level per timestep and not all seven per call.} Progress
+from a remedy can only be \emph{observed} on the next timestep, because the
+simulator is synchronous. Running all seven in one call would apply six of them
+blind. ``Progressive'' recovery in a synchronous loop necessarily means one
+escalation per detection cycle.

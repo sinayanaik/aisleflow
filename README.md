@@ -1,12 +1,23 @@
-# AisleFlow
+# TOLL — Tolled One-way Lanes for Lifelong pickup-and-delivery
 
-**Directional and congestion-aware PIBT for lifelong multi-agent pickup and delivery.**
+**Direction as a price, not a rule: aisle-managed PIBT for lifelong multi-agent
+pickup and delivery.**
 
-AisleFlow is a complete, runnable Python implementation — and, as of this
-benchmark pass, an independently-verified evaluation — of the *Lifelong
-Aisle-Managed PIBT* (LDA-PIBT) proposal, an extension of
+A robot may drive the wrong way down a one-way aisle. It pays a toll for doing
+so. That single decision — a traffic rule as a *term in the objective* rather
+than a *constraint on the domain* — is worth between 1.9× and 3.7× throughput
+over the same rule enforced the usual way, and it is what this project is
+about.
+
+**TOLL** is the method; **TOLL-PIBT** is its planner, an extension of
 [Priority Inheritance with Backtracking](https://www.alphaxiv.org/abs/1901.11282)
-(Okumura, Machida, Défago, Tamura) to lifelong warehouse MAPD.
+(Okumura, Machida, Défago, Tamura) to lifelong warehouse MAPD. This repository
+is a complete, runnable Python implementation and — as of this benchmark pass —
+an independently-verified evaluation of it.
+
+> The repository and the Python package predate the name and still read
+> `aisleflow` and `lda_pibt`. `TOLL` and `TOLL-PIBT` are the method and its
+> planner everywhere else.
 
 The design principle from the proposal is preserved throughout:
 
@@ -22,23 +33,54 @@ needed for animations.
 
 ## Documentation
 
-Both documents are committed as PDFs, so they open in the browser straight from
-GitHub — no clone, no PowerPoint, no Python:
+Everything below is committed, so it opens straight from GitHub &mdash; no
+clone, no LaTeX, no PowerPoint, no Python:
 
-- **[Mathematical guide](docs/pdf/aisleflow-mathematical-guide.pdf)** (PDF, 29pp)
-  — every algorithm, formula and symbol in the codebase, with a contents page,
-  a plain-English summary of each section, and five worked examples computed
-  from a live run. Source: [`docs/mathematical-guide.md`](docs/mathematical-guide.md).
-- **[Project-review deck](docs/pdf/aisleflow-mapf-presentation.pdf)** (PDF, 37
-  slides) — forty years of MAPF, the gap this project set out to close, and what
-  the measurements said. Also available
-  [with speaker notes](docs/pdf/aisleflow-mapf-presentation-notes.pdf).
+- **[The paper](docs/pdf/toll-paper.pdf)** (PDF, 48pp) &mdash; the problem
+  stated formally, the four prior methods and how each one fails in a narrow
+  lifelong warehouse, what TOLL-PIBT changes and why, the whole system in full
+  with numbered equations and algorithms, and what the measurements said.
+  Source: [`docs/latex/`](docs/latex/).
+- **[The results dashboard](docs/dashboard.html)** &mdash; pick a map, pick a
+  metric, hover a bar: mean, 95% interval, p-value against plain PIBT, and a
+  sentence saying what that combination means. One self-contained file;
+  download it and open it.
+- **[Reading the numbers](docs/metrics.md)** &mdash; every metric this project
+  reports, which direction is good, and how each one misleads on its own, with
+  the three that decide the verdict measured and tested.
+- **[The comparison animations](docs/gifs/)** &mdash; five side-by-side runs,
+  each one a claim shown rather than asserted.
+- **[The figures](docs/figures/)** &mdash; the eight result figures, generated
+  from [`docs/data/`](docs/data/).
+- **[Project-review deck](docs/pdf/toll-mapf-presentation.pdf)** (PDF, 37
+  slides) &mdash; forty years of MAPF, the gap this project set out to close,
+  and what the measurements said. Also available
+  [with speaker notes](docs/pdf/toll-mapf-presentation-notes.pdf).
   Source: [`docs/deck/slides.html`](docs/deck/slides.html).
 - [`docs/implementation-notes.md`](docs/implementation-notes.md) maps each spec
   section to the function that implements it.
 
-Rebuild the PDFs with `python3 tools/build_docs.py` (standard library, plus any
-Chromium-family browser). See [`docs/README.md`](docs/README.md).
+Rebuild everything with `python3 tools/build_docs.py`,
+`python3 tools/make_figures.py --dashboard` and `python3 tools/make_gifs.py`.
+See [`docs/README.md`](docs/README.md).
+
+## What it looks like
+
+Every claim this project makes is comparative, so
+[`docs/gifs/`](docs/gifs/) puts both sides of each one on screen at once: same
+map, same seed, same task stream, differing only in the planner.
+
+![Token Passing gridlocks where priority inheritance does not](docs/gifs/01-token-passing-gridlock.gif)
+
+*Left: Token Passing on `warehouse_bottleneck`. All 16 robots queue nose-to-tail
+in the single connecting corridor, no robot can reserve a path through the
+robots ahead of it, and nothing moves again for the rest of the run. Right: the
+same scenario under priority inheritance, where a blocked robot pushes the robot
+ahead of it out of the way.* The other four animations &mdash; including
+[the one where TOLL loses](docs/gifs/05-open-map-honesty.gif) &mdash; are
+in [`docs/gifs/README.md`](docs/gifs/README.md).
+
+---
 
 ---
 
@@ -91,7 +133,7 @@ Also in this pass: the metrics the hypotheses are actually about
 `starvation_flips`); `experiments/run_hypothesis_suite.py`, which scores each
 hypothesis on *its own* metric with a bootstrap CI and a permutation test; GUI
 controls for every new flag, an aisle max-green readout, and a live hypothesis
-panel. **183 tests**, up from 161.
+panel. **198 tests**, up from 161.
 
 Two things the previous review predicted that turned out not to hold, both now
 implemented and measured so the null results are reproducible: coordinated
@@ -124,7 +166,7 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 183 tests
+pytest                       # 198 tests
 ```
 
 Python 3.10+.
@@ -321,6 +363,24 @@ question from "does anyone starve?".
 
 ## Results
 
+**The short version, as a picture:**
+
+![Throughput on three maps: TOLL ahead on the aisle-shaped maps, behind on the open one, both baselines far behind everywhere](docs/figures/headline.svg)
+
+TOLL's aisle layer is ahead by 21&ndash;27% on the two aisle-shaped maps
+and behind by 18&ndash;19% on the two open ones; at five seeds the losses are
+significant and the wins are not yet (p = 0.056 and 0.063). Both published
+baselines are two orders of magnitude behind on every map, significantly, at 20x
+to 300x the cost per timestep. [`docs/dashboard.html`](docs/dashboard.html) lets
+you check any of that on any metric, and
+[`docs/figures/`](docs/figures/) has the other seven figures &mdash; including
+[which mechanisms actually earn their cost](docs/figures/forest.svg), which is
+the one to look at if you only look at one.
+
+Everything in this section is regenerated from
+[`docs/data/`](docs/data/) by `python3 experiments/run_all.py`; the tables below
+are the same runs, read as tables.
+
 `python experiments/run_ablation.py --seeds 5`, 400 timesteps, mean of 5 seeds.
 `thr` = tasks completed per timestep, `svc` = mean service time, `sw/1k` =
 aisle direction switches per 1000 steps, `ms` = mean planner runtime per step.
@@ -391,7 +451,7 @@ here so that stays visible rather than reading as a null result.
 ### Baselines: comparison against external algorithms
 
 Every table above is this codebase compared against itself: a feature flag on
-or off, same PIBT core underneath. None of it says how LDA-PIBT or plain
+or off, same PIBT core underneath. None of it says how TOLL-PIBT or plain
 lifelong PIBT stack up against independently-implemented algorithms from the
 literature — until now, that comparison didn't exist in this repo.
 
@@ -446,6 +506,13 @@ framing is "fairer" is a judgment call worth showing both sides of):
 
 Full per-seed data and every `CORE_REPORT_FIELDS` column lands in
 `results/baseline_comparison.json` and `results/baseline_medium.json`.
+
+The committed dataset in [`docs/data/baselines.json`](docs/data/baselines.json)
+&mdash; which the figures, the paper and the dashboard all read &mdash; is the
+same comparison at **5 seeds** rather than 10, so its means differ slightly from
+this table (0.118 / 0.145 on bottleneck against 0.13 / 0.14 here). Both runs say
+the same thing; where a figure and this table disagree in the third decimal,
+the figure is the one that was regenerated.
 
 **Plain `lifelong_pibt` beats both external baselines by a wide, significant
 margin (p < 0.001 on throughput in every cell) on every map tested.** Token
@@ -762,13 +829,23 @@ maps/            warehouse maps
 src/lda_pibt/    the package (see the module table above)
 src/lda_pibt/gui/  browser GUI (server.py + static/index.html)
 src/lda_pibt/baselines/  Token Passing and RHCR, independent of the PIBT machinery
-tests/           183 tests: graph, PIBT, aisle manager, lifelong layer, GUI,
-                 baselines, stats, and the guide's worked examples
-experiments/     run_ablation.py, run_density_sweep.py, run_factorial_ablation.py,
+src/lda_pibt/viz_compare.py  side-by-side animation of two planners on one scenario
+tests/           198 tests: graph, PIBT, aisle manager, lifelong layer, GUI,
+                 baselines, stats, the committed doc assets, and the paper's
+                 worked examples
+experiments/     run_all.py (writes docs/data/), plus run_ablation.py,
+                 run_density_sweep.py, run_factorial_ablation.py,
                  run_baseline_comparison.py, run_hypothesis_suite.py
-results/         JSON output (git-ignored)
-tools/           build_docs.py (the PDFs), worked_examples.py (the guide's numbers)
-docs/            mathematical guide, project-review deck, implementation notes
+results/         JSON output from the individual runners (git-ignored)
+tools/           build_docs.py (the PDFs), make_figures.py + dashboard.py (the
+                 figures and docs/dashboard.html), make_gifs.py (the animations),
+                 worked_examples.py (the paper's numbers)
+docs/latex/      the paper's source
+docs/data/       the measured dataset every figure and table is generated from
+docs/figures/    the eight result figures, as SVG and PDF
+docs/gifs/       the five comparison animations
+docs/dashboard.html  the interactive results page
+docs/deck/       the project-review deck
 docs/pdf/        the built, distributable PDFs
 ```
 

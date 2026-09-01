@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the worked examples embedded in ``docs/mathematical-guide.md``.
+"""Generate the worked examples embedded in the LaTeX guide.
 
 Every number the guide prints inside a "Worked example" block is produced
 here, by running the real simulator and calling the real scoring, congestion,
@@ -7,11 +7,13 @@ aisle, assignment and priority code. Nothing is typed in by hand, so a change
 to a formula or a default weight shows up as a failing test rather than as a
 guide that quietly disagrees with the code.
 
-The guide marks each block with a pair of HTML comments::
+The guide marks each block with a pair of LaTeX comments::
 
-    <!-- worked-example: score -->
-    > **Worked example.** ...
-    <!-- /worked-example -->
+    % worked-example: score
+    \\begin{workedexample}
+    \\textbf{Worked example.} ...
+    \\end{workedexample}
+    % /worked-example
 
 Usage::
 
@@ -33,7 +35,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
-GUIDE = ROOT / "docs" / "mathematical-guide.md"
+GUIDE = ROOT / "docs" / "latex" / "toll.tex"
 sys.path.insert(0, str(ROOT / "src"))
 
 from lda_pibt.aisle_manager import AisleManager  # noqa: E402
@@ -57,7 +59,7 @@ RATE = 2.0
 MAX_STEPS = 60
 
 BLOCK_RE = re.compile(
-    r"(<!-- worked-example: (?P<name>[\w-]+) -->\n)(?P<body>.*?)(<!-- /worked-example -->)",
+    r"(% worked-example: (?P<name>[\w-]+)\n)(?P<body>.*?)(% /worked-example)",
     re.S,
 )
 
@@ -120,9 +122,120 @@ def signed(value: float, places: int = 2) -> str:
     return ("+" if value >= 0 else "−") + num(abs(value), places)
 
 
+#: The guide's old "§4.2"-style cross references, mapped onto the LaTeX labels
+#: that replaced them. Generated prose has to cross-reference the document it
+#: is embedded in, and a printed section number would go stale the moment a
+#: section moved; \Cref does not.
+SECTION_LABELS: Dict[str, str] = {
+    "3.2": "sec:priority-fairness",
+    "4.2": "sec:score-beta",
+    "4.3": "sec:score-gamma",
+    "6.2": "sec:aisle-demand",
+    "7.2": "sec:pibt-rejection",
+    "7.4": "sec:pibt-recursion",
+    "9.3": "sec:assignment-cost",
+}
+
+_LATEX_ESCAPES = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#",
+    "_": r"\_", "{": r"\{", "}": r"\}",
+    "~": r"\textasciitilde{}", "^": r"\textasciicircum{}",
+}
+
+
+def latex_escape(text: str) -> str:
+    return "".join(_LATEX_ESCAPES.get(ch, ch) for ch in text)
+
+
+def latex_inline(text: str) -> str:
+    """Render one line of the emitters' Markdown-ish prose as LaTeX.
+
+    The emitters below write `code spans`, **bold** and section references
+    because that is what reads well in a plain-text terminal dump of this
+    script's output. This turns that into LaTeX without the emitters having to
+    know which they are producing.
+    """
+    spans: List[str] = []
+
+    def stash(match: "re.Match[str]") -> str:
+        spans.append(match.group(1))
+        return f"\x00{len(spans) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", stash, text)
+    text = latex_escape(text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\\textbf{\1}", text)
+    text = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"\\emph{\1}", text)
+    text = re.sub(
+        r"§(\d+(?:\.\d+)*)",
+        lambda m: (
+            f"\\Cref{{{SECTION_LABELS[m.group(1)]}}}"
+            if m.group(1) in SECTION_LABELS
+            else f"Section~{m.group(1)}"
+        ),
+        text,
+    )
+    return re.sub(
+        r"\x00(\d+)\x00",
+        lambda m: f"\\code{{{latex_escape(spans[int(m.group(1))])}}}",
+        text,
+    )
+
+
+#: Fitting a verbatim block to the page. A wrapped column of program output is
+#: worse than a small one, so the font shrinks until the widest line fits
+#: instead. Width of the text inside a workedexample box, in points; DejaVu
+#: Sans Mono's advance as a fraction of its size; and the range of sizes worth
+#: using.
+_BOX_WIDTH_PT = 375.0
+_CHAR_ADVANCE = 0.602
+_SIZE_CAP_PT = 9.0
+_SIZE_FLOOR_PT = 5.6
+
+
+def fit_size(block: List[str]) -> float:
+    """Font size at which the widest line of `block` fits the box."""
+    widest = max((len(line) for line in block), default=0)
+    if widest == 0:
+        return _SIZE_CAP_PT
+    size = _BOX_WIDTH_PT / (widest * _CHAR_ADVANCE)
+    return round(max(_SIZE_FLOOR_PT, min(_SIZE_CAP_PT, size)), 1)
+
+
 def quote(lines: List[str]) -> str:
-    """Wrap a block in Markdown blockquote markers, as the guide expects."""
-    return "\n".join(("> " + line).rstrip() for line in lines) + "\n"
+    """Wrap an emitter's lines in the guide's `workedexample` environment.
+
+    Fenced regions become `verbatim`, sized to fit: they are fixed-width
+    transcripts of program output whose columns must not reflow, and the score
+    example's table is a hundred characters wide. Everything else is prose and
+    goes through `latex_inline`.
+    """
+    out: List[str] = [r"\begin{workedexample}"]
+    fenced: Optional[List[str]] = None
+    for line in lines:
+        if line.strip() == "```":
+            if fenced is None:
+                fenced = []
+            else:
+                size = fit_size(fenced)
+                out.append(r"{\fontsize{%.1f}{%.1f}\selectfont" % (size, size * 1.2))
+                out.append(r"\begin{verbatim}")
+                out.extend(fenced)
+                # the closing brace must not share the line with
+                # \end{verbatim}, which has to stand alone
+                out.append(r"\end{verbatim}")
+                out.append("}")
+                fenced = None
+        elif fenced is not None:
+            fenced.append(line)
+        elif not line.strip():
+            out.append("")
+        else:
+            out.append(latex_inline(line))
+    if fenced is not None:  # pragma: no cover - an emitter with a stray fence
+        raise SystemExit("worked example has an unclosed code fence")
+    out.append(r"\end{workedexample}")
+    return "\n".join(out) + "\n"
 
 
 def table(headers: List[str], rows: List[List[str]]) -> List[str]:
@@ -665,10 +778,20 @@ def substitute(text: str, blocks: Dict[str, str]) -> Tuple[str, List[str]]:
         name = match.group("name")
         seen.append(name)
         if name not in blocks:
-            raise SystemExit(f"{GUIDE.name} marks unknown worked example {name!r}")
+            raise SystemExit(f"the guide marks unknown worked example {name!r}")
         return match.group(1) + blocks[name] + match.group(4)
 
     return BLOCK_RE.sub(replace, text), seen
+
+
+def guide_files() -> List[Path]:
+    """Every source file of the guide that may carry a marker.
+
+    The guide is one document in several files, and a worked example sits in
+    whichever section it belongs to, so the search is over the whole set
+    rather than over one file.
+    """
+    return sorted(GUIDE.parent.glob("sections/*.tex"))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -677,7 +800,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     group.add_argument("--check", action="store_true",
                        help="exit non-zero if the guide's blocks are stale")
     group.add_argument("--write", action="store_true",
-                       help="regenerate the blocks in docs/mathematical-guide.md")
+                       help="regenerate the blocks in the guide")
     args = parser.parse_args(argv)
 
     blocks = render_all()
@@ -688,25 +811,36 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(text)
         return 0
 
-    original = GUIDE.read_text(encoding="utf-8")
-    updated, seen = substitute(original, blocks)
-    missing = [name for name in blocks if name not in seen]
+    seen_all: List[str] = []
+    stale: List[Path] = []
+    for path in guide_files():
+        original = path.read_text(encoding="utf-8")
+        updated, seen = substitute(original, blocks)
+        seen_all.extend(seen)
+        if updated == original:
+            continue
+        stale.append(path)
+        if args.write:
+            path.write_text(updated, encoding="utf-8")
+
+    missing = [name for name in blocks if name not in seen_all]
     if missing:
         raise SystemExit(
-            f"{GUIDE.name} has no marker for worked example(s): {', '.join(missing)}"
+            f"the guide has no marker for worked example(s): {', '.join(missing)}"
         )
 
     if args.write:
-        if updated != original:
-            GUIDE.write_text(updated, encoding="utf-8")
-            print(f"updated {len(seen)} worked example(s) in {GUIDE.relative_to(ROOT)}")
+        if stale:
+            print(f"updated {len(seen_all)} worked example(s) in "
+                  f"{len(stale)} file(s)")
         else:
             print("worked examples already up to date")
         return 0
 
-    if updated != original:
+    if stale:
+        names = ", ".join(str(p.relative_to(ROOT)) for p in stale)
         print(
-            f"{GUIDE.relative_to(ROOT)} is out of date with the code.\n"
+            f"{names} is out of date with the code.\n"
             "Run:  python3 tools/worked_examples.py --write",
             file=sys.stderr,
         )

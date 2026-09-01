@@ -1,0 +1,73 @@
+\section{Robots and tasks}
+\label{sec:robots-tasks}
+
+\begin{lede}
+What a robot remembers from one timestep to the next, and where the
+never-ending stream of jobs comes from.
+\end{lede}
+
+\subsection{Robot state}
+
+\code{Robot} carries, among other fields: \code{priority} (recomputed every
+step, \Cref{sec:priority}); \code{tie\_breaker} $= 10^{-4} \cdot \mathrm{id}$,
+deterministic, unique, and small enough never to reorder two robots across a
+priority-class boundary; three related but distinct stall counters
+\code{waiting\_time}, \code{blocked\_time} and \code{no\_progress\_steps}
+(\Cref{sec:deadlock-signals} distinguishes them precisely, because they feed
+different formulas); \code{route}, the current planned path;
+\code{route\_distance\_to\_waypoint} $= \Dg{w}(\pos{i}{t})$, the live BFS
+distance to the current waypoint; \code{mode}, a proximity bucket
+(\Cref{sec:score-mode}); \code{direction\_weight} and \code{aisle\_weight}
+($\beta_i$, $\gamma_i$, \Cref{sec:score-beta,sec:score-gamma}); and
+\code{position\_history}, a 16-entry deque used for repeated-configuration
+detection (\Cref{sec:deadlock-detection}).
+
+\subsection{Task urgency and waiting}
+
+\begin{align}
+  \mathrm{urgency}(t) &=
+    \begin{cases}
+      0 & \text{if } \mathrm{deadline} = \INF,\\[2pt]
+      \dfrac{1}{\max(1,\ \mathrm{deadline} - t)} & \text{otherwise,}
+    \end{cases}\\[4pt]
+  \mathrm{waiting\_time}(t) &= \max(0,\ t - t_{\mathrm{rel}}),\\
+  \mathrm{service\_time} &= t_{\mathrm{complete}} - t_{\mathrm{rel}}
+    \quad \text{(defined only once completed).}
+\end{align}
+
+Urgency grows without bound as the deadline approaches and passes
+(slack $\rightarrow 0$ or negative), which is intentional: a task past its
+deadline should dominate the priority function's urgency term
+(\Cref{sec:priority}) rather than saturate.
+
+\subsection{Arrival processes}
+\label{sec:arrivals}
+
+Four modes, each returning a task count for \code{receive\_new\_tasks(t)}:
+\begin{align*}
+  \text{\code{periodic}:}\ & \text{count} = \mathrm{rate} \ \text{ if } t \bmod \mathrm{period} = 0,\ \text{else } 0;\\
+  \text{\code{poisson}:}\ & \text{count} \sim \mathrm{Poisson}(\lambda) \text{ via Knuth's sampler};\\
+  \text{\code{bursty}:}\ & \text{count} = \mathrm{burst\_size} \ \text{ if } t \bmod \mathrm{burst\_period} = 0,\ \text{else } 0;\\
+  \text{\code{batch}:}\ & \text{count} = \mathrm{total} \ \text{ if } t = 0,\ \text{else } 0.
+\end{align*}
+
+Knuth's Poisson sampler is the standard method for small-to-moderate $\lambda$:
+
+\begin{algorithm}[H]
+\caption{Knuth's Poisson sampler (\code{task.\_poisson})}
+\begin{algorithmic}[1]
+\Require mean $\lambda > 0$
+\State $L \gets e^{-\lambda}$;\quad $k \gets 0$;\quad $p \gets 1$
+\Loop
+  \State $p \gets p \cdot U$ \Comment{$U \sim \mathrm{Uniform}(0,1)$}
+  \If{$p \leq L$} \Return $k$ \EndIf
+  \State $k \gets k + 1$
+\EndLoop
+\end{algorithmic}
+\end{algorithm}
+
+After $k$ multiplications $p = \prod_{1}^{k} U_j$, and the number of uniform
+draws needed to push that running product below $e^{-\lambda}$ is exactly
+Poisson distributed with mean $\lambda$ \citep{knuth1997taocp2}. The
+implementation guards at $k > 1000$ for numerical safety, which never triggers
+at realistic rates.

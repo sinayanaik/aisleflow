@@ -1,0 +1,402 @@
+\section{Results}
+\label{sec:results}
+
+\begin{lede}
+Five suites, five seeds, 400 timesteps, four maps. The aisle layer is ahead on
+the two aisle-shaped maps and behind on the two open ones; both external
+baselines are far behind everywhere; and the mechanisms
+\Cref{sec:contribution} argues for are the largest effects in the system by a
+wide margin.
+\end{lede}
+
+\subsection{Setup}
+
+Everything below comes from one dataset, \code{docs/data/}, written by
+\code{experiments/run\_all.py} and committed alongside this document, so every
+figure regenerates from the same runs.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}llrrl@{}}
+\toprule
+\textbf{Map} & \textbf{Shape} & \textbf{Robots} & \textbf{$\lambda$} & \textbf{Served fraction} \\
+\midrule
+\variant{warehouse\_bottleneck} & two halves, one joining corridor & 16 & 0.8 & 18\% \\
+\variant{warehouse\_corridors} & five parallel single-file corridors & 35 & 1.0 & 13\% \\
+\variant{warehouse\_narrow} & four 5-cell aisles per bank & 30 & 1.2 & --- \\
+\variant{warehouse\_medium} & open grid & 40 & 1.5 & 33\% \\
+\bottomrule
+\end{tabular}
+\caption{The scenarios. ``Served fraction'' is the best planner's completed
+tasks over the tasks the arrival process released --- the saturation of
+\Cref{sec:regime}, measured.}
+\label{tab:scenarios}
+\end{table}
+
+Five seeds per cell, Poisson arrivals, and the statistics of
+\Cref{sec:statistics} throughout. One consequence of five seeds is worth
+stating before any number is read: with five values a side the exact
+permutation test has $\binom{10}{5} = 252$ label splits, so \textbf{the smallest
+attainable two-sided $p$-value is $2/252 \approx 0.008$}, and a genuine
+difference of moderate size can easily land at $p \approx 0.06$. That is exactly
+what happens to this method's two wins, and \Cref{sec:results-honest} says so
+rather than rounding it away.
+
+\subsection{Against the published baselines}
+\label{sec:results-baselines}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{headline.pdf}
+\caption{Throughput on the three maps the baseline suite covers.}
+\label{fig:headline}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Map} & \textbf{Planner} & \textbf{$\Theta$} & \textbf{svc} & \textbf{ms/step} & \textbf{$p$ vs PIBT} \\
+\midrule
+\multirow{5}{*}{bottleneck}
+ & plain lifelong PIBT & 0.118 & 154.2 & 0.40 & --- \\
+ & TOLL (full) & \textbf{0.145} & 154.3 & 1.45 & 0.095 \\
+ & Token Passing & 0.007 & 31.1 & 36.2 & 0.008 \\
+ & Token Passing + recovery & 0.008 & 42.2 & 32.3 & 0.008 \\
+ & RHCR & 0.011 & 22.6 & 75.0 & 0.008 \\
+\midrule
+\multirow{5}{*}{corridors}
+ & plain lifelong PIBT & 0.131 & 157.0 & 0.84 & --- \\
+ & TOLL (full) & 0.121 & 148.9 & 2.84 & 0.492 \\
+ & Token Passing & 0.000 & --- & 80.8 & 0.008 \\
+ & Token Passing + recovery & 0.000 & --- & 40.3 & 0.008 \\
+ & RHCR & 0.001 & 8.6 & 43.0 & 0.008 \\
+\midrule
+\multirow{5}{*}{medium}
+ & plain lifelong PIBT & \textbf{0.502} & 139.0 & 1.03 & --- \\
+ & TOLL (full) & 0.313 & 150.0 & 4.36 & 0.008 \\
+ & Token Passing & 0.004 & 49.9 & 222.2 & 0.008 \\
+ & Token Passing + recovery & 0.027 & 144.9 & 191.2 & 0.008 \\
+ & RHCR & 0.014 & 38.7 & 97.9 & 0.008 \\
+\bottomrule
+\end{tabular}
+\caption{Five seeds, 400 timesteps. $\Theta$ is tasks per timestep; ``svc'' is
+mean service time over completed tasks only (\Cref{sec:metrics}); $p$ is a
+two-sided permutation test against plain lifelong PIBT on throughput. A dash in
+the service-time column means the planner finished no tasks at all, so the
+statistic does not exist.}
+\label{tab:baselines}
+\end{table}
+
+Three things in that table are worth reading carefully.
+
+\paragraph{Both baselines lose by two orders of magnitude, significantly, everywhere.}
+Every baseline cell sits at $p = 0.008$, the floor of a five-seed test. Token
+Passing completes \emph{literally zero} tasks on \variant{warehouse\_corridors}
+across all five seeds. Its counters (\code{tp\_path\_not\_found},
+\code{tp\_forced\_holds}) confirm genuine gridlock rather than a crash: robots
+queue nose-to-tail and no robot can reserve a path through the robots ahead of
+it, for the rest of the run. This is the structural failure of
+\Cref{sec:related-tp}, and the first animation in \code{docs/gifs/} shows it
+beside the same scenario under priority inheritance.
+
+\paragraph{The service-time column is a trap, and this table is where it springs.}
+RHCR reports a mean service time of $8.6$ on \variant{warehouse\_corridors} ---
+easily the best figure in the table --- while delivering $0.001$ tasks per
+timestep. It is not fast; it is selective, and only by accident. Token Passing's
+dashes are the same phenomenon taken to its limit.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{censoring.pdf}
+\caption{The same five planners, twice. Ranking by the right panel alone
+inverts the ranking that matters.}
+\label{fig:censoring}
+\end{figure}
+
+\paragraph{Cost does not buy throughput here.}
+\Cref{fig:cost-benefit} puts the two together. The aisle layer costs 1.4--4.4\,ms
+per timestep against plain PIBT's 0.4--1.0; both baselines cost 32--222\,ms and
+deliver almost nothing at this scale. \Cref{sec:results-caveats} states what
+that does and does not say about RHCR.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{cost-benefit.pdf}
+\caption{Planner cost against what it delivers. Note the log scale.}
+\label{fig:cost-benefit}
+\end{figure}
+
+\subsection{Saturation, in one picture}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{load.pdf}
+\caption{Offered demand against served demand. Between 13\% and 33\% of the
+tasks released are delivered; the rest are still queued when the horizon ends.}
+\label{fig:load}
+\end{figure}
+
+This is \Cref{sec:regime} measured rather than asserted, and it is the context
+every other number needs. Throughput here is capacity, not activity.
+
+\subsection{Which mechanisms earn their cost}
+\label{sec:results-mechanisms}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{forest.pdf}
+\caption{Each of the four repaired mechanisms against the same configuration
+without it, on every map. Blue is $p < 0.05$.}
+\label{fig:forest}
+\end{figure}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Mechanism (treatment vs. control)} & \textbf{bottleneck} & \textbf{corridors} & \textbf{narrow} & \textbf{medium} \\
+\midrule
+direction \textbf{ranks} vs \textbf{rejects} & 0.149 / 0.149 & \textbf{0.158 / 0.084} & \textbf{0.289 / 0.078} & \textbf{0.405 / 0.161} \\
+same, with reservations & \textbf{0.149 / 0.060} & \textbf{0.095 / 0.043} & \textbf{0.152 / 0.033} & 0.217 / 0.088 \\
+bounded maximum green & 0.149 / 0.149 & 0.158 / 0.159 & 0.289 / 0.282 & 0.405 / 0.360 \\
+recovery needs corroboration & 0.149 / 0.148 & \textbf{0.134 / 0.022} & 0.204 / 0.134 & 0.245 / 0.177 \\
+\bottomrule
+\end{tabular}
+\caption{Throughput, treatment / control, five seeds. \textbf{Bold} is
+$p \leq 0.05$. \code{config.PAIRED\_DESIGNS}.}
+\label{tab:mechanisms}
+\end{table}
+
+\paragraph{Direction as a price rather than a rule is the largest effect in the system.}
+On the three maps where an aisle ever commits a direction it is worth
+$1.9\times$ (corridors), $2.5\times$ (medium) and $3.7\times$ (narrow)
+throughput, each at $p = 0.008$; with entry admission also on, the range runs
+to $4.6\times$. On \variant{warehouse\_bottleneck} the two arms are identical to
+three decimals, and that is not a null result: 16 robots spread over 25 aisles
+never push the demand imbalance past $\tau_{\mathrm{switch}} = 5.0$, so no aisle
+ever commits a direction and there is nothing for the treatment to change.
+\textbf{That cell is an experiment that did not run}, and is reported as such
+rather than as evidence of no effect.
+
+This is \Cref{sec:contribution-soft} measured. The second animation in
+\code{docs/gifs/} is the corridors pair, side by side.
+
+\paragraph{Corroborated stall detection is the second.}
+On \variant{warehouse\_corridors}, $0.134$ against $0.022$ tasks per timestep
+($p = 0.008$): a six-fold difference obtained entirely by refusing to escalate
+on the weakest of the three stall signals. On the other maps the effect points
+the same way and does not clear five-seed significance ($p = 0.056$ on narrow,
+$0.230$ on medium). The mechanism matters most exactly where deadlocks are
+easiest to manufacture.
+
+\paragraph{The maximum green is not significant on throughput, and that is the finding.}
+Its throughput effect is between $-0.001$ and $+0.045$, with $p$ from $0.437$ to
+$0.968$. It was decisive while direction was a hard constraint, because a
+starved robot then had no way out at all; once counterflow is merely expensive,
+a robot can buy its way out of a starved aisle and liveness no longer rests on
+the signal. The two fixes are partly redundant. What the maximum green does
+change is the signal itself: on \variant{warehouse\_narrow} it produces $22.5$
+direction switches per 1000 steps against $1.0$ without it ($p = 0.016$), of
+which $5.2$ per run are flips forced by the rule rather than by demand
+(\code{starvation\_flips}). Without it, those aisles simply never turn.
+
+\subsection{The ablation ladder is not monotone}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ablation-ladder.pdf}
+\caption{The cumulative ladder of \Cref{sec:ablation-ladder}. Adding
+mechanisms does not monotonically help, and on two maps the first rung is the
+best one.}
+\label{fig:ladder}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{winloss.pdf}
+\caption{Every configuration against plain lifelong PIBT, with a permutation
+test on the same seeds.}
+\label{fig:winloss}
+\end{figure}
+
+Two rows of \Cref{fig:winloss} deserve comment. \variant{turning\_cost\_only}
+--- a flat anti-zigzag penalty with nothing to do with aisles --- is the best
+variant on \variant{warehouse\_corridors} (0.196, $p = 0.008$) and the second
+best on \variant{warehouse\_medium}. The cheapest mechanism in the system is
+among the most effective, and any honest account of this work has to say so.
+And on \variant{warehouse\_bottleneck} every variant beats plain PIBT by 21--28\%
+while none of them clears $p = 0.05$: with no aisle ever committing a direction,
+those variants differ from the base only in the turning cost, and five seeds
+cannot separate them.
+
+\subsection{Hypotheses}
+\label{sec:results-hypotheses}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{hypotheses.pdf}
+\caption{Each hypothesis against the control that isolates its mechanism, on
+the quantity it actually claims to move.}
+\label{fig:hypotheses}
+\end{figure}
+
+Scoring each hypothesis on its own metric rather than on global throughput is
+what makes these verdicts mean anything: H3 claims \emph{fewer head-on
+conflicts} and H1 claims \emph{narrow aisles flow better}, and judging either by
+throughput can miss a mechanism doing exactly what it promises, or credit one
+that is not.
+
+\begin{itemize}
+\item \textbf{H2 (hysteresis reduces switching) is supported on every map}, at
+  the five-seed floor, and by two orders of magnitude: 14.5 switches per 1000
+  steps against 2188 on \variant{warehouse\_medium}.
+\item \textbf{H3 (entry admission reduces head-on conflicts) is map-dependent}:
+  supported on corridors (702 against 1130), contradicted on narrow. Both
+  directions are real and the map decides which.
+\item \textbf{H1 is contradicted on its own metric on corridors} and flat
+  elsewhere, while the same configuration raises \emph{global} throughput on
+  three of four maps. Both are true and not in tension: one-way aisles route
+  traffic through fewer aisle transits per delivered task, so per-aisle flow
+  falls while end-to-end flow rises. The lesson is about the denominator, not
+  the mechanism.
+\item \textbf{H5's mechanism is inert.} Changing $R_{\mathrm{near}}$ and
+  $R_{\mathrm{far}}$ produces runs identical to the last decimal, because
+  $\beta$ only breaks ties among candidates with \emph{equal} progress and the
+  decay lowers it precisely where $\alpha \Delta$ already decides. The weight
+  is not inert, and is net harmful: \variant{no\_direction\_term} ($\beta = 0$)
+  beats \variant{aisle\_direction\_only} on medium (0.433 against 0.405) and
+  ties it on narrow.
+\item \textbf{H4 and H6 are unsupported on three maps each}, and H6 is supported
+  on corridors.
+\end{itemize}
+
+\subsection{De-confounded findings}
+\label{sec:results-factorial}
+
+The $2 \times 2$ decomposition of \Cref{eq:factorial}, on the design that could
+not be read at all before the reservation layer's gating was fixed
+(\Cref{sec:aisle-reservations}):
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Map} & \textbf{base} & \textbf{aisle direction} & \textbf{reservations} & \textbf{both} & \textbf{interaction} \\
+\midrule
+corridors & 0.148 & \textbf{0.158} & 0.125 & 0.095 & $-0.040$ \\
+medium & 0.337 & \textbf{0.405} & 0.262 & 0.217 & $-0.112$ \\
+\bottomrule
+\end{tabular}
+\caption{\code{aisle\_direction\_vs\_reservations}. The attribution reverses
+once the cells are distinct runs.}
+\label{tab:factorial}
+\end{table}
+
+Aisle-level direction control is the flag that \emph{helps} in isolation
+($+7\%$ and $+20\%$); entry admission is the one that costs ($-16\%$ and
+$-22\%$); and the two interact strongly negatively, so the combined rung of the
+ladder cannot be read as one contribution plus the other. The earlier verdict
+--- direction blamed, reservations exonerated --- was reading a cell in which
+factor B was a bit-identical copy of the base.
+
+\subsection{The honest headline}
+\label{sec:results-honest}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Map} & \textbf{best TOLL} & \textbf{plain PIBT} & \textbf{difference} & \textbf{$p$} \\
+\midrule
+bottleneck (aisle-shaped) & 0.149 & 0.118 & $+27\%$ & 0.056 \\
+corridors (aisle-shaped) & 0.158 & 0.131 & $+21\%$ & 0.063 \\
+narrow (open banks) & 0.289 & 0.354 & $-18\%$ & 0.016 \\
+medium (open grid) & 0.405 & 0.502 & $-19\%$ & 0.008 \\
+\bottomrule
+\end{tabular}
+\caption{The best TOLL configuration on each map --- \variant{aisle\_direction\_only}
+in all four --- against plain lifelong PIBT.}
+\label{tab:honest}
+\end{table}
+
+Stated plainly, and stated as the evidence actually stands:
+
+\begin{enumerate}
+\item \textbf{Against the published baselines, TOLL wins decisively and
+  significantly on every map tested}, at a twentieth to a three-hundredth of
+  their cost per timestep. So does plain lifelong PIBT. The gap between
+  PIBT-family planners and reservation-table planners in narrow lifelong traffic
+  is the largest effect in this entire evaluation, and it is not this project's
+  contribution --- it is PIBT's.
+\item \textbf{Against plain lifelong PIBT, the aisle layer is ahead by
+  21--27\% on the two aisle-shaped maps and behind by 18--19\% on the two open
+  ones.} The losses are significant at five seeds; \emph{the wins are not}
+  ($p = 0.056$ and $0.063$). The direction is consistent with the design and
+  with the mechanism, and the evidence for it is currently thin. Ten seeds would
+  settle it either way, and that is the obvious next run rather than a caveat to
+  argue around.
+\item \textbf{The mechanisms of \Cref{sec:contribution} are established.}
+  Pricing direction instead of enforcing it, and requiring corroboration before
+  escalating recovery, are large and significant wherever their mechanism can
+  act at all. They are what took the aisle layer from catastrophic to
+  competitive.
+\item \textbf{The cheapest mechanism in the system is the one with least to do
+  with aisles.} A flat turning cost is the best variant on corridors and second
+  best on medium.
+\end{enumerate}
+
+The value of this pass is not that every hypothesis now passes; three of six
+still do not. It is that H1, H3, H4 and H6 were given a \emph{valid} test for
+the first time --- H3's treatment cell was previously empty, H1's headline map
+produces no treatment, and H6's support came from rescuing deadlocks the
+architecture manufactured for it.
+
+\subsection{Reading these numbers}
+
+\code{docs/metrics.md} is the companion to this section: every reported
+quantity, which direction is good, and how each one misleads on its own. Three
+results there are worth carrying back into this document, because they are the
+clearest statement of what the aisle layer buys and what it costs, and none of
+them is visible in a raw column:
+
+\begin{itemize}
+\item \textbf{Travel distance per delivered task} falls 23\% on
+  \variant{warehouse\_bottleneck} ($p = 0.008$) and 25\% on
+  \variant{warehouse\_corridors} ($p = 0.016$) --- the fleet drives a quarter
+  less to deliver the same task --- and rises 13\% and 21\% on the two open
+  maps. The raw total is lower everywhere and means nothing: a planner that
+  delivers less also drives less.
+\item \textbf{Head-on conflicts per 1000 steps} fall 34\% on
+  \variant{warehouse\_bottleneck} ($p = 0.016$), and 52\% per delivered task.
+  That is the mechanism measured on its own terms rather than through
+  throughput.
+\item \textbf{Backtracks per delivered task} rise by 85--130\% wherever an
+  aisle commits a direction ($p = 0.008$). Pricing counterflow makes the
+  inheritance recursion explore further before it resolves, and that is the
+  largest single cost of the method.
+\end{itemize}
+
+\subsection{Threats to validity}
+\label{sec:results-caveats}
+
+\begin{enumerate}
+\item \textbf{Task assignment is held constant} across all five planners
+  (\Cref{sec:assignment}). This isolates the movement layer, and it also means
+  neither baseline was tested with the assignment policy its own paper pairs it
+  with.
+\item \textbf{RHCR's window and replan period (10/5) are untuned defaults}, not
+  values chosen for this scale. RHCR targets hundreds of robots on much larger
+  warehouses, where a rolling horizon pays for itself against full CBS. Its poor
+  showing here is a property of \emph{this baseline at this scale with these
+  defaults}, and is not evidence about RHCR in general.
+\item \textbf{Token Passing's gridlock, by contrast, is structural} --- no
+  priority inheritance, no backtracking --- and is well documented in the
+  lifelong-MAPD literature. It will not go away with different hyperparameters.
+\item \textbf{Five seeds is thin}, as \Cref{tab:honest} shows directly. Every
+  claim of significance here rests on a test whose floor is $p = 0.008$, and
+  every claim of non-significance may simply be underpowered.
+\item \textbf{Four maps, one arrival process, one fleet size per map.} The
+  boundary this document draws between ``aisle-shaped'' and ``open'' is drawn
+  through four points.
+\end{enumerate}

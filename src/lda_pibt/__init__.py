@@ -1,4 +1,4 @@
-"""LDA-PIBT: Lifelong Aisle-Managed Priority Inheritance with Backtracking.
+"""TOLL-PIBT: Tolled One-way Lanes over Priority Inheritance with Backtracking.
 
 Directional and congestion-aware multi-agent pickup and delivery, built as an
 extension of PIBT (Okumura et al., arXiv:1901.11282).

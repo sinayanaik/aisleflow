@@ -45,6 +45,10 @@ BASELINE_PLANNERS: Dict[str, Tuple[PlannerFactory, bool]] = {
 #: Fields averaged across seeds and reported by the experiment drivers.
 REPORT_FIELDS = (
     "completed_tasks",
+    #: every task the arrival process released, completed or not -- the offered
+    #: load these runs are measured against. Without it, `throughput` alone
+    #: cannot say whether a run served most of its demand or a tenth of it.
+    "released_tasks",
     "throughput",
     "mean_service_time",
     "median_service_time",
@@ -69,7 +73,7 @@ REPORT_FIELDS = (
 )
 
 
-def run_once(
+def build_run(
     map_path: str | Path,
     variant: str,
     n_robots: int,
@@ -78,13 +82,19 @@ def run_once(
     rate: float = 1.0,
     arrival: str = "poisson",
     overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Run a single configuration and return its metrics as a dict.
+    record_history: bool = False,
+):
+    """Build (but do not run) one configured `Simulator`.
 
-    `variant` is either a name from `config.ABLATIONS` (a PIBT/LDA-PIBT flag
+    `variant` is either a name from `config.ABLATIONS` (a PIBT/TOLL-PIBT flag
     bundle) or a name from `BASELINE_PLANNERS` (an external planner, e.g.
     `"token_passing"`, `"rhcr"`) -- both slot into the same call, so a
     comparison table can mix PIBT variants and baselines freely.
+
+    Split out of `run_once` so the visualiser can run the *same* configuration
+    with `record_history=True` and animate it. Two panels of a comparison GIF
+    are only comparable if they were set up by identical code, which is what
+    sharing this function buys.
     """
     planner_factory: Optional[PlannerFactory] = None
     if variant in BASELINE_PLANNERS:
@@ -108,9 +118,27 @@ def run_once(
         rate=rate,
         seed=seed,
     )
-    sim = build_simulator(
+    return build_simulator(
         warehouse, n_robots, params, task_generator=generator,
         planner_factory=planner_factory,
+        record_history=record_history,
+    )
+
+
+def run_once(
+    map_path: str | Path,
+    variant: str,
+    n_robots: int,
+    timesteps: int,
+    seed: int,
+    rate: float = 1.0,
+    arrival: str = "poisson",
+    overrides: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Run a single configuration and return its metrics as a dict."""
+    sim = build_run(
+        map_path, variant, n_robots, timesteps, seed,
+        rate=rate, arrival=arrival, overrides=overrides,
     )
     report = sim.run(max_timesteps=timesteps)
     result = report.to_dict()
@@ -120,15 +148,24 @@ def run_once(
     return result
 
 
-def _average(runs: Sequence[Dict[str, Any]], **labels: Any) -> Dict[str, Any]:
+def _average(
+    runs: Sequence[Dict[str, Any]], include_raw: bool = False, **labels: Any
+) -> Dict[str, Any]:
     row: Dict[str, Any] = dict(labels)
     row["seeds"] = len(runs)
     row["collision_free"] = all(bool(r["collision_free"]) for r in runs)
+    raw: Dict[str, List[float]] = {}
     for field in REPORT_FIELDS:
         values = [float(r[field]) for r in runs]
         row[field] = statistics.fmean(values)
         if len(values) > 1:
             row[f"{field}_sd"] = statistics.stdev(values)
+        if include_raw:
+            raw[field] = values
+    if include_raw:
+        # Per-seed values, so a figure can draw a real interval rather than
+        # a mean with an error bar invented from a standard deviation.
+        row["raw"] = raw
     return row
 
 
@@ -141,6 +178,7 @@ def run_ablation_table(
     arrival: str = "poisson",
     variants: Optional[Sequence[str]] = None,
     overrides: Optional[Dict[str, Any]] = None,
+    include_raw: bool = False,
 ) -> List[Dict[str, Any]]:
     """Spec section 34. One row per variant, averaged over `seeds` seeds."""
     rows: List[Dict[str, Any]] = []
@@ -158,7 +196,9 @@ def run_ablation_table(
             )
             for seed in range(seeds)
         ]
-        rows.append(_average(runs, variant=variant, n_robots=n_robots))
+        rows.append(
+            _average(runs, include_raw=include_raw, variant=variant, n_robots=n_robots)
+        )
     return rows
 
 
@@ -282,17 +322,24 @@ def run_comparison_table(
     rate: float = 1.0,
     arrival: str = "poisson",
     overrides: Optional[Dict[str, Any]] = None,
+    fields: Sequence[str] = CORE_REPORT_FIELDS,
+    include_raw: bool = False,
 ) -> List[Dict[str, Any]]:
     """Compare PIBT variants and/or external baselines with honest statistics.
 
     Unlike `run_ablation_table` (bare means, kept for backward compatibility),
     this keeps every seed's raw per-field value and reports, for each field in
-    `CORE_REPORT_FIELDS`: `mean`, a 95% bootstrap confidence interval
-    (`stats.bootstrap_ci`), and a two-sided permutation-test p-value against
-    `reference_variant`'s raw values for the same field
-    (`stats.permutation_test`) -- so "beats/loses to baseline" claims rest on
-    more than a mean over a handful of seeds. `reference_variant` itself gets
-    `p_value = None` (nothing to compare it to).
+    `fields` (`CORE_REPORT_FIELDS` by default): `mean`, a 95% bootstrap
+    confidence interval (`stats.bootstrap_ci`), and a two-sided
+    permutation-test p-value against `reference_variant`'s raw values for the
+    same field (`stats.permutation_test`) -- so "beats/loses to baseline"
+    claims rest on more than a mean over a handful of seeds.
+    `reference_variant` itself gets `p_value = None` (nothing to compare it
+    to).
+
+    `include_raw` adds each variant's per-seed values under `"raw"`. The
+    figures in `tools/make_figures.py` need them: a confidence interval drawn
+    from five points should show the five points.
     """
     raw: Dict[str, List[Dict[str, Any]]] = {}
     for variant in variants:
@@ -318,7 +365,7 @@ def run_comparison_table(
             "collision_free": all(bool(r["collision_free"]) for r in runs),
             "fields": {},
         }
-        for field in CORE_REPORT_FIELDS:
+        for field in fields:
             values = [float(r[field]) for r in runs]
             mean, lo, hi = bootstrap_ci(values)
             if variant == reference_variant:
@@ -329,6 +376,8 @@ def run_comparison_table(
             row["fields"][field] = {
                 "mean": mean, "ci_lo": lo, "ci_hi": hi, "p_vs_reference": p_value,
             }
+            if include_raw:
+                row["fields"][field]["raw"] = values
         rows.append(row)
     return rows
 
@@ -579,6 +628,7 @@ def run_paired_table(
 
 __all__ = [
     "LIFELONG_VARIANTS",
+    "build_run",
     "BASELINE_PLANNERS",
     "REPORT_FIELDS",
     "CORE_REPORT_FIELDS",

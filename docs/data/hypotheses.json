@@ -1,0 +1,1459 @@
+{
+  "meta": {
+    "suite": "hypotheses",
+    "seeds": 5,
+    "timesteps": 400,
+    "arrival": "poisson",
+    "scenarios": [
+      {
+        "map": "warehouse_bottleneck",
+        "robots": 16,
+        "rate": 0.8
+      },
+      {
+        "map": "warehouse_corridors",
+        "robots": 35,
+        "rate": 1.0
+      },
+      {
+        "map": "warehouse_narrow",
+        "robots": 30,
+        "rate": 1.2
+      },
+      {
+        "map": "warehouse_medium",
+        "robots": 40,
+        "rate": 1.5
+      }
+    ],
+    "git_sha": "5f5059a",
+    "generated_utc": "2026-08-31T19:14:44Z",
+    "generator": "experiments/run_all.py"
+  },
+  "rows": [
+    {
+      "hypothesis": "H1",
+      "claim": "Aisle-level direction control improves throughput in narrow aisles under dense traffic, when direction is a soft ranking term on straight-run aisles with a starvation-free signal.",
+      "treatment": "aisle_direction_only",
+      "control": "hysteresis_pibt",
+      "metric": "aisle_throughput_per_1000",
+      "better": "higher",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 16,
+      "collision_free": true,
+      "fields": {
+        "aisle_throughput_per_1000": {
+          "treatment_mean": 85.875,
+          "treatment_ci": [
+            81.0,
+            91.0
+          ],
+          "control_mean": 85.875,
+          "control_ci": [
+            81.0,
+            91.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.149,
+          "treatment_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "control_mean": 0.149,
+          "control_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "mean_service_time": {
+          "treatment_mean": 157.1245968527491,
+          "treatment_ci": [
+            148.10484342301237,
+            166.40963901689707
+          ],
+          "control_mean": 157.1245968527491,
+          "control_ci": [
+            148.10484342301237,
+            166.40963901689707
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_bottleneck"
+    },
+    {
+      "hypothesis": "H2",
+      "claim": "Hysteresis reduces direction switching and prevents oscillation, without reintroducing starvation.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no dead band, no minimum lock)",
+      "metric": "direction_switches_per_1000",
+      "better": "lower",
+      "verdict": "supported",
+      "seeds": 5,
+      "n_robots": 16,
+      "collision_free": true,
+      "fields": {
+        "direction_switches_per_1000": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 63.5,
+          "control_ci": [
+            56.0,
+            70.5
+          ],
+          "delta": -63.5,
+          "p_value": 0.007936507936507936
+        },
+        "throughput": {
+          "treatment_mean": 0.149,
+          "treatment_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "control_mean": 0.14550000000000002,
+          "control_ci": [
+            0.14100000000000001,
+            0.1495
+          ],
+          "delta": 0.0034999999999999754,
+          "p_value": 0.4603174603174603
+        },
+        "starvation_flips": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_bottleneck"
+    },
+    {
+      "hypothesis": "H3",
+      "claim": "Entry capacity admission reduces head-on conflicts and deadlocks in single-file aisles, independently of the direction mode.",
+      "treatment": "reservations_only",
+      "control": "hysteresis_pibt",
+      "metric": "head_on_conflicts",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 16,
+      "collision_free": true,
+      "fields": {
+        "head_on_conflicts": {
+          "treatment_mean": 258.6,
+          "treatment_ci": [
+            241.2,
+            276.6
+          ],
+          "control_mean": 258.6,
+          "control_ci": [
+            241.2,
+            276.6
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "deadlocks_detected": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.149,
+          "treatment_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "control_mean": 0.149,
+          "control_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_bottleneck"
+    },
+    {
+      "hypothesis": "H4",
+      "claim": "Congestion-aware task assignment cuts mean and tail service time, separately from the congestion penalty in movement scoring.",
+      "treatment": "congestion_assignment_only",
+      "control": "aisle_managed_pibt",
+      "metric": "mean_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 16,
+      "collision_free": true,
+      "fields": {
+        "mean_service_time": {
+          "treatment_mean": 156.2002126004667,
+          "treatment_ci": [
+            148.6431829573935,
+            165.79407138535996
+          ],
+          "control_mean": 157.1245968527491,
+          "control_ci": [
+            148.10484342301237,
+            166.40963901689707
+          ],
+          "delta": -0.9243842522824082,
+          "p_value": 0.9126984126984127
+        },
+        "p95_service_time": {
+          "treatment_mean": 301.21999999999997,
+          "treatment_ci": [
+            287.65,
+            314.78999999999996
+          ],
+          "control_mean": 295.52,
+          "control_ci": [
+            284.17999999999995,
+            305.96
+          ],
+          "delta": 5.699999999999989,
+          "p_value": 0.5634920634920635
+        },
+        "throughput": {
+          "treatment_mean": 0.144,
+          "treatment_ci": [
+            0.14150000000000001,
+            0.147
+          ],
+          "control_mean": 0.149,
+          "control_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "delta": -0.0050000000000000044,
+          "p_value": 0.2619047619047619
+        }
+      },
+      "map": "warehouse_bottleneck"
+    },
+    {
+      "hypothesis": "H5",
+      "claim": "Proximity-dependent direction weights improve waypoint arrival: decaying beta as a robot nears its waypoint lets preference yield to arrival.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no decay, beta at its ceiling throughout)",
+      "metric": "p95_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 16,
+      "collision_free": true,
+      "fields": {
+        "p95_service_time": {
+          "treatment_mean": 295.52,
+          "treatment_ci": [
+            284.17999999999995,
+            305.96
+          ],
+          "control_mean": 286.21999999999997,
+          "control_ci": [
+            277.93999999999994,
+            295.02
+          ],
+          "delta": 9.300000000000011,
+          "p_value": 0.24603174603174602
+        },
+        "mean_service_time": {
+          "treatment_mean": 157.1245968527491,
+          "treatment_ci": [
+            148.10484342301237,
+            166.40963901689707
+          ],
+          "control_mean": 151.8682458843565,
+          "control_ci": [
+            142.99398805179356,
+            161.0146892655367
+          ],
+          "delta": 5.25635096839261,
+          "p_value": 0.49206349206349204
+        },
+        "max_service_time": {
+          "treatment_mean": 337.6,
+          "treatment_ci": [
+            330.0,
+            346.0
+          ],
+          "control_mean": 319.2,
+          "control_ci": [
+            308.4,
+            330.6
+          ],
+          "delta": 18.400000000000034,
+          "p_value": 0.06349206349206349
+        },
+        "throughput": {
+          "treatment_mean": 0.149,
+          "treatment_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "control_mean": 0.13999999999999999,
+          "control_ci": [
+            0.1365,
+            0.144
+          ],
+          "delta": 0.009000000000000008,
+          "p_value": 0.07142857142857142
+        }
+      },
+      "map": "warehouse_bottleneck"
+    },
+    {
+      "hypothesis": "H6",
+      "claim": "Localised progressive recovery beats a global replan, when it escalates only on a corroborated stall signal.",
+      "treatment": "recovery_only",
+      "control": "aisle_managed_pibt",
+      "metric": "throughput",
+      "better": "higher",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 16,
+      "collision_free": true,
+      "fields": {
+        "throughput": {
+          "treatment_mean": 0.149,
+          "treatment_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "control_mean": 0.149,
+          "control_ci": [
+            0.14350000000000002,
+            0.1545
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "deadlocks_recovered": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "mean_service_time": {
+          "treatment_mean": 157.1245968527491,
+          "treatment_ci": [
+            148.10484342301237,
+            166.40963901689707
+          ],
+          "control_mean": 157.1245968527491,
+          "control_ci": [
+            148.10484342301237,
+            166.40963901689707
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_bottleneck"
+    },
+    {
+      "hypothesis": "H1",
+      "claim": "Aisle-level direction control improves throughput in narrow aisles under dense traffic, when direction is a soft ranking term on straight-run aisles with a starvation-free signal.",
+      "treatment": "aisle_direction_only",
+      "control": "hysteresis_pibt",
+      "metric": "aisle_throughput_per_1000",
+      "better": "higher",
+      "verdict": "contradicted",
+      "seeds": 5,
+      "n_robots": 35,
+      "collision_free": true,
+      "fields": {
+        "aisle_throughput_per_1000": {
+          "treatment_mean": 257.2,
+          "treatment_ci": [
+            237.9,
+            273.1
+          ],
+          "control_mean": 294.9,
+          "control_ci": [
+            284.0,
+            306.6
+          ],
+          "delta": -37.69999999999999,
+          "p_value": 0.007936507936507936
+        },
+        "throughput": {
+          "treatment_mean": 0.15750000000000003,
+          "treatment_ci": [
+            0.1395,
+            0.181
+          ],
+          "control_mean": 0.148,
+          "control_ci": [
+            0.1275,
+            0.164
+          ],
+          "delta": 0.009500000000000036,
+          "p_value": 0.6190476190476191
+        },
+        "mean_service_time": {
+          "treatment_mean": 162.96942765855195,
+          "treatment_ci": [
+            155.9821462488129,
+            167.73466660458186
+          ],
+          "control_mean": 148.195803610021,
+          "control_ci": [
+            129.32479424099034,
+            164.93209737747665
+          ],
+          "delta": 14.773624048530962,
+          "p_value": 0.24603174603174602
+        }
+      },
+      "map": "warehouse_corridors"
+    },
+    {
+      "hypothesis": "H2",
+      "claim": "Hysteresis reduces direction switching and prevents oscillation, without reintroducing starvation.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no dead band, no minimum lock)",
+      "metric": "direction_switches_per_1000",
+      "better": "lower",
+      "verdict": "supported",
+      "seeds": 5,
+      "n_robots": 35,
+      "collision_free": true,
+      "fields": {
+        "direction_switches_per_1000": {
+          "treatment_mean": 13.5,
+          "treatment_ci": [
+            7.5,
+            19.0
+          ],
+          "control_mean": 35.5,
+          "control_ci": [
+            32.0,
+            39.0
+          ],
+          "delta": -22.0,
+          "p_value": 0.007936507936507936
+        },
+        "throughput": {
+          "treatment_mean": 0.15750000000000003,
+          "treatment_ci": [
+            0.1395,
+            0.181
+          ],
+          "control_mean": 0.16,
+          "control_ci": [
+            0.155,
+            0.165
+          ],
+          "delta": -0.0024999999999999745,
+          "p_value": 0.9047619047619048
+        },
+        "starvation_flips": {
+          "treatment_mean": 8.0,
+          "treatment_ci": [
+            4.8,
+            10.0
+          ],
+          "control_mean": 0.2,
+          "control_ci": [
+            0.0,
+            0.6
+          ],
+          "delta": 7.8,
+          "p_value": 0.007936507936507936
+        }
+      },
+      "map": "warehouse_corridors"
+    },
+    {
+      "hypothesis": "H3",
+      "claim": "Entry capacity admission reduces head-on conflicts and deadlocks in single-file aisles, independently of the direction mode.",
+      "treatment": "reservations_only",
+      "control": "hysteresis_pibt",
+      "metric": "head_on_conflicts",
+      "better": "lower",
+      "verdict": "supported",
+      "seeds": 5,
+      "n_robots": 35,
+      "collision_free": true,
+      "fields": {
+        "head_on_conflicts": {
+          "treatment_mean": 702.0,
+          "treatment_ci": [
+            559.2,
+            844.8
+          ],
+          "control_mean": 1134.8,
+          "control_ci": [
+            1032.2,
+            1261.0
+          ],
+          "delta": -432.79999999999995,
+          "p_value": 0.007936507936507936
+        },
+        "deadlocks_detected": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.12450000000000001,
+          "treatment_ci": [
+            0.11000000000000001,
+            0.13799999999999998
+          ],
+          "control_mean": 0.148,
+          "control_ci": [
+            0.1275,
+            0.164
+          ],
+          "delta": -0.02349999999999998,
+          "p_value": 0.11904761904761904
+        }
+      },
+      "map": "warehouse_corridors"
+    },
+    {
+      "hypothesis": "H4",
+      "claim": "Congestion-aware task assignment cuts mean and tail service time, separately from the congestion penalty in movement scoring.",
+      "treatment": "congestion_assignment_only",
+      "control": "aisle_managed_pibt",
+      "metric": "mean_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 35,
+      "collision_free": true,
+      "fields": {
+        "mean_service_time": {
+          "treatment_mean": 156.37426155969632,
+          "treatment_ci": [
+            128.98111111111112,
+            183.76741200828158
+          ],
+          "control_mean": 136.06854681266447,
+          "control_ci": [
+            126.57071555895087,
+            146.23146167557934
+          ],
+          "delta": 20.305714747031857,
+          "p_value": 0.2619047619047619
+        },
+        "p95_service_time": {
+          "treatment_mean": 307.15,
+          "treatment_ci": [
+            285.24999999999994,
+            329.05
+          ],
+          "control_mean": 273.51,
+          "control_ci": [
+            266.69,
+            281.21
+          ],
+          "delta": 33.639999999999986,
+          "p_value": 0.05555555555555555
+        },
+        "throughput": {
+          "treatment_mean": 0.12250000000000001,
+          "treatment_ci": [
+            0.099,
+            0.146
+          ],
+          "control_mean": 0.0945,
+          "control_ci": [
+            0.085,
+            0.10400000000000001
+          ],
+          "delta": 0.02800000000000001,
+          "p_value": 0.11904761904761904
+        }
+      },
+      "map": "warehouse_corridors"
+    },
+    {
+      "hypothesis": "H5",
+      "claim": "Proximity-dependent direction weights improve waypoint arrival: decaying beta as a robot nears its waypoint lets preference yield to arrival.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no decay, beta at its ceiling throughout)",
+      "metric": "p95_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 35,
+      "collision_free": true,
+      "fields": {
+        "p95_service_time": {
+          "treatment_mean": 297.43999999999994,
+          "treatment_ci": [
+            276.12,
+            314.79999999999995
+          ],
+          "control_mean": 297.43999999999994,
+          "control_ci": [
+            276.12,
+            314.79999999999995
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "mean_service_time": {
+          "treatment_mean": 162.96942765855195,
+          "treatment_ci": [
+            155.9821462488129,
+            167.73466660458186
+          ],
+          "control_mean": 162.96942765855195,
+          "control_ci": [
+            155.9821462488129,
+            167.73466660458186
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "max_service_time": {
+          "treatment_mean": 332.4,
+          "treatment_ci": [
+            312.6,
+            352.2
+          ],
+          "control_mean": 332.4,
+          "control_ci": [
+            312.6,
+            352.2
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.15750000000000003,
+          "treatment_ci": [
+            0.1395,
+            0.181
+          ],
+          "control_mean": 0.15750000000000003,
+          "control_ci": [
+            0.1395,
+            0.181
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_corridors"
+    },
+    {
+      "hypothesis": "H6",
+      "claim": "Localised progressive recovery beats a global replan, when it escalates only on a corroborated stall signal.",
+      "treatment": "recovery_only",
+      "control": "aisle_managed_pibt",
+      "metric": "throughput",
+      "better": "higher",
+      "verdict": "supported",
+      "seeds": 5,
+      "n_robots": 35,
+      "collision_free": true,
+      "fields": {
+        "throughput": {
+          "treatment_mean": 0.13399999999999998,
+          "treatment_ci": [
+            0.11299999999999999,
+            0.15699999999999997
+          ],
+          "control_mean": 0.0945,
+          "control_ci": [
+            0.085,
+            0.10400000000000001
+          ],
+          "delta": 0.03949999999999998,
+          "p_value": 0.023809523809523808
+        },
+        "deadlocks_recovered": {
+          "treatment_mean": 53.0,
+          "treatment_ci": [
+            35.8,
+            70.2
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 53.0,
+          "p_value": 0.007936507936507936
+        },
+        "mean_service_time": {
+          "treatment_mean": 162.3384547837257,
+          "treatment_ci": [
+            154.24694824016564,
+            171.0933874433039
+          ],
+          "control_mean": 136.06854681266447,
+          "control_ci": [
+            126.57071555895087,
+            146.23146167557934
+          ],
+          "delta": 26.26990797106123,
+          "p_value": 0.023809523809523808
+        }
+      },
+      "map": "warehouse_corridors"
+    },
+    {
+      "hypothesis": "H1",
+      "claim": "Aisle-level direction control improves throughput in narrow aisles under dense traffic, when direction is a soft ranking term on straight-run aisles with a starvation-free signal.",
+      "treatment": "aisle_direction_only",
+      "control": "hysteresis_pibt",
+      "metric": "aisle_throughput_per_1000",
+      "better": "higher",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 30,
+      "collision_free": true,
+      "fields": {
+        "aisle_throughput_per_1000": {
+          "treatment_mean": 180.72727272727275,
+          "treatment_ci": [
+            176.02272727272728,
+            185.4318181818182
+          ],
+          "control_mean": 184.8181818181818,
+          "control_ci": [
+            182.95454545454544,
+            186.6818181818182
+          ],
+          "delta": -4.090909090909065,
+          "p_value": 0.21428571428571427
+        },
+        "throughput": {
+          "treatment_mean": 0.28900000000000003,
+          "treatment_ci": [
+            0.2695,
+            0.31500000000000006
+          ],
+          "control_mean": 0.258,
+          "control_ci": [
+            0.23450000000000001,
+            0.2815
+          ],
+          "delta": 0.031000000000000028,
+          "p_value": 0.15079365079365079
+        },
+        "mean_service_time": {
+          "treatment_mean": 152.86700334739936,
+          "treatment_ci": [
+            145.43868173258005,
+            162.5398838090427
+          ],
+          "control_mean": 160.2007844932845,
+          "control_ci": [
+            153.61509157509155,
+            166.3332142857143
+          ],
+          "delta": -7.333781145885126,
+          "p_value": 0.2777777777777778
+        }
+      },
+      "map": "warehouse_narrow"
+    },
+    {
+      "hypothesis": "H2",
+      "claim": "Hysteresis reduces direction switching and prevents oscillation, without reintroducing starvation.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no dead band, no minimum lock)",
+      "metric": "direction_switches_per_1000",
+      "better": "lower",
+      "verdict": "supported",
+      "seeds": 5,
+      "n_robots": 30,
+      "collision_free": true,
+      "fields": {
+        "direction_switches_per_1000": {
+          "treatment_mean": 22.5,
+          "treatment_ci": [
+            10.5,
+            34.5
+          ],
+          "control_mean": 1165.0,
+          "control_ci": [
+            1113.0,
+            1217.5
+          ],
+          "delta": -1142.5,
+          "p_value": 0.007936507936507936
+        },
+        "throughput": {
+          "treatment_mean": 0.28900000000000003,
+          "treatment_ci": [
+            0.2695,
+            0.31500000000000006
+          ],
+          "control_mean": 0.3355,
+          "control_ci": [
+            0.316,
+            0.348
+          ],
+          "delta": -0.046499999999999986,
+          "p_value": 0.015873015873015872
+        },
+        "starvation_flips": {
+          "treatment_mean": 5.2,
+          "treatment_ci": [
+            3.2,
+            7.2
+          ],
+          "control_mean": 0.6,
+          "control_ci": [
+            0.2,
+            1.0
+          ],
+          "delta": 4.6000000000000005,
+          "p_value": 0.007936507936507936
+        }
+      },
+      "map": "warehouse_narrow"
+    },
+    {
+      "hypothesis": "H3",
+      "claim": "Entry capacity admission reduces head-on conflicts and deadlocks in single-file aisles, independently of the direction mode.",
+      "treatment": "reservations_only",
+      "control": "hysteresis_pibt",
+      "metric": "head_on_conflicts",
+      "better": "lower",
+      "verdict": "contradicted",
+      "seeds": 5,
+      "n_robots": 30,
+      "collision_free": true,
+      "fields": {
+        "head_on_conflicts": {
+          "treatment_mean": 1493.4,
+          "treatment_ci": [
+            1286.6,
+            1685.4
+          ],
+          "control_mean": 1144.0,
+          "control_ci": [
+            1050.4,
+            1237.6
+          ],
+          "delta": 349.4000000000001,
+          "p_value": 0.03968253968253968
+        },
+        "deadlocks_detected": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.14950000000000002,
+          "treatment_ci": [
+            0.1,
+            0.213
+          ],
+          "control_mean": 0.258,
+          "control_ci": [
+            0.23450000000000001,
+            0.2815
+          ],
+          "delta": -0.10849999999999999,
+          "p_value": 0.023809523809523808
+        }
+      },
+      "map": "warehouse_narrow"
+    },
+    {
+      "hypothesis": "H4",
+      "claim": "Congestion-aware task assignment cuts mean and tail service time, separately from the congestion penalty in movement scoring.",
+      "treatment": "congestion_assignment_only",
+      "control": "aisle_managed_pibt",
+      "metric": "mean_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 30,
+      "collision_free": true,
+      "fields": {
+        "mean_service_time": {
+          "treatment_mean": 143.97044606356454,
+          "treatment_ci": [
+            126.11473475785826,
+            161.82615736927082
+          ],
+          "control_mean": 158.89881264144077,
+          "control_ci": [
+            138.05954156577886,
+            180.20224836601307
+          ],
+          "delta": -14.928366577876233,
+          "p_value": 0.36507936507936506
+        },
+        "p95_service_time": {
+          "treatment_mean": 296.77,
+          "treatment_ci": [
+            260.84,
+            322.4
+          ],
+          "control_mean": 308.53999999999996,
+          "control_ci": [
+            283.0399999999999,
+            337.4
+          ],
+          "delta": -11.769999999999982,
+          "p_value": 0.6666666666666666
+        },
+        "throughput": {
+          "treatment_mean": 0.1795,
+          "treatment_ci": [
+            0.14750000000000002,
+            0.21150000000000002
+          ],
+          "control_mean": 0.15150000000000002,
+          "control_ci": [
+            0.1295,
+            0.17350000000000002
+          ],
+          "delta": 0.02799999999999997,
+          "p_value": 0.2698412698412698
+        }
+      },
+      "map": "warehouse_narrow"
+    },
+    {
+      "hypothesis": "H5",
+      "claim": "Proximity-dependent direction weights improve waypoint arrival: decaying beta as a robot nears its waypoint lets preference yield to arrival.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no decay, beta at its ceiling throughout)",
+      "metric": "p95_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 30,
+      "collision_free": true,
+      "fields": {
+        "p95_service_time": {
+          "treatment_mean": 284.62,
+          "treatment_ci": [
+            272.9,
+            296.32
+          ],
+          "control_mean": 284.62,
+          "control_ci": [
+            272.9,
+            296.32
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "mean_service_time": {
+          "treatment_mean": 152.86700334739936,
+          "treatment_ci": [
+            145.43868173258005,
+            162.5398838090427
+          ],
+          "control_mean": 152.86700334739936,
+          "control_ci": [
+            145.43868173258005,
+            162.5398838090427
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "max_service_time": {
+          "treatment_mean": 330.4,
+          "treatment_ci": [
+            318.2,
+            342.6
+          ],
+          "control_mean": 330.4,
+          "control_ci": [
+            318.2,
+            342.6
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.28900000000000003,
+          "treatment_ci": [
+            0.2695,
+            0.31500000000000006
+          ],
+          "control_mean": 0.28900000000000003,
+          "control_ci": [
+            0.2695,
+            0.31500000000000006
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_narrow"
+    },
+    {
+      "hypothesis": "H6",
+      "claim": "Localised progressive recovery beats a global replan, when it escalates only on a corroborated stall signal.",
+      "treatment": "recovery_only",
+      "control": "aisle_managed_pibt",
+      "metric": "throughput",
+      "better": "higher",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 30,
+      "collision_free": true,
+      "fields": {
+        "throughput": {
+          "treatment_mean": 0.2045,
+          "treatment_ci": [
+            0.156,
+            0.2485
+          ],
+          "control_mean": 0.15150000000000002,
+          "control_ci": [
+            0.1295,
+            0.17350000000000002
+          ],
+          "delta": 0.052999999999999964,
+          "p_value": 0.1349206349206349
+        },
+        "deadlocks_recovered": {
+          "treatment_mean": 45.0,
+          "treatment_ci": [
+            32.4,
+            55.8
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 45.0,
+          "p_value": 0.007936507936507936
+        },
+        "mean_service_time": {
+          "treatment_mean": 136.1363782485334,
+          "treatment_ci": [
+            106.4418918918919,
+            159.2566593730314
+          ],
+          "control_mean": 158.89881264144077,
+          "control_ci": [
+            138.05954156577886,
+            180.20224836601307
+          ],
+          "delta": -22.76243439290738,
+          "p_value": 0.2857142857142857
+        }
+      },
+      "map": "warehouse_narrow"
+    },
+    {
+      "hypothesis": "H1",
+      "claim": "Aisle-level direction control improves throughput in narrow aisles under dense traffic, when direction is a soft ranking term on straight-run aisles with a starvation-free signal.",
+      "treatment": "aisle_direction_only",
+      "control": "hysteresis_pibt",
+      "metric": "aisle_throughput_per_1000",
+      "better": "higher",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 40,
+      "collision_free": true,
+      "fields": {
+        "aisle_throughput_per_1000": {
+          "treatment_mean": 218.17391304347825,
+          "treatment_ci": [
+            211.7608695652174,
+            224.3478260869565
+          ],
+          "control_mean": 217.17391304347825,
+          "control_ci": [
+            211.0217391304348,
+            220.8695652173913
+          ],
+          "delta": 1.0,
+          "p_value": 0.8809523809523809
+        },
+        "throughput": {
+          "treatment_mean": 0.40499999999999997,
+          "treatment_ci": [
+            0.379,
+            0.42699999999999994
+          ],
+          "control_mean": 0.337,
+          "control_ci": [
+            0.319,
+            0.352
+          ],
+          "delta": 0.06799999999999995,
+          "p_value": 0.015873015873015872
+        },
+        "mean_service_time": {
+          "treatment_mean": 158.22806125433084,
+          "treatment_ci": [
+            146.89473572023533,
+            169.56138678842638
+          ],
+          "control_mean": 162.58064192724274,
+          "control_ci": [
+            154.87587427065688,
+            171.53666061211516
+          ],
+          "delta": -4.352580672911898,
+          "p_value": 0.6031746031746031
+        }
+      },
+      "map": "warehouse_medium"
+    },
+    {
+      "hypothesis": "H2",
+      "claim": "Hysteresis reduces direction switching and prevents oscillation, without reintroducing starvation.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no dead band, no minimum lock)",
+      "metric": "direction_switches_per_1000",
+      "better": "lower",
+      "verdict": "supported",
+      "seeds": 5,
+      "n_robots": 40,
+      "collision_free": true,
+      "fields": {
+        "direction_switches_per_1000": {
+          "treatment_mean": 14.5,
+          "treatment_ci": [
+            10.5,
+            19.5
+          ],
+          "control_mean": 2178.5,
+          "control_ci": [
+            2094.0,
+            2280.0
+          ],
+          "delta": -2164.0,
+          "p_value": 0.007936507936507936
+        },
+        "throughput": {
+          "treatment_mean": 0.40499999999999997,
+          "treatment_ci": [
+            0.379,
+            0.42699999999999994
+          ],
+          "control_mean": 0.491,
+          "control_ci": [
+            0.481,
+            0.5005
+          ],
+          "delta": -0.08600000000000002,
+          "p_value": 0.007936507936507936
+        },
+        "starvation_flips": {
+          "treatment_mean": 2.8,
+          "treatment_ci": [
+            1.4,
+            4.4
+          ],
+          "control_mean": 0.2,
+          "control_ci": [
+            0.0,
+            0.6
+          ],
+          "delta": 2.5999999999999996,
+          "p_value": 0.023809523809523808
+        }
+      },
+      "map": "warehouse_medium"
+    },
+    {
+      "hypothesis": "H3",
+      "claim": "Entry capacity admission reduces head-on conflicts and deadlocks in single-file aisles, independently of the direction mode.",
+      "treatment": "reservations_only",
+      "control": "hysteresis_pibt",
+      "metric": "head_on_conflicts",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 40,
+      "collision_free": true,
+      "fields": {
+        "head_on_conflicts": {
+          "treatment_mean": 1737.0,
+          "treatment_ci": [
+            1504.2,
+            1981.0
+          ],
+          "control_mean": 1461.8,
+          "control_ci": [
+            1312.4,
+            1633.4
+          ],
+          "delta": 275.20000000000005,
+          "p_value": 0.1349206349206349
+        },
+        "deadlocks_detected": {
+          "treatment_mean": 0.0,
+          "treatment_ci": [
+            0.0,
+            0.0
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.262,
+          "treatment_ci": [
+            0.207,
+            0.329
+          ],
+          "control_mean": 0.337,
+          "control_ci": [
+            0.319,
+            0.352
+          ],
+          "delta": -0.07500000000000001,
+          "p_value": 0.07936507936507936
+        }
+      },
+      "map": "warehouse_medium"
+    },
+    {
+      "hypothesis": "H4",
+      "claim": "Congestion-aware task assignment cuts mean and tail service time, separately from the congestion penalty in movement scoring.",
+      "treatment": "congestion_assignment_only",
+      "control": "aisle_managed_pibt",
+      "metric": "mean_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 40,
+      "collision_free": true,
+      "fields": {
+        "mean_service_time": {
+          "treatment_mean": 146.1109006565337,
+          "treatment_ci": [
+            110.13139763779527,
+            181.03391520759942
+          ],
+          "control_mean": 143.69336559033607,
+          "control_ci": [
+            118.90235344458708,
+            168.48437773608507
+          ],
+          "delta": 2.4175350661976154,
+          "p_value": 0.9365079365079365
+        },
+        "p95_service_time": {
+          "treatment_mean": 280.49,
+          "treatment_ci": [
+            217.41,
+            334.24
+          ],
+          "control_mean": 264.72999999999996,
+          "control_ci": [
+            228.45999999999998,
+            301.0
+          ],
+          "delta": 15.760000000000048,
+          "p_value": 0.6904761904761905
+        },
+        "throughput": {
+          "treatment_mean": 0.2285,
+          "treatment_ci": [
+            0.16749999999999998,
+            0.2865
+          ],
+          "control_mean": 0.21749999999999997,
+          "control_ci": [
+            0.131,
+            0.304
+          ],
+          "delta": 0.011000000000000038,
+          "p_value": 0.8809523809523809
+        }
+      },
+      "map": "warehouse_medium"
+    },
+    {
+      "hypothesis": "H5",
+      "claim": "Proximity-dependent direction weights improve waypoint arrival: decaying beta as a robot nears its waypoint lets preference yield to arrival.",
+      "treatment": "aisle_direction_only",
+      "control": "aisle_direction_only (no decay, beta at its ceiling throughout)",
+      "metric": "p95_service_time",
+      "better": "lower",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 40,
+      "collision_free": true,
+      "fields": {
+        "p95_service_time": {
+          "treatment_mean": 277.46999999999997,
+          "treatment_ci": [
+            265.88,
+            293.0699999999999
+          ],
+          "control_mean": 277.46999999999997,
+          "control_ci": [
+            265.88,
+            293.0699999999999
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "mean_service_time": {
+          "treatment_mean": 158.22806125433084,
+          "treatment_ci": [
+            146.89473572023533,
+            169.56138678842638
+          ],
+          "control_mean": 158.22806125433084,
+          "control_ci": [
+            146.89473572023533,
+            169.56138678842638
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "max_service_time": {
+          "treatment_mean": 330.2,
+          "treatment_ci": [
+            321.4,
+            338.2
+          ],
+          "control_mean": 330.2,
+          "control_ci": [
+            321.4,
+            338.2
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        },
+        "throughput": {
+          "treatment_mean": 0.40499999999999997,
+          "treatment_ci": [
+            0.379,
+            0.42699999999999994
+          ],
+          "control_mean": 0.40499999999999997,
+          "control_ci": [
+            0.379,
+            0.42699999999999994
+          ],
+          "delta": 0.0,
+          "p_value": 1.0
+        }
+      },
+      "map": "warehouse_medium"
+    },
+    {
+      "hypothesis": "H6",
+      "claim": "Localised progressive recovery beats a global replan, when it escalates only on a corroborated stall signal.",
+      "treatment": "recovery_only",
+      "control": "aisle_managed_pibt",
+      "metric": "throughput",
+      "better": "higher",
+      "verdict": "no measurable effect",
+      "seeds": 5,
+      "n_robots": 40,
+      "collision_free": true,
+      "fields": {
+        "throughput": {
+          "treatment_mean": 0.24500000000000002,
+          "treatment_ci": [
+            0.14950000000000002,
+            0.3195
+          ],
+          "control_mean": 0.21749999999999997,
+          "control_ci": [
+            0.131,
+            0.304
+          ],
+          "delta": 0.027500000000000052,
+          "p_value": 0.746031746031746
+        },
+        "deadlocks_recovered": {
+          "treatment_mean": 80.4,
+          "treatment_ci": [
+            23.2,
+            142.8
+          ],
+          "control_mean": 0.0,
+          "control_ci": [
+            0.0,
+            0.0
+          ],
+          "delta": 80.4,
+          "p_value": 0.007936507936507936
+        },
+        "mean_service_time": {
+          "treatment_mean": 130.76746920110125,
+          "treatment_ci": [
+            99.55989927886048,
+            150.64927184438892
+          ],
+          "control_mean": 143.69336559033607,
+          "control_ci": [
+            118.90235344458708,
+            168.48437773608507
+          ],
+          "delta": -12.925896389234822,
+          "p_value": 0.5793650793650794
+        }
+      },
+      "map": "warehouse_medium"
+    }
+  ]
+}

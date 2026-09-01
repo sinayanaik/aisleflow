@@ -1,0 +1,127 @@
+% TOLL: Tolled One-way Lanes for Lifelong MAPD
+%
+% Build with:   python3 tools/build_docs.py paper
+% or directly:  latexmk -lualatex -interaction=nonstopmode docs/latex/toll.tex
+%
+% LuaLaTeX rather than pdfLaTeX, because the worked-example boxes are verbatim
+% transcripts of program output and contain box-drawing characters and Greek
+% letters that only a Unicode engine with a real font can typeset.
+%
+% The five "Worked example" boxes are GENERATED. Everything between a
+% "% worked-example: name" marker and its "% /worked-example" is written by
+% tools/worked_examples.py from a live, seeded run, and tests/test_worked_examples.py
+% fails if this file and the code disagree. Do not hand-edit inside a marker;
+% run  python3 tools/worked_examples.py --write  instead.
+
+\documentclass[11pt,a4paper]{article}
+
+\input{preamble}
+
+\title{\textbf{TOLL}\\[0.2em]
+  \large \textnormal{\textbf{T}olled \textbf{O}ne-way \textbf{L}anes for
+  \textbf{L}ifelong pickup-and-delivery}\\[0.55em]
+  \large Direction as a price, not a rule}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent
+Lifelong multi-agent pickup and delivery (MAPD) in a warehouse is dominated by
+a single structural fact: the map has narrow aisles, and traffic in a narrow
+aisle interferes with itself. \emph{Priority Inheritance with Backtracking}
+(PIBT) handles that interference locally and cheaply --- a blocked robot lends
+its priority to the robot in its way and asks it to move --- but it plans one
+timestep at a time and has no notion of an aisle at all. The obvious extension
+is to give aisles directions, as a warehouse floor manager would: make a
+contended corridor one-way while the traffic in it is one-way.
+
+This document describes \textbf{TOLL} --- \emph{Tolled One-way Lanes for
+Lifelong pickup-and-delivery} --- and its planner \textbf{TOLL-PIBT}, and
+reports what happened when it was measured. The name is the claim: a robot may
+drive the wrong way down a one-way aisle, and pays a toll for doing so. Its central design decision is negative and, we
+argue, general: a one-way rule must enter the planner as a \textbf{term in the
+objective}, never as a \textbf{constraint on the domain}. Deleting a
+counterflow move from a robot's candidate set --- the natural implementation,
+and the one the original specification called for --- destroys the property
+priority inheritance runs on, namely that a robot can always be pushed
+somewhere. Pricing the same move instead, at a cost above every other soft
+preference and below the value of a step of progress, preserves it. Measured
+this single distinction is worth between $1.9\times$ and $3.7\times$
+throughput on every map where an aisle ever commits a direction, and is the
+largest effect in the system. Two further
+mechanisms follow from the same reasoning: an aisle signal needs a maximum
+green as well as a minimum, or a balanced warehouse starves half its traffic;
+and deadlock recovery must require a corroborated stall signal, or it spends
+its time dismantling ordinary queues.
+
+We evaluate against two published lifelong baselines --- Token Passing and
+RHCR --- and against every ablation of the method itself, with bootstrap
+confidence intervals and permutation tests over five seeds. The result is
+scoped rather than universal, and we report it that way. Against both external
+baselines TOLL wins decisively and significantly on every map tested, at a
+twentieth to a three-hundredth of their cost per timestep. Against plain
+lifelong PIBT its aisle layer is ahead by 21--27\% on the two aisle-shaped maps
+and behind by 18--19\% on the two open ones --- and at five seeds the losses
+are significant while the wins ($p = 0.056$ and $0.063$) are not yet. The
+mechanisms above are, wherever their mechanism can act at all. The final
+sections say exactly where that boundary falls, and what it would take to
+settle the part that is still open.
+\end{abstract}
+
+\vfill
+
+\begin{center}
+\small
+Source, simulator and every number in this document:
+\url{https://github.com/sinayanaik/aisleflow}\\
+Figures regenerate from \texttt{docs/data/}; worked examples regenerate from the code.\\[0.4em]
+\footnotesize
+The repository and the Python package predate this name and still read
+\texttt{aisleflow} and \texttt{lda\_pibt}; \texttt{TOLL} and
+\texttt{TOLL-PIBT} are the method and its planner throughout this document.
+\end{center}
+
+\clearpage
+\tableofcontents
+\clearpage
+
+\part{The method}
+
+\input{sections/00-problem}
+\input{sections/01-related-work}
+\input{sections/02-contribution}
+
+\part{The system, in full}
+
+\input{sections/10-architecture}
+\input{sections/11-graph}
+\input{sections/12-robots-tasks}
+\input{sections/13-priority}
+\input{sections/14-scoring}
+\input{sections/15-congestion}
+\input{sections/16-aisles}
+\input{sections/17-pibt}
+\input{sections/18-routing}
+\input{sections/19-assignment}
+\input{sections/20-deadlock}
+\input{sections/21-loop}
+\input{sections/22-metrics}
+\input{sections/23-statistics}
+\input{sections/24-baselines}
+\input{sections/25-parameters}
+\input{sections/26-glossary}
+
+\part{What the measurements said}
+
+\input{sections/30-results}
+
+\clearpage
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

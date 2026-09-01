@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="828.881172pt" height="491.724pt" viewBox="0 0 828.881172 491.724" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-09-01T01:21:54.825366</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 491.724 
+L 828.881172 491.724 
+L 828.881172 0 
+L 0 0 
+z
+" style="fill: #fcfcfb"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 94.652 183.984 
+L 560.592 183.984 
+L 560.592 69.72 
+L 94.652 69.72 
+z
+" style="fill: #fcfcfb"/>
+   </g>
+   <g id="matplotlib.axis_1"/>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="86.075938" transform="rotate(-0 91.152 86.075938)">plain lifelong PIBT</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="115.336886" transform="rotate(-0 91.152 115.336886)">TOLL (full)</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="144.597833" transform="rotate(-0 91.152 144.597833)">Token Passing</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="173.85846" transform="rotate(-0 91.152 173.85846)">RHCR</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 94.652 91.007339 
+L 395.258452 91.007339 
+L 395.258452 74.913818 
+L 94.652 74.913818 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 94.652 120.268287 
+L 395.258452 120.268287 
+L 395.258452 104.174766 
+L 94.652 104.174766 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 94.652 149.529234 
+L 395.258452 149.529234 
+L 395.258452 133.435713 
+L 94.652 133.435713 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 94.652 178.790182 
+L 395.258452 178.790182 
+L 395.258452 162.696661 
+L 94.652 162.696661 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 94.652 91.007339 
+L 138.420597 91.007339 
+L 138.420597 74.913818 
+L 94.652 74.913818 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="85.960579" transform="rotate(-0 403.258452 85.960579)">47 of 323 tasks  ·  15% served</text>
+   </g>
+   <g id="patch_8">
+    <path d="M 94.652 120.268287 
+L 148.478062 120.268287 
+L 148.478062 104.174766 
+L 94.652 104.174766 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="115.221526" transform="rotate(-0 403.258452 115.221526)">58 of 323 tasks  ·  18% served</text>
+   </g>
+   <g id="patch_9">
+    <path d="M 94.652 149.529234 
+L 97.44574 149.529234 
+L 97.44574 133.435713 
+L 94.652 133.435713 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="144.482474" transform="rotate(-0 403.258452 144.482474)">3 of 323 tasks  ·  1% served</text>
+   </g>
+   <g id="patch_10">
+    <path d="M 94.652 178.790182 
+L 98.935735 178.790182 
+L 98.935735 162.696661 
+L 94.652 162.696661 
+z
+" clip-path="url(#p2bcb30bc68)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="173.743421" transform="rotate(-0 403.258452 173.743421)">5 of 323 tasks  ·  1% served</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #0b0b0b" x="94.652" y="63.72" transform="rotate(-0 94.652 63.72)">bottleneck</text>
+   </g>
+  </g>
+  <g id="axes_2">
+   <g id="patch_11">
+    <path d="M 94.652 321.888 
+L 560.592 321.888 
+L 560.592 207.624 
+L 94.652 207.624 
+z
+" style="fill: #fcfcfb"/>
+   </g>
+   <g id="matplotlib.axis_3"/>
+   <g id="matplotlib.axis_4">
+    <g id="ytick_5">
+     <g id="line2d_5"/>
+     <g id="text_10">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="223.979938" transform="rotate(-0 91.152 223.979938)">plain lifelong PIBT</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_6"/>
+     <g id="text_11">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="253.240886" transform="rotate(-0 91.152 253.240886)">TOLL (full)</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_7"/>
+     <g id="text_12">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="282.501833" transform="rotate(-0 91.152 282.501833)">Token Passing</text>
+     </g>
+    </g>
+    <g id="ytick_8">
+     <g id="line2d_8"/>
+     <g id="text_13">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="311.76246" transform="rotate(-0 91.152 311.76246)">RHCR</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_12">
+    <path d="M 94.652 228.911339 
+L 395.258452 228.911339 
+L 395.258452 212.817818 
+L 94.652 212.817818 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 94.652 258.172287 
+L 395.258452 258.172287 
+L 395.258452 242.078766 
+L 94.652 242.078766 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 94.652 287.433234 
+L 395.258452 287.433234 
+L 395.258452 271.339713 
+L 94.652 271.339713 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 94.652 316.694182 
+L 395.258452 316.694182 
+L 395.258452 300.600661 
+L 94.652 300.600661 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 94.652 228.911339 
+L 134.825212 228.911339 
+L 134.825212 212.817818 
+L 94.652 212.817818 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="223.864579" transform="rotate(-0 403.258452 223.864579)">52 of 391 tasks  ·  13% served</text>
+   </g>
+   <g id="patch_17">
+    <path d="M 94.652 258.172287 
+L 131.900726 258.172287 
+L 131.900726 242.078766 
+L 94.652 242.078766 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="253.125526" transform="rotate(-0 403.258452 253.125526)">48 of 391 tasks  ·  12% served</text>
+   </g>
+   <g id="patch_18">
+    <path d="M 94.652 287.433234 
+L 94.652 287.433234 
+L 94.652 271.339713 
+L 94.652 271.339713 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="282.386474" transform="rotate(-0 403.258452 282.386474)">0 of 391 tasks  ·  0% served</text>
+   </g>
+   <g id="patch_19">
+    <path d="M 94.652 316.694182 
+L 94.80592 316.694182 
+L 94.80592 300.600661 
+L 94.652 300.600661 
+z
+" clip-path="url(#p408f6d6f23)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="311.647421" transform="rotate(-0 403.258452 311.647421)">0 of 391 tasks  ·  0% served</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #0b0b0b" x="94.652" y="201.624" transform="rotate(-0 94.652 201.624)">corridors</text>
+   </g>
+  </g>
+  <g id="axes_3">
+   <g id="patch_20">
+    <path d="M 94.652 459.792 
+L 560.592 459.792 
+L 560.592 345.528 
+L 94.652 345.528 
+z
+" style="fill: #fcfcfb"/>
+   </g>
+   <g id="matplotlib.axis_5"/>
+   <g id="matplotlib.axis_6">
+    <g id="ytick_9">
+     <g id="line2d_9"/>
+     <g id="text_19">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="361.883938" transform="rotate(-0 91.152 361.883938)">plain lifelong PIBT</text>
+     </g>
+    </g>
+    <g id="ytick_10">
+     <g id="line2d_10"/>
+     <g id="text_20">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="391.144886" transform="rotate(-0 91.152 391.144886)">TOLL (full)</text>
+     </g>
+    </g>
+    <g id="ytick_11">
+     <g id="line2d_11"/>
+     <g id="text_21">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="420.405833" transform="rotate(-0 91.152 420.405833)">Token Passing</text>
+     </g>
+    </g>
+    <g id="ytick_12">
+     <g id="line2d_12"/>
+     <g id="text_22">
+      <text style="font-size: 8.2px; font-family: 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="91.152" y="449.66646" transform="rotate(-0 91.152 449.66646)">RHCR</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_21">
+    <path d="M 94.652 366.815339 
+L 395.258452 366.815339 
+L 395.258452 350.721818 
+L 94.652 350.721818 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_22">
+    <path d="M 94.652 396.076287 
+L 395.258452 396.076287 
+L 395.258452 379.982766 
+L 94.652 379.982766 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_23">
+    <path d="M 94.652 425.337234 
+L 395.258452 425.337234 
+L 395.258452 409.243713 
+L 94.652 409.243713 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_24">
+    <path d="M 94.652 454.598182 
+L 395.258452 454.598182 
+L 395.258452 438.504661 
+L 94.652 438.504661 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #e1e0d9"/>
+   </g>
+   <g id="patch_25">
+    <path d="M 94.652 366.815339 
+L 194.987398 366.815339 
+L 194.987398 350.721818 
+L 94.652 350.721818 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="361.768579" transform="rotate(-0 403.258452 361.768579)">201 of 602 tasks  ·  33% served</text>
+   </g>
+   <g id="patch_26">
+    <path d="M 94.652 396.076287 
+L 157.21172 396.076287 
+L 157.21172 379.982766 
+L 94.652 379.982766 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="391.029526" transform="rotate(-0 403.258452 391.029526)">125 of 602 tasks  ·  21% served</text>
+   </g>
+   <g id="patch_27">
+    <path d="M 94.652 425.337234 
+L 95.451485 425.337234 
+L 95.451485 409.243713 
+L 94.652 409.243713 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="420.290474" transform="rotate(-0 403.258452 420.290474)">2 of 602 tasks  ·  0% served</text>
+   </g>
+   <g id="patch_28">
+    <path d="M 94.652 454.598182 
+L 97.550134 454.598182 
+L 97.550134 438.504661 
+L 94.652 438.504661 
+z
+" clip-path="url(#p5c51229ff0)" style="fill: #2a78d6"/>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 8px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="403.258452" y="449.551421" transform="rotate(-0 403.258452 449.551421)">6 of 602 tasks  ·  1% served</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #0b0b0b" x="94.652" y="339.528" transform="rotate(-0 94.652 339.528)">medium</text>
+   </g>
+  </g>
+  <g id="text_28">
+   <text style="font-weight: 700; font-size: 11.5px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #0b0b0b" x="11.52" y="20.258203" transform="rotate(-0 11.52 20.258203)">Every planner here is in saturation</text>
+  </g>
+  <g id="text_29">
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #52514e" x="11.52" y="36.698672" transform="rotate(-0 11.52 36.698672)">Grey is the demand the arrival process released; blue is what got delivered. Nothing serves most of its demand, which is why throughput measures capacity here and service time does not.</text>
+  </g>
+  <g id="text_30">
+   <text style="font-size: 7px; font-family: 'DejaVu Sans', sans-serif; text-anchor: start; fill: #898781" x="13.2048" y="478.522359" transform="rotate(-0 13.2048 478.522359)">5 seeds x 400 timesteps, Poisson arrivals, generated 2026-08-31T18:46:55Z from TOLL @ e38a849 by experiments/run_all.py</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p2bcb30bc68">
+   <rect x="94.652" y="69.72" width="465.94" height="114.264"/>
+  </clipPath>
+  <clipPath id="p408f6d6f23">
+   <rect x="94.652" y="207.624" width="465.94" height="114.264"/>
+  </clipPath>
+  <clipPath id="p5c51229ff0">
+   <rect x="94.652" y="345.528" width="465.94" height="114.264"/>
+  </clipPath>
+ </defs>
+</svg>

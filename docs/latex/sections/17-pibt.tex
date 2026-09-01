@@ -1,0 +1,142 @@
+\section{The PIBT core}
+\label{sec:pibt}
+
+\begin{lede}
+The only part of the system that decides collision-freedom. A robot takes the
+best move it can; if the cell it wants is occupied, it lends its priority to
+the occupant and asks it to move first.
+\end{lede}
+
+This is the safety-critical layer. Everything above only ranks and restricts
+candidates; only this recursion, with its validation companions
+(\Cref{sec:pibt-conflicts}), decides what is collision-free.
+
+\subsection{Candidate set}
+
+\begin{equation}
+  C_i = N(\pos{i}{t}) \cup \{\pos{i}{t}\}
+\end{equation}
+--- every grid neighbour, plus staying in place. Staying is always in the set,
+which is what guarantees the recursion terminates with \emph{some} move,
+possibly ``stay put'', never ``no answer''.
+
+\subsection{Rejection rules, applied in this order}
+\label{sec:pibt-rejection}
+
+\begin{enumerate}
+\item \textbf{Off-graph}: the candidate is not in $V$.
+\item \textbf{Kinematics}: currently a stub that always passes --- a hook for
+  future footprint or turning-radius constraints.
+\item \textbf{Vertex conflict} (\Cref{sec:pibt-conflicts}).
+\item \textbf{Swap conflict with the calling parent}, checked only when this
+  call is a recursive priority-inheritance request.
+\end{enumerate}
+
+Surviving candidates are then sorted by score (\Cref{sec:score-full},
+descending). Legality and preference are fully decoupled: scoring never
+overrides a rejection, and rejection never depends on score.
+
+\begin{caveat}
+\textbf{Aisle direction and reservations are deliberately not on this list.}
+Every rule here concerns safety or physical possibility; the aisle layer
+concerns preference, and acts through the two $\zeta$ terms of
+\Cref{eq:score} instead. The distinction is load-bearing rather than
+stylistic: \Cref{sec:pibt-recursion}'s progress argument assumes a robot can
+always be pushed into an adjacent cell, and a one-way rule enforced by
+rejection removes exactly that. With aisle direction as a hard rejection,
+inheritance chains dead-end against the constraint and the aisle layer
+collapses --- measured on \variant{warehouse\_narrow} at $0.078$ tasks per step
+against $0.289$ for the same configuration with the same direction decisions
+priced instead of enforced.
+\Cref{sec:contribution-soft} is the argument in full.
+
+\param{hard\_direction\_constraints} \code{=True} reinstates the old order
+(aisle direction, then reservation, before the conflict checks) and suppresses
+the $\zeta$ terms so the penalty is not counted twice.
+\end{caveat}
+
+\subsection{Conflict checks}
+\label{sec:pibt-conflicts}
+
+Vertex conflict, $O(1)$ via the reservation set:
+\begin{equation}
+  \mathrm{vertex\_conflict}(i, v) \iff
+    v \in \mathcal{R}_t
+    \ \vee\
+    \exists\, j \neq i \text{ at } v \text{ with } \pos{j}{t+1} = v,
+\end{equation}
+where $\mathcal{R}_t$ holds the vertices already tentatively claimed this step.
+Swap conflict, a two-cycle position exchange with the calling parent $j$:
+\begin{equation}
+  \mathrm{swap\_conflict}(i, j, v) \iff
+    v = \pos{j}{t} \ \wedge\ \pos{j}{t+1} = \pos{i}{t}.
+\end{equation}
+
+\subsection{The recursion}
+\label{sec:pibt-recursion}
+
+\begin{algorithm}[H]
+\caption{\code{pibt(robot $i$, parent $j$, $t$)}}
+\label{alg:pibt}
+\begin{algorithmic}[1]
+\State $F \gets \mathrm{feasible\_candidates}(i, j, t)$
+  \Comment{legality-filtered, score-sorted}
+\ForAll{$v \in F$}
+  \If{$v$ is already reserved this step} \textbf{continue} \EndIf
+  \State tentatively set $\pos{i}{t+1} \gets v$ and reserve $v$
+  \State $k \gets$ the robot currently at $v$, if any
+  \If{$k$ is \textbf{none} or $k = i$}
+    \Return \textsc{valid} \Comment{empty cell, or staying put}
+  \EndIf
+  \If{$\pos{k}{t+1}$ is already decided}
+    \If{$\pos{k}{t+1} \neq v$}
+      \Return \textsc{valid} \Comment{$k$ is moving away; safe to follow}
+    \Else
+      \State undo the reservation; $\pos{i}{t+1} \gets$ \textbf{none}; \textbf{continue}
+    \EndIf
+  \EndIf
+  \State $\mathrm{waiting\_for}(i) \gets k$
+    \Comment{records the wait-for edge \Cref{sec:deadlock-detection} reads}
+  \If{$\mathrm{pibt}(k, i, t) = \textsc{valid}$}
+    \Return \textsc{valid} \Comment{priority inheritance succeeded}
+  \EndIf
+  \State undo the reservation; $\pos{i}{t+1} \gets$ \textbf{none}; \textbf{continue}
+    \Comment{backtrack}
+\EndFor
+\State $\pos{i}{t+1} \gets \pos{i}{t}$; reserve it
+\Return \textsc{invalid} \Comment{always legal, since $\pos{i}{t} \in C_i$}
+\end{algorithmic}
+\end{algorithm}
+
+\code{plan\_step} calls $\mathrm{pibt}(i, \textbf{none}, t)$ for every robot in
+descending priority order (\Cref{sec:priority}), skipping any robot whose next
+position was already set by an earlier robot's recursive chain. This is the
+mechanism that makes priority meaningful: a low-priority robot occupying a
+high-priority robot's preferred cell is \emph{asked} to move, and if it can find
+any legal alternative, both robots move without conflict. A chain of such
+requests is what ``inheritance'' refers to. An \textsc{invalid} result --- a
+robot forced to stay --- increments \code{blocked\_time}, which feeds back into
+both the priority function and deadlock detection.
+
+Three statistics are tracked: \code{recursive\_calls} (a recursion-depth
+proxy), \code{backtracks} (inheritance chains that failed and were undone), and
+\code{invalid\_results} (robots genuinely blocked this step).
+
+\subsection{Complexity}
+\label{sec:pibt-complexity}
+
+One timestep costs
+\begin{equation}
+  O\!\left(|A|\left(\Delta(G) + F + \log|A|\right)\right),
+\end{equation}
+for fleet $A$, maximum graph degree $\Delta(G)$, and per-candidate scoring cost
+$F$ --- kept at $O(1)$ by the occupancy index, the spatial hash and the
+precomputed distance maps, so no candidate evaluation runs a BFS. The
+$\log|A|$ maintains priority order.
+
+PIBT's theoretical progress guarantee --- that some robot always has a legal
+move --- assumes every edge lies on a simple cycle
+(\Cref{sec:graph-structure}). One-way aisle \emph{constraints} remove that
+freedom locally, which is why deadlock recovery (\Cref{sec:deadlock}) exists as
+a safety net. One-way aisle \emph{prices} do not, which is why the safety net
+is needed far less often once \Cref{sec:contribution-soft} is applied.
