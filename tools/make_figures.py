@@ -352,7 +352,10 @@ def figure_vs_baselines():
         ax.errorbar(centres, values, yerr=[lows, highs], fmt="none",
                     ecolor=INK_2, elinewidth=1.0, capsize=2.5, zorder=4)
         for x, value, high in zip(centres, values, highs):
-            ax.annotate(f"{value:.0f}", (x, value + high),
+            # a planner that delivered 0.4 per 1000 is not the same finding as
+            # one that delivered nothing, and `:.0f` prints them identically
+            text = f"{value:.1f}" if 0 < value < 1 else f"{value:.0f}"
+            ax.annotate(text, (x, value + high),
                         textcoords="offset points", xytext=(0, 4), ha="center",
                         fontsize=8, color=INK,
                         fontweight="bold" if variant == AISLEFLOW else "normal")
@@ -714,8 +717,8 @@ def figure_knobs():
     import matplotlib.pyplot as plt
 
     payload = load("sensitivity")
+    measured = len(payload["summary"])
     rows = _merge_identical_knobs(payload["summary"])
-    measured = len(rows)
     rows = sorted(rows, key=lambda r: -abs(r["pooled_relative_delta"]))[:KNOBS_SHOWN]
     rows.sort(key=lambda r: r["pooled_relative_delta"])
 
@@ -777,8 +780,9 @@ def figure_knobs():
     top = header(
         fig,
         "What every remaining parameter is worth, measured one at a time",
-        f"The {len(rows)} largest effects of the {measured} the suite "
-        "measured, each the result of neutralising one knob and rerunning "
+        f"The {len(rows)} largest effects of the {measured} variants the "
+        "suite measured, each the result of neutralising one knob and "
+        "rerunning "
         "every map and seed.\nBars left of zero are knobs the planner needs; "
         "bars right of zero are knobs it would be better without. Solid colour "
         "is p < 0.05, grey is not significant.\nThe worst-map figure is there "

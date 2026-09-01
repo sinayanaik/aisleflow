@@ -43,8 +43,9 @@ MAPS = [
 #: `-m slow` runs the rest.
 CORE_MAPS = ["corridor", "warehouse_small", "warehouse_bottleneck"]
 
-#: the default horizon. Long enough for the corridor to fill and for a planner
-#: that is going to deadlock to have deadlocked.
+#: the default horizon. Long enough for six robots to fill an eleven-cell
+#: corridor and for a planner that is going to deadlock on it to have done so;
+#: the `slow` sweep below runs the wider maps at twice this.
 CORE_STEPS = 60
 
 #: runs already computed, keyed by their arguments. Several assertions want the

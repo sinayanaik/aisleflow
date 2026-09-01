@@ -73,9 +73,9 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 167 tests
+pytest                       # 167 tests, ~25s
 pytest -m slow               # the wide baseline sweep, 12 more
-pytest -m ""                 # everything
+pytest -m ""                 # everything, 179 tests, ~57s
 ```
 
 The default run deselects `slow`, which is the three published baselines
