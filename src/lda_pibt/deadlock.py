@@ -16,6 +16,21 @@ from .robot import Robot
 from .types import INF, AisleDirection, AisleState, RobotState, Vertex
 from .warehouse import Warehouse
 
+#: The seven remedies of spec section 29, in escalation order.
+RECOVERY_LEVEL_COUNT = 7
+
+#: Human-readable names, in the same order, for the docs and the sensitivity
+#: study.  Index i here describes `recovery_l{i+1}_fires`.
+RECOVERY_LEVEL_NAMES = (
+    "recompute routes",
+    "reopen affected aisles",
+    "release stale reservations",
+    "raise blocked priorities",
+    "allow temporary reverse",
+    "assign escape vertices",
+    "drop directional constraints",
+)
+
 
 class DeadlockMonitor:
     """Tracks progress, builds the dependency graph and recovers locally."""
@@ -39,6 +54,15 @@ class DeadlockMonitor:
         self._group_start: Dict[frozenset, int] = {}
         self._group_level: Dict[frozenset, int] = {}
         self._unrecovered_keys: Set[frozenset] = set()
+        #: Which of the seven remedies actually run, and which of them are
+        #: followed by the group clearing.  A recovery level nothing ever fires,
+        #: or that never precedes a resolution, is a level the ladder does not
+        #: need -- and that cannot be measured by zeroing a weight, because the
+        #: levels are code paths rather than numbers.
+        self.level_fires: List[int] = [0] * RECOVERY_LEVEL_COUNT
+        self.level_resolved: List[int] = [0] * RECOVERY_LEVEL_COUNT
+        #: group key -> (level index last applied, timestep it was applied)
+        self._group_last: Dict[frozenset, Tuple[int, int]] = {}
 
     # ------------------------------------------------------------ tracking
     def update_progress(self, robot: Robot, timestep: int) -> None:
@@ -198,6 +222,14 @@ class DeadlockMonitor:
                 self._group_level.pop(key, None)
                 self.recovery_time_total += max(0, timestep - start)
                 self.recovered += 1
+                last = self._group_last.pop(key, None)
+                # Credit the remedy only when the group cleared soon enough
+                # after it to plausibly be its doing; a group that limps on for
+                # another 50 steps was not fixed by that level.
+                if last is not None:
+                    level, applied_at = last
+                    if timestep - applied_at <= self.params.t_blocked:
+                        self.level_resolved[level] += 1
         for key in current_keys:
             if key not in self._group_start:
                 self._group_start[key] = timestep
@@ -219,7 +251,7 @@ class DeadlockMonitor:
         before the expensive ones run.
         """
         key = frozenset(r.id for r in group)
-        levels = (
+        all_levels = (
             self._recompute_routes,
             self._recompute_affected_aisles,
             self._release_stale_reservations,
@@ -228,15 +260,27 @@ class DeadlockMonitor:
             self._assign_escape_vertices,
             self._run_local_fallback_planner,
         )
+        # `recovery_max_level` truncates the ladder so a sweep over 0..7
+        # measures each level's *marginal* value. Leaving one level out in the
+        # middle would measure nothing, because the levels only ever fire in
+        # order: level 5 is reached solely by levels 1-4 having failed first.
+        depth = max(0, min(self.params.recovery_max_level, len(all_levels)))
+        levels = all_levels[:depth]
         level = self._group_level.get(key, 0)
         if level >= len(levels):
             if key not in self._unrecovered_keys:
                 self._unrecovered_keys.add(key)
                 self.unrecovered += 1
+            if not levels:
+                return False  # recovery_max_level == 0: no remedy exists
             # Keep applying the strongest remedy.
             levels[-1](group, timestep)
+            self.level_fires[len(levels) - 1] += 1
+            self._group_last[key] = (len(levels) - 1, timestep)
             return False
         levels[level](group, timestep)
+        self.level_fires[level] += 1
+        self._group_last[key] = (level, timestep)
         self._group_level[key] = level + 1
         for robot in group:
             robot.recovery_events += 1
@@ -345,7 +389,7 @@ class DeadlockMonitor:
 
     # ---------------------------------------------------------- statistics
     def stats(self) -> Dict[str, float]:
-        return {
+        out: Dict[str, float] = {
             "deadlocks_detected": self.detected,
             "deadlocks_recovered": self.recovered,
             "deadlocks_unrecovered": self.unrecovered,
@@ -353,6 +397,10 @@ class DeadlockMonitor:
                 self.recovery_time_total / self.recovered if self.recovered else 0.0
             ),
         }
+        for i in range(RECOVERY_LEVEL_COUNT):
+            out[f"recovery_l{i + 1}_fires"] = self.level_fires[i]
+            out[f"recovery_l{i + 1}_resolved"] = self.level_resolved[i]
+        return out
 
 
-__all__ = ["DeadlockMonitor"]
+__all__ = ["DeadlockMonitor", "RECOVERY_LEVEL_COUNT", "RECOVERY_LEVEL_NAMES"]

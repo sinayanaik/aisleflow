@@ -8,12 +8,16 @@ several seeds because a single lifelong run is noisy.
 from __future__ import annotations
 
 import statistics
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .baselines import RHCRPlanner, TokenPassingPlanner
 from .config import (
+    SENSITIVITY,
+    SENSITIVITY_BASE,
+    SensitivityVariant,
     ABLATIONS,
     BASELINE_PARAMS_PRESET,
     FACTORIAL_DESIGNS,
@@ -21,8 +25,14 @@ from .config import (
     Params,
     ablation,
 )
+from .deadlock import RECOVERY_LEVEL_COUNT
 from .simulator import PlannerFactory, build_simulator
-from .stats import bootstrap_ci, permutation_test
+from .stats import (
+    bootstrap_ci,
+    paired_bootstrap_ci,
+    paired_permutation_test,
+    permutation_test,
+)
 from .task import TaskGenerator
 from .warehouse import Warehouse
 
@@ -626,6 +636,160 @@ def run_paired_table(
     return rows
 
 
+# --------------------------------------------------------------------------
+# sensitivity: what is every tunable in the planner actually worth?
+# --------------------------------------------------------------------------
+
+#: Reported for every sensitivity variant. Wider than `FACTORIAL_FIELDS`
+#: because a knob can pay for itself in something other than throughput -- a
+#: term that costs nothing in tasks per step but halves the deadlock count is
+#: still earning its place -- and narrower than `REPORT_FIELDS` because the
+#: study is already 55 variants wide.
+SENSITIVITY_FIELDS: Tuple[str, ...] = (
+    "throughput",
+    "mean_service_time",
+    "p95_service_time",
+    "deadlocks_unrecovered",
+    "head_on_conflicts",
+    "counterflow_moves",
+    "mean_runtime_ms_per_step",
+)
+
+#: Per-level recovery counters, reported alongside the recovery family so the
+#: ladder can be trimmed on evidence rather than taste.
+RECOVERY_LEVEL_FIELDS: Tuple[str, ...] = tuple(
+    f"recovery_l{i}_{kind}"
+    for i in range(1, RECOVERY_LEVEL_COUNT + 1)
+    for kind in ("fires", "resolved")
+)
+
+
+def _sensitivity_job(
+    args: Tuple[str, int, int, int, float, str, Optional[Dict[str, Any]]]
+) -> Dict[str, Any]:
+    """Picklable worker: one run, for `ProcessPoolExecutor`."""
+    map_path, n_robots, timesteps, seed, rate, arrival, overrides = args
+    return run_once(
+        map_path, SENSITIVITY_BASE, n_robots, timesteps, seed,
+        rate=rate, arrival=arrival, overrides=overrides,
+    )
+
+
+def run_sensitivity_table(
+    map_path: str | Path,
+    n_robots: int,
+    timesteps: int,
+    seeds: int = 10,
+    rate: float = 1.0,
+    arrival: str = "poisson",
+    variants: Sequence[SensitivityVariant] = SENSITIVITY,
+    fields: Sequence[str] = SENSITIVITY_FIELDS,
+    jobs: int = 1,
+) -> List[Dict[str, Any]]:
+    """Measure what each tunable in the planner is worth.
+
+    Every variant is the full planner with exactly one knob neutralised, run on
+    the same seeds as the control, so the arms are paired: seed `k` sees an
+    identical task stream in both. That is what lets
+    `paired_permutation_test` be used instead of `permutation_test` -- pooling
+    the arms and relabeling them would throw the shared task stream away and
+    need several times the seeds for the same power.
+
+    `relative_delta` is the number the cut rule reads: the fraction of the
+    control's throughput that removing this knob costs (negative) or gains
+    (positive).
+    """
+    all_jobs: List[Tuple[str, int, int, int, float, str, Optional[Dict[str, Any]]]] = []
+    for seed in range(seeds):
+        all_jobs.append((str(map_path), n_robots, timesteps, seed, rate, arrival, None))
+    for variant in variants:
+        for seed in range(seeds):
+            all_jobs.append(
+                (str(map_path), n_robots, timesteps, seed, rate, arrival, dict(variant.overrides))
+            )
+
+    if jobs > 1:
+        with ProcessPoolExecutor(max_workers=jobs) as pool:
+            results = list(pool.map(_sensitivity_job, all_jobs, chunksize=1))
+    else:
+        results = [_sensitivity_job(job) for job in all_jobs]
+
+    control = results[:seeds]
+    rows: List[Dict[str, Any]] = []
+    for i, variant in enumerate(variants):
+        start = seeds * (i + 1)
+        treated = results[start : start + seeds]
+
+        measured: Dict[str, Any] = {}
+        for field in fields:
+            t_values = [float(r[field]) for r in treated]
+            c_values = [float(r[field]) for r in control]
+            delta, lo, hi = paired_bootstrap_ci(t_values, c_values)
+            _, p_value = paired_permutation_test(t_values, c_values)
+            control_mean = statistics.fmean(c_values)
+            measured[field] = {
+                "treatment_mean": statistics.fmean(t_values),
+                "control_mean": control_mean,
+                "delta": delta,
+                "paired_ci": [lo, hi],
+                "relative_delta": delta / control_mean if control_mean else 0.0,
+                "p_value": p_value,
+                # A CI straddling zero is the study's evidence of "this knob
+                # does nothing measurable", so keep the raw values for a figure.
+                "raw_treatment": t_values,
+                "raw_control": c_values,
+            }
+
+        recovery: Dict[str, float] = {}
+        if variant.family == "recovery" or variant.name == SENSITIVITY_BASE:
+            for field in RECOVERY_LEVEL_FIELDS:
+                recovery[field] = statistics.fmean(float(r[field]) for r in treated)
+
+        rows.append({
+            "variant": variant.name,
+            "family": variant.family,
+            "knob": variant.knob,
+            "seeds": seeds,
+            "n_robots": n_robots,
+            "collision_free": all(
+                bool(r["collision_free"]) for r in treated + control
+            ),
+            "fields": measured,
+            "recovery_levels": recovery,
+        })
+
+    # The control's own recovery-ladder profile: which remedies the full
+    # planner actually reaches, and how often each is followed by the jam
+    # clearing. This is the evidence for trimming the ladder.
+    control_recovery = {
+        field: statistics.fmean(float(r[field]) for r in control)
+        for field in RECOVERY_LEVEL_FIELDS
+    }
+    rows.append({
+        "variant": SENSITIVITY_BASE,
+        "family": "control",
+        "knob": "(nothing removed)",
+        "seeds": seeds,
+        "n_robots": n_robots,
+        "collision_free": all(bool(r["collision_free"]) for r in control),
+        "fields": {
+            field: {
+                "treatment_mean": statistics.fmean(float(r[field]) for r in control),
+                "control_mean": statistics.fmean(float(r[field]) for r in control),
+                "delta": 0.0,
+                "paired_ci": [0.0, 0.0],
+                "relative_delta": 0.0,
+                "p_value": 1.0,
+                "raw_treatment": [float(r[field]) for r in control],
+                "raw_control": [float(r[field]) for r in control],
+            }
+            for field in fields
+        },
+        "recovery_levels": control_recovery,
+    })
+    return rows
+
+
 __all__ = [
     "LIFELONG_VARIANTS",
     "build_run",
@@ -642,4 +806,7 @@ __all__ = [
     "run_comparison_table",
     "run_hypothesis_table",
     "run_paired_table",
+    "run_sensitivity_table",
+    "SENSITIVITY_FIELDS",
+    "RECOVERY_LEVEL_FIELDS",
 ]

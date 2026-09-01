@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import random
 import statistics
-from itertools import combinations
+from itertools import combinations, product
 from math import comb
 from typing import Callable, List, Sequence, Tuple
 
@@ -109,4 +109,97 @@ def permutation_test(
     return (observed, p_value)
 
 
-__all__ = ["bootstrap_ci", "permutation_test"]
+def _paired_differences(
+    a: Sequence[float], b: Sequence[float]
+) -> List[float]:
+    """`a[k] - b[k]`, requiring the two arms to be matched element-wise."""
+    if len(a) != len(b):
+        raise ValueError(
+            f"paired samples must be the same length, got {len(a)} and {len(b)}"
+        )
+    return [float(x) - float(y) for x, y in zip(a, b)]
+
+
+def paired_bootstrap_ci(
+    a: Sequence[float],
+    b: Sequence[float],
+    n_resamples: int = 10_000,
+    alpha: float = 0.05,
+    seed: int = 0,
+) -> Tuple[float, float, float]:
+    """Percentile bootstrap CI on the *mean paired difference* `a - b`.
+
+    `bootstrap_ci` resamples one arm at a time and so describes the spread of
+    each arm; when the two arms were run on the same seeds, the quantity of
+    interest is the per-seed difference, whose variance is far smaller because
+    the shared task stream cancels out. Returns `(mean_difference, lo, hi)`.
+    """
+    return bootstrap_ci(
+        _paired_differences(a, b), n_resamples=n_resamples, alpha=alpha, seed=seed
+    )
+
+
+def paired_permutation_test(
+    a: Sequence[float],
+    b: Sequence[float],
+    n_permutations: int = 10_000,
+    seed: int = 0,
+) -> Tuple[float, float]:
+    """Two-sided paired (sign-flip) permutation test.
+
+    Returns `(mean_difference, p_value)`. `a` and `b` must be matched
+    element-wise -- in this project that means run on the same seeds, which
+    `experiments.build_run` guarantees by feeding one seed to both
+    `Params.seed` and the `TaskGenerator`.
+
+    Under the null hypothesis that the treatment changes nothing, the sign of
+    each per-seed difference is arbitrary, so the exchangeable unit is the sign
+    rather than the group label. Enumerating the `2**n` sign patterns is exact
+    when that is at most `_EXACT_ENUMERATION_LIMIT` (n <= 14), which covers
+    every seed count this project runs.
+
+    This is the test to use in place of `permutation_test` whenever the arms
+    are paired: pooling and relabeling discards the pairing and, with a shared
+    task stream, is markedly less powerful.
+    """
+    diffs = _paired_differences(a, b)
+    n = len(diffs)
+    if n == 0:
+        return (0.0, 1.0)
+
+    observed = statistics.fmean(diffs)
+    threshold = abs(observed)
+    # A run of identical values has no signal to test; every sign flip
+    # reproduces the observed statistic, which would otherwise report p = 1.0
+    # via the loop below anyway. Kept explicit so n == 1 is well defined.
+    if all(d == 0.0 for d in diffs):
+        return (observed, 1.0)
+
+    total = 2 ** n
+    if total <= _EXACT_ENUMERATION_LIMIT:
+        as_extreme = 0
+        for signs in product((1.0, -1.0), repeat=n):
+            flipped = statistics.fmean(
+                [s * d for s, d in zip(signs, diffs)]
+            )
+            if abs(flipped) >= threshold - 1e-12:
+                as_extreme += 1
+        return (observed, as_extreme / total)
+
+    rng = random.Random(seed)
+    as_extreme = 0
+    for _ in range(n_permutations):
+        flipped = statistics.fmean(
+            [d if rng.random() < 0.5 else -d for d in diffs]
+        )
+        if abs(flipped) >= threshold - 1e-12:
+            as_extreme += 1
+    return (observed, as_extreme / n_permutations)
+
+
+__all__ = [
+    "bootstrap_ci",
+    "permutation_test",
+    "paired_bootstrap_ci",
+    "paired_permutation_test",
+]

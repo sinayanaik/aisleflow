@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 
 @dataclass
@@ -126,6 +126,12 @@ class Params:
     #: queueing in dense traffic trips recovery, and levels 5-7 (temporary
     #: reverse, escape vertices, waypoint hijack) then destroy throughput.
     require_deadlock_corroboration: bool = True
+    #: How many of the seven recovery remedies (spec 29) may run. The levels
+    #: only ever fire in order -- level 5 is reached solely by 1-4 having
+    #: failed -- so truncating the ladder is the only way to measure what each
+    #: level is worth. 7 is the full ladder; 0 disables recovery remedies while
+    #: leaving detection on.
+    recovery_max_level: int = 7
 
     # ---- task assignment (spec 19) ---------------------------------------
     assign_alpha_to_pickup: float = 1.0
@@ -494,6 +500,131 @@ PAIRED_DESIGNS: Dict[str, Dict[str, str]] = {
 }
 
 
+
+@dataclass(frozen=True)
+class SensitivityVariant:
+    """One knob of one model, neutralised against the full planner.
+
+    `overrides` are applied on top of `ABLATIONS["full_lda_pibt"]`, so every
+    entry differs from that control by exactly one decision.  `knob` names the
+    parameter in the terms the documentation uses; `family` is the model it
+    belongs to, so the study reports per-model as well as per-knob.
+    """
+
+    name: str
+    family: str
+    knob: str
+    overrides: Dict[str, Any]
+
+
+#: The control every sensitivity variant is measured against.
+SENSITIVITY_BASE = "full_lda_pibt"
+
+#: A leave-one-out sweep over every live tunable in the planner.  The point is
+#: to replace "these weights were chosen by hand and never questioned" with a
+#: measured cost per knob, so the ones that buy nothing can be deleted and the
+#: ones that survive can be documented with a number beside them.
+#:
+#: Neutralising means "make this term stop acting", which is not always zero:
+#: `lambda_reverse` is a multiplier whose neutral value is 1.0, capacity models
+#: are a choice rather than a magnitude, and the recovery ladder is a set of
+#: code paths that can only be truncated (see `recovery_max_level`).
+SENSITIVITY: Tuple[SensitivityVariant, ...] = (
+    # -- 1. candidate score S_i(v) (scoring.py) ----------------------------
+    SensitivityVariant("score_no_progress", "score", "alpha_progress", dict(alpha_progress=0.0)),
+    SensitivityVariant("score_no_heading", "score", "beta_strong", dict(beta_strong=0.0)),
+    SensitivityVariant("score_no_aisle_continuity", "score", "gamma_strong/gamma_weak", dict(gamma_strong=0.0, gamma_weak=0.0)),
+    SensitivityVariant("score_no_turn_penalty", "score", "lambda_turn", dict(lambda_turn=0.0)),
+    SensitivityVariant("score_no_reverse_extra", "score", "lambda_reverse", dict(lambda_reverse=1.0)),
+    SensitivityVariant("score_no_crowding", "score", "mu_congestion", dict(mu_congestion=0.0)),
+    SensitivityVariant("score_no_idling", "score", "nu_wait", dict(nu_wait=0.0)),
+    SensitivityVariant("score_no_chokepoint", "score", "xi_bottleneck", dict(xi_bottleneck=0.0)),
+    SensitivityVariant("score_no_wrong_way", "score", "zeta_counterflow", dict(zeta_counterflow=0.0)),
+    SensitivityVariant("score_no_permit_penalty", "score", "zeta_reservation", dict(zeta_reservation=0.0)),
+    SensitivityVariant("score_flat_proximity_ramp", "score", "r_near/r_far", dict(r_near=0, r_far=1)),
+    #: The three terms this pass was asked to remove, cut together. Terms can
+    #: be jointly redundant while individually load-bearing (and the reverse),
+    #: so the combination has to be run, not inferred by summing the singles.
+    SensitivityVariant("score_proposed_cut", "score", "beta+zeta_counterflow+zeta_reservation", dict(beta_strong=0.0, zeta_counterflow=0.0, zeta_reservation=0.0)),
+
+    # -- 2. congestion mixture C_i(v) (congestion.py) -----------------------
+    SensitivityVariant("cong_no_local", "congestion", "omega_local", dict(omega_local=0.0)),
+    SensitivityVariant("cong_no_aisle", "congestion", "omega_aisle", dict(omega_aisle=0.0)),
+    SensitivityVariant("cong_no_downstream", "congestion", "omega_downstream", dict(omega_downstream=0.0)),
+    SensitivityVariant("cong_radius_1", "congestion", "local_congestion_radius=1", dict(local_congestion_radius=1)),
+    SensitivityVariant("cong_radius_5", "congestion", "local_congestion_radius=5", dict(local_congestion_radius=5)),
+    SensitivityVariant("cong_horizon_0", "congestion", "downstream_horizon=0", dict(downstream_horizon=0)),
+    SensitivityVariant("cong_horizon_10", "congestion", "downstream_horizon=10", dict(downstream_horizon=10)),
+    SensitivityVariant("cong_unnormalised", "congestion", "congestion_normalisation", dict(congestion_normalisation=False)),
+
+    # -- 3. priority p_i(t) (priority.py) -----------------------------------
+    SensitivityVariant("prio_no_waiting", "priority", "waiting_weight", dict(waiting_weight=0.0)),
+    SensitivityVariant("prio_no_blocked", "priority", "blocked_weight", dict(blocked_weight=0.0)),
+    SensitivityVariant("prio_no_urgency", "priority", "urgency_weight", dict(urgency_weight=0.0)),
+    SensitivityVariant("prio_no_inside_aisle", "priority", "priority_inside_aisle", dict(priority_inside_aisle=0.0)),
+    #: Does the five-way task class ranking do anything, or is it only the
+    #: waiting/blocked terms that ever decide the order?
+    SensitivityVariant("prio_flat_classes", "priority", "priority_* class constants", dict(priority_emergency=0.0, priority_loaded=0.0, priority_pickup=0.0, priority_repositioning=0.0, priority_free=0.0)),
+
+    # -- 4. aisle directional demand S_a^+/- (aisle_manager.py) -------------
+    SensitivityVariant("demand_no_urgency", "aisle demand", "w_urgency", dict(w_urgency=0.0)),
+    SensitivityVariant("demand_no_waiting", "aisle demand", "w_waiting", dict(w_waiting=0.0)),
+    SensitivityVariant("demand_no_proximity", "aisle demand", "w_proximity", dict(w_proximity=0.0)),
+    SensitivityVariant("demand_no_route_length", "aisle demand", "w_route_length", dict(w_route_length=0.0)),
+    SensitivityVariant("demand_no_congestion", "aisle demand", "w_congestion", dict(w_congestion=0.0)),
+
+    # -- 5. aisle signal timing and capacity --------------------------------
+    SensitivityVariant("timing_no_min_green", "aisle timing", "minimum_aisle_lock_time", dict(minimum_aisle_lock_time=1)),
+    SensitivityVariant("timing_no_max_green", "aisle timing", "maximum_aisle_lock_time", dict(maximum_aisle_lock_time=10**6)),
+    SensitivityVariant("timing_no_switch_threshold", "aisle timing", "direction_switch_threshold", dict(direction_switch_threshold=0.0)),
+    SensitivityVariant("capacity_model_length", "aisle timing", 'aisle_capacity_model="length"', dict(aisle_capacity_model="length")),
+    SensitivityVariant("capacity_model_throughput", "aisle timing", 'aisle_capacity_model="throughput"', dict(aisle_capacity_model="throughput")),
+    SensitivityVariant("timing_short_aisles_managed", "aisle timing", "directional_aisle_min_length", dict(directional_aisle_min_length=1)),
+    SensitivityVariant("timing_reservation_ttl_long", "aisle timing", "reservation_ttl", dict(reservation_ttl=60)),
+    SensitivityVariant("routing_direction_aware", "aisle timing", "direction_aware_routing", dict(direction_aware_routing=True)),
+
+    # -- 6. assignment cost J(i, tau) (assignment.py) -----------------------
+    SensitivityVariant("assign_no_pickup_distance", "assignment", "assign_alpha_to_pickup", dict(assign_alpha_to_pickup=0.0)),
+    SensitivityVariant("assign_no_delivery_distance", "assignment", "assign_beta_pickup_to_delivery", dict(assign_beta_pickup_to_delivery=0.0)),
+    SensitivityVariant("assign_no_congestion", "assignment", "assign_gamma_congestion", dict(assign_gamma_congestion=0.0)),
+    SensitivityVariant("assign_no_waiting", "assignment", "assign_delta_waiting", dict(assign_delta_waiting=0.0)),
+    SensitivityVariant("assign_uncapped_waiting", "assignment", "assign_waiting_cap", dict(assign_waiting_cap=1e9)),
+    SensitivityVariant("assign_no_direction", "assignment", "assign_eta_direction", dict(assign_eta_direction=0.0)),
+    SensitivityVariant("assign_no_blocking", "assignment", "assign_zeta_blocking", dict(assign_zeta_blocking=0.0)),
+
+    # -- 7. deadlock detection and the recovery ladder (deadlock.py) --------
+    #: Truncation, not leave-one-out: the levels fire strictly in order, so
+    #: `recovery_max_level=k` measures what levels k+1..7 are worth.
+    SensitivityVariant("recovery_max_0", "recovery", "recovery_max_level=0", dict(recovery_max_level=0)),
+    SensitivityVariant("recovery_max_1", "recovery", "recovery_max_level=1", dict(recovery_max_level=1)),
+    SensitivityVariant("recovery_max_2", "recovery", "recovery_max_level=2", dict(recovery_max_level=2)),
+    SensitivityVariant("recovery_max_3", "recovery", "recovery_max_level=3", dict(recovery_max_level=3)),
+    SensitivityVariant("recovery_max_4", "recovery", "recovery_max_level=4", dict(recovery_max_level=4)),
+    SensitivityVariant("recovery_max_5", "recovery", "recovery_max_level=5", dict(recovery_max_level=5)),
+    SensitivityVariant("recovery_max_6", "recovery", "recovery_max_level=6", dict(recovery_max_level=6)),
+    SensitivityVariant("recovery_off", "recovery", "recovery", dict(recovery=False)),
+    SensitivityVariant("recovery_uncorroborated", "recovery", "require_deadlock_corroboration", dict(require_deadlock_corroboration=False)),
+    SensitivityVariant("recovery_stall_threshold_short", "recovery", "t_blocked", dict(t_blocked=5)),
+)
+
+#: Families in report order.
+SENSITIVITY_FAMILIES = (
+    "score",
+    "congestion",
+    "priority",
+    "aisle demand",
+    "aisle timing",
+    "assignment",
+    "recovery",
+)
+
+
+def sensitivity_params(variant: SensitivityVariant, base: Params | None = None) -> Params:
+    """`Params` for one sensitivity variant: the full planner, one knob off."""
+    control = ablation(SENSITIVITY_BASE, base)
+    return control.merged(**variant.overrides)
+
+
 def ablation(name: str, base: Params | None = None, **overrides: Any) -> Params:
     """Return `Params` for a named ablation variant."""
     if name not in ABLATIONS:
@@ -510,4 +641,9 @@ __all__ = [
     "FACTORIAL_DESIGNS",
     "PAIRED_DESIGNS",
     "ablation",
+    "SensitivityVariant",
+    "SENSITIVITY",
+    "SENSITIVITY_BASE",
+    "SENSITIVITY_FAMILIES",
+    "sensitivity_params",
 ]
