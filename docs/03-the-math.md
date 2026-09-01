@@ -66,20 +66,23 @@ It is also why five terms were deleted. A term worth 0.2 cannot break a tie
 that the terms above it have not already broken; runs without it came out
 bit-identical.
 
-**Worked example.** Robot at $(4,4)$, waypoint $(0,4)$, so $d=4$. It arrived
+**Worked example.** Robot at $(4,4)$, waypoint $(0,4)$, so $d = 4$. That is
+the *approach* band ($2 < d \le 8$), so the lane bonus is
+$b_i = \tfrac12(2.0 + 0.5) = 1.25$ rather than its full 2.0. The robot arrived
 from the south, and the cell to the north is in the same aisle and half
 crowded.
 
 | Candidate | $\Delta$ | $\ell$ | $\tau$ | $\kappa$ | Score |
 |---|---|---|---|---|---|
-| $(3,4)$ north | $+1$ | 1 | 0 | 0.5 | $10+2-0-0.5=\mathbf{11.5}$ |
-| $(4,3)$ west | $0$ | 0 | 1 | 0.1 | $0+0-0.5-0.1=-0.6$ |
-| $(4,5)$ east | $0$ | 0 | 1 | 0.0 | $0+0-0.5-0.0=-0.5$ |
-| $(4,4)$ stay | $0$ | 0 | 0 | 0.2 | $0+0-0-0.2=-0.2$ |
-| $(5,4)$ south | $-1$ | 1 | 2 | 0.0 | $-10+2-1-0=-9.0$ |
+| $(3,4)$ north | $+1$ | 1 | 0 | 0.5 | $10 + 1.25 - 0 - 0.5 = \mathbf{10.75}$ |
+| $(4,5)$ east | $0$ | 0 | 1 | 0.0 | $0 + 0 - 0.5 - 0.0 = -0.5$ |
+| $(4,3)$ west | $0$ | 0 | 1 | 0.1 | $0 + 0 - 0.5 - 0.1 = -0.6$ |
+| $(4,4)$ stay | $0$ | 0 | 0 | 0.2 | $0 + 0 - 0 - 0.2 = -0.2$ |
+| $(5,4)$ south | $-1$ | 1 | 2 | 0.0 | $-10 + 1.25 - 1 - 0 = -9.75$ |
 
-North wins by 12 points. Nothing but progress decided it — which is the normal
-case. The tie-breaks matter only when two candidates share a $\Delta$.
+North wins by 11.25 over the next best. Progress decided it on its own, which
+is the normal case; the tie-breaks matter only when two candidates share a
+$\Delta$, as the east/west/stay trio does here.
 
 ### Lane bonus
 

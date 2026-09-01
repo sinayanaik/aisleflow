@@ -89,3 +89,26 @@ def test_dataset_carries_its_provenance(suite):
     for key in ("suite", "seeds", "timesteps", "scenarios", "git_sha", "generator"):
         assert key in meta, f"{suite}.json meta is missing {key}"
     assert meta["seeds"] >= 1 and meta["timesteps"] >= 1
+
+
+def test_the_worked_example_matches_the_real_scorer():
+    """The worked example in `03-the-math.md` must be arithmetic, not fiction.
+
+    A wrong number in a worked example is worse than no example: it is the one
+    place a reader checks their understanding against.
+    """
+    from lda_pibt.scoring import compute_aisle_bonus, compute_proximity_mode
+
+    p = Params()
+    bonus = compute_aisle_bonus(compute_proximity_mode(4, p), p)
+    north = 10 * 1 + bonus - p.turn_penalty * 0 - p.crowding_penalty * 0.5
+    east = -p.turn_penalty * 1
+    south = 10 * -1 + bonus - p.turn_penalty * p.reverse_multiplier
+
+    text = (DOCS / "03-the-math.md").read_text(encoding="utf-8")
+    assert f"{bonus}" in text, "the approach-band lane bonus is misquoted"
+    assert f"\\mathbf{{{north}}}" in text, f"the winning score should be {north}"
+    assert f"= {south}$" in text, f"the reversing score should be {south}"
+    assert f"{north - east} over the next best" in text, (
+        f"the margin should be {north - east}"
+    )

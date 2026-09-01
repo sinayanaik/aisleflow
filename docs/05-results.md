@@ -67,8 +67,13 @@ published justification. Every one was measured. The result:
 |---|---:|---:|
 | terms in the movement score | 9 | 4 |
 | tunable parameters | 60 | 37 |
-| lines of planner source | ~3,900 | ~2,200 |
-| throughput (4 maps, vs. before) | — | **+1% to +51%** |
+| lines in the planner modules | 4,488 | 3,249 |
+| throughput, per map | — | **+1.4%, +26.0%, +32.7%, +50.6%** |
+
+*(Line count covers the planner itself — scoring, PIBT, priority, crowding,
+assignment, deadlock, the simulator loop, the warehouse and graph — not the
+GUI, visualisation or experiment harness. Throughput is the full configuration
+on `bottleneck`, `corridors`, `medium` and `narrow`, 5 seeds x 400 steps.)*
 
 Every run in every experiment reports `collision_free: true`, before and after.
 Nothing removed had anything to do with collision safety — only PIBT's vertex

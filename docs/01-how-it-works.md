@@ -99,8 +99,8 @@ Sometimes traffic still locks up: A waits for B, B waits for C, C waits for A.
 Detection needs two signals, not one. "Nobody moved" on its own is *normal* —
 that is just a queue. A jam also needs either a **cycle** in who-waits-for-whom,
 or the same arrangement of robots repeating. Requiring that second signal
-matters enormously: without it, ordinary queueing is mistaken for deadlock and
-throughput drops by about a third.
+matters more than almost anything else in the planner: without it, ordinary
+queueing is mistaken for deadlock and throughput drops by 54%.
 
 Once a jam is confirmed, remedies escalate one per step, cheapest first:
 
