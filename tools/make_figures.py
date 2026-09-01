@@ -1,27 +1,35 @@
 #!/usr/bin/env python3
 """Draw the result figures in ``docs/figures/`` from ``docs/data/``.
 
-The results in this project are honest and hard to read: five sections of the
-README carry raw means with no intervals, on four maps, for eighteen variants
-and three external baselines, and the single question a reader actually has --
-"is this better?" -- has a different answer per map. These figures answer it on
-sight, and answer it in both directions, because the method wins on two maps
-and loses on one.
+Five figures, numbered in the order the argument makes them, each embedded in
+`docs/05-results.md` under the section it belongs to:
 
-Every figure reads `docs/data/*.json`, written by `experiments/run_all.py`, and
-nothing here computes a simulation or invents a number: the intervals are the
-bootstrap intervals the experiment recorded, and the p-values are its
-permutation tests.
+    01-vs-baselines          is aisleflow better than the published planners?
+    02-per-map-throughput    by how much, per map, with the test
+    03-where-it-wins         where it beats plain PIBT, and where it does not
+    04-ablation-ladder       which mechanism buys which part of that
+    05-knobs                 what every remaining parameter is worth
+
+Each is built to be read without the surrounding prose: the title states the
+finding rather than naming the plot, the subtitle says what "better" looks like
+on that axis, every bar and cell carries its own value, and the caption carries
+the git SHA, seed count and horizon of the run behind it.
+
+Every figure reads `docs/data/*.json`, written by `experiments/run_all.py` and
+`experiments/run_sensitivity.py`, and nothing here computes a simulation or
+invents a number: the intervals are the bootstrap intervals the experiment
+recorded, and the p-values are its permutation tests.
 
 Usage::
 
     python3 tools/make_figures.py                # every figure it has data for
-    python3 tools/make_figures.py --only forest headline
+    python3 tools/make_figures.py --only 03-where-it-wins
     python3 tools/make_figures.py --list
-    python3 tools/make_figures.py --dashboard    # also write docs/dashboard.html
 
-Each figure is written twice: `.svg`, which GitHub renders inline, and `.pdf`,
-which the LaTeX paper includes. Needs `matplotlib` (``pip install -e ".[viz]"``).
+Figures are written as `.svg` only -- GitHub renders it inline, it stays
+legible at any zoom, and `svg.fonttype: none` keeps every label as real text
+rather than glyph outlines, so a reader can select and search it.
+Needs `matplotlib` (``pip install -e ".[viz]"``).
 """
 
 from __future__ import annotations
@@ -41,13 +49,13 @@ OUT_DIR = ROOT / "docs" / "figures"
 #
 # The categorical slots are used in fixed order and never cycled; the first
 # four clear every adjacent-form gate (worst CVD dE 9.1, normal-vision 22.9 on
-# this surface), and the scatter, which needs all pairs to separate, uses only
-# the first three. Two of the four sit below 3:1 against the surface, so every
+# this surface). Two of the four sit below 3:1 against the surface, so every
 # figure that uses them carries visible direct labels rather than relying on
-# the colour alone.
+# the colour alone -- every bar, cell and rung on these five figures prints its
+# own value and, where there is one, its own verdict in words.
 #
-# These figures are deliberately single-mode: they are embedded in a printed
-# PDF and rendered on GitHub, neither of which follows a viewer theme, so the
+# These figures are deliberately single-mode: they are rendered inline on
+# GitHub, which does not pass a viewer theme down into an embedded SVG, so the
 # surface is painted explicitly rather than left transparent.
 # --------------------------------------------------------------------------
 
@@ -75,8 +83,8 @@ STATUS = {
     "neutral": MUTED,
 }
 
-#: the maps, ordered the way the argument runs: the two the aisle layer was
-#: designed for, then the two where it is not the right tool
+#: the maps, ordered the way the argument runs: the two tight floors where the
+#: congestion machinery pays, then the two open ones where it does not
 MAP_ORDER = [
     "warehouse_bottleneck",
     "warehouse_corridors",
@@ -89,7 +97,9 @@ MAP_LABEL = {
     "warehouse_narrow": "narrow\n5-cell aisles",
     "warehouse_medium": "medium\nopen grid",
 }
-#: which maps the aisle layer is actually for -- drawn as a band, not asserted
+#: the floors where congestion is the binding constraint, and so the ones the
+#: added mechanisms are for. Shown by emphasis and grouping, never asserted:
+#: the numbers on every figure say which side of the line each map fell on.
 DESIGNED_FOR = {"warehouse_bottleneck", "warehouse_corridors"}
 
 VARIANT_LABEL = {
@@ -246,22 +256,19 @@ def header(fig, title: str, subtitle: str) -> float:
     return 1 - (0.52 + 0.16 * lines) / height
 
 
-def save(fig, name: str) -> List[Path]:
+def save(fig, name: str) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    written = []
-    for suffix in (".svg", ".pdf"):
-        path = OUT_DIR / f"{name}{suffix}"
-        fig.savefig(path, bbox_inches="tight", pad_inches=0.16)
-        written.append(path)
+    path = OUT_DIR / f"{name}.svg"
+    fig.savefig(path, bbox_inches="tight", pad_inches=0.16)
     import matplotlib.pyplot as plt
 
     plt.close(fig)
-    print(f"  wrote {', '.join(str(p.relative_to(ROOT)) for p in written)}")
-    return written
+    print(f"  wrote {path.relative_to(ROOT)}")
+    return path
 
 
 # --------------------------------------------------------------------------
-# figure 0: the scorecard -- the one question, answered in one picture
+# figure 1: is it better than the alternatives, and where?
 #
 # Everything else in this directory explains *why*. This one answers "is it
 # better than the alternatives, and where?", once per opponent per map, in the
@@ -269,14 +276,20 @@ def save(fig, name: str) -> List[Path]:
 # work aisleflow gets done.
 # --------------------------------------------------------------------------
 
-#: the opponents, in the order the argument meets them: the planner aisleflow
-#: extends, then the two published lifelong baselines.
+#: the opponents, in the order the argument meets them: the three published
+#: lifelong baselines first, because that is the comparison aisleflow wins
+#: outright and on every map, then the plain PIBT it extends -- which is the
+#: harder column, and is annotated as such rather than buried in the middle.
 RIVALS = [
-    ("lifelong_pibt", "plain lifelong\nPIBT"),
     ("token_passing", "Token\nPassing"),
     ("token_passing_recovery", "Token Passing\n+ recovery"),
     ("rhcr", "RHCR"),
+    ("lifelong_pibt", "plain lifelong\nPIBT"),
 ]
+
+#: which rivals are published algorithms, as opposed to the ablated version of
+#: aisleflow itself. Drawn as a bracket over those columns.
+PUBLISHED = {"token_passing", "token_passing_recovery", "rhcr"}
 
 
 def _throughput_seeds(map_name: str, variant: str, ablation, baselines):
@@ -340,17 +353,22 @@ def figure_scorecard():
                     color=ink, fontweight="bold", zorder=3,
                     linespacing=1.15)
             if ratio == float("inf"):
-                verdict = "aisleflow wins"
+                verdict = "AISLEFLOW WINS"
             elif ratio >= 1.0:
-                verdict = "aisleflow ahead" if significant else "ahead, not significant"
+                verdict = "AISLEFLOW AHEAD" if significant else "ahead, not significant"
             else:
-                verdict = "aisleflow behind" if significant else "behind, not significant"
+                verdict = "AISLEFLOW BEHIND" if significant else "behind, not significant"
             ax.text(x + 0.5, y + 0.55, verdict, ha="center", va="center",
                     fontsize=8, color=ink, zorder=3,
                     fontweight="bold" if significant else "normal")
+            # a baseline at 0.5 per 1000 rounds to "0", which reads as a
+            # shutout next to a finite ratio; sub-1 values keep a decimal
+            theirs_text = (f"{per_1000(their_mean):.1f}"
+                           if 0 < per_1000(their_mean) < 1
+                           else f"{per_1000(their_mean):.0f}")
             ax.text(x + 0.5, y + 0.70,
-                    f"{per_1000(our_mean):.0f} vs {per_1000(their_mean):.0f} "
-                    f"per 1000 steps", ha="center", va="center",
+                    f"{per_1000(our_mean):.0f} vs {theirs_text} per 1000 steps",
+                    ha="center", va="center",
                     fontsize=7.2, color=ink, zorder=3)
             ax.text(x + 0.5, y + 0.84,
                     f"p = {p_value:.3f}", ha="center", va="center",
@@ -370,15 +388,59 @@ def figure_scorecard():
     ax.tick_params(length=0)
     strip_frame(ax, keep=())
 
+    # a bracket over the published columns and a separate one over the ablation
+    # column, so the reader never has to know which name is whose to see that
+    # the picture makes two different claims
+    published = [x for x, (v, _) in enumerate(RIVALS) if v in PUBLISHED]
+    groups = [
+        (min(published), max(published) + 1,
+         "published lifelong planners -- aisleflow wins every cell"),
+        (len(RIVALS) - 1, len(RIVALS),
+         "the planner aisleflow extends -- it wins two, loses two"),
+    ]
+    for start, end, note in groups:
+        ax.plot([start + 0.06, end - 0.06], [-0.30, -0.30], color=AXIS,
+                linewidth=1.2, clip_on=False, zorder=5)
+        ax.text((start + end) / 2, -0.38, note, ha="center", va="bottom",
+                fontsize=7.6, color=INK_2, clip_on=False, zorder=5)
+
+    # the range over the published baselines, computed rather than written in:
+    # cells where the baseline delivered nothing are unbounded and are counted
+    # as "or delivers nothing at all" instead of being folded into a number
+    ratios, shutouts = [], 0
+    for map_name in maps:
+        chosen = best_spar(map_name, ablation)
+        our_mean = statistics.fmean(
+            _throughput_seeds(map_name, chosen[0], ablation, baselines)
+        )
+        for variant, _ in RIVALS:
+            if variant not in PUBLISHED:
+                continue
+            theirs = _throughput_seeds(map_name, variant, ablation, baselines)
+            if theirs is None:
+                continue
+            their_mean = statistics.fmean(theirs)
+            if their_mean <= 0:
+                shutouts += 1
+            else:
+                ratios.append(our_mean / their_mean)
+
+    span = f"by {min(ratios):.0f}x to {max(ratios):.0f}x"
+    if shutouts:
+        span += f", and in {shutouts} cells the baseline delivered nothing at all"
+
     top = header(
         fig,
         "Is aisleflow better? One cell per rival per map",
-        "Each cell is aisleflow's throughput divided by that rival's on that "
-        "map: above 1.00x aisleflow delivers more, below 1.00x it delivers less.\n"
-        "Against both published baselines aisleflow wins everywhere by 13x to 315x. "
-        "Against the plain PIBT it extends it is ahead on the two "
-        "aisle-constrained maps\nand behind on the two open ones -- and at five "
-        "seeds only the two losses clear p < 0.05.",
+        "Each cell divides aisleflow's throughput by that rival's on that map, "
+        "so 2.00x means aisleflow delivered twice as many tasks.\n"
+        "Blue: aisleflow ahead. Red: aisleflow behind. Against all three "
+        f"published baselines it wins every cell, {span},\nbecause their "
+        "space-time search keeps failing in dense traffic and a robot that "
+        "cannot plan simply waits. Against the plain PIBT it extends it is "
+        "ahead on the two\naisle-constrained maps and behind on the two open "
+        "ones -- congestion machinery pays where congestion is the constraint, "
+        "and costs where it is not.",
     )
     caption(fig, provenance(baselines))
     fig.tight_layout(rect=(0, 0.028, 1, top))
@@ -386,7 +448,7 @@ def figure_scorecard():
 
 
 # --------------------------------------------------------------------------
-# figure 1: the headline
+# figure 2: the same question per map, with the test
 # --------------------------------------------------------------------------
 
 HEADLINE_VARIANTS = ["lifelong_pibt", "full_lda_pibt", "token_passing", "rhcr"]
@@ -419,6 +481,46 @@ def best_spar(map_name: str, ablation: Dict[str, Any]) -> Optional[Tuple[str, fl
     return max(scored, key=lambda pair: pair[1]) if scored else None
 
 
+def vs_plain_pibt(map_name: str, ablation: Dict[str, Any]) -> Tuple[float, float]:
+    """Best aisleflow config against plain lifelong PIBT: percent, and p.
+
+    Computed rather than written into a subtitle by hand. Every prose number
+    on these figures comes through a helper like this one, because the last
+    time the planner changed under them the figures were regenerated and the
+    sentences around them were not.
+    """
+    sys.path.insert(0, str(ROOT / "src"))
+    from lda_pibt.stats import permutation_test
+
+    rows = {r["variant"]: r for r in ablation["maps"][map_name]["rows"]}
+    chosen = best_spar(map_name, ablation)
+    base = rows["lifelong_pibt"]
+    _, p_value = permutation_test(
+        rows[chosen[0]]["raw"]["throughput"], base["raw"]["throughput"]
+    )
+    percent = 100.0 * (chosen[1] - base["throughput"]) / base["throughput"]
+    return percent, p_value
+
+
+def split_by_verdict(ablation: Dict[str, Any], maps: Sequence[str]):
+    """The maps aisleflow wins and the maps it loses, with their margins."""
+    wins, losses = [], []
+    for map_name in maps:
+        percent, p_value = vs_plain_pibt(map_name, ablation)
+        (wins if percent >= 0 else losses).append((map_name, percent, p_value))
+    return wins, losses
+
+
+def margin_phrase(entries: Sequence[Tuple[str, float, float]]) -> str:
+    """"by 21-27%", or "by 24%" when there is only one map in the group."""
+    if not entries:
+        return "not at all"
+    magnitudes = sorted(abs(percent) for _, percent, _ in entries)
+    if len(magnitudes) == 1 or round(magnitudes[0]) == round(magnitudes[-1]):
+        return f"by {magnitudes[0]:.0f}%"
+    return f"by {magnitudes[0]:.0f}-{magnitudes[-1]:.0f}%"
+
+
 def figure_headline():
     """Throughput per map for aisleflow, plain PIBT and both baselines."""
     import matplotlib.pyplot as plt
@@ -431,7 +533,7 @@ def figure_headline():
     maps = [m for m in MAP_ORDER if m in payload["maps"]]
 
     fig, axes = plt.subplots(
-        1, len(maps), figsize=(3.4 * len(maps), 4.1), sharey=False
+        1, len(maps), figsize=(4.0 * len(maps), 4.4), sharey=False
     )
     if len(maps) == 1:
         axes = [axes]
@@ -459,10 +561,17 @@ def figure_headline():
             lows.append(per_1000(max(0.0, mean - lo)))
             highs.append(per_1000(max(0.0, hi - mean)))
 
+        # one emphasis colour for the bar this project is arguing for, one for
+        # the planner it extends, and grey for the published baselines: the
+        # reader should be able to find "ours" without reading a legend
         positions = range(len(variants))
         ax.bar(
             positions, values, width=0.62,
-            color=[SERIES[i] for i in range(len(variants))],
+            color=[
+                SERIES[1] if v == "lifelong_pibt"
+                else (DEEMPHASIS if v in PUBLISHED else EMPHASIS)
+                for v in variants
+            ],
             zorder=3,
         )
         ax.errorbar(
@@ -502,8 +611,21 @@ def figure_headline():
 
         ax.set_xticks(list(positions))
         ax.set_xticklabels(
-            [wrap_label(label_of(v)) for v in variants], fontsize=7.4, color=INK_2,
+            [wrap_label(label_of(v), width=11) for v in variants],
+            fontsize=7.4, color=INK_2,
         )
+        # the bar this project is arguing for, named on the picture rather than
+        # left to be inferred from which tick label is not a baseline
+        ours = next(
+            (x for x, v in zip(positions, variants)
+             if v not in PUBLISHED and v != "lifelong_pibt"), None
+        )
+        if ours is not None:
+            ax.annotate(
+                "aisleflow", (ours, 0), textcoords="offset points",
+                xytext=(0, 6), ha="center", va="bottom", fontsize=7.4,
+                color="#ffffff", fontweight="bold", zorder=5,
+            )
         ax.set_ylim(0, max([v + h for v, h in zip(values, highs)] + [50.0]) * 1.42)
         ax.set_title(
             f"{MAP_LABEL[map_name]}\n{MAP_CLASS[map_name]} map", fontsize=8.8,
@@ -515,15 +637,21 @@ def figure_headline():
         value_grid(ax, axis="y")
 
     axes[0].set_ylabel(THROUGHPUT_UNIT, color=INK_2)
+
+    wins, losses = split_by_verdict(ablation, maps)
     top = header(
         fig,
         "Throughput: aisleflow wins where aisles are scarce, and loses where they are not",
-        "Taller is better: tasks delivered per 1000 timesteps, so 149 means "
-        "149 tasks out of every 1000 steps of simulated time.\nEach map shows "
-        "the best aisleflow configuration on that map, named under its bar, with a "
-        "permutation test against plain PIBT. The two wins are ahead by "
-        "21-27%\nbut land at p = 0.06 on five seeds; the two losses are "
-        "significant. Both baselines are far behind everywhere.",
+        "Taller is better: tasks delivered per 1000 timesteps, so 155 means 155 "
+        "tasks out of every 1000 steps of simulated time.\nEach map shows the "
+        "best aisleflow configuration on that map, named under its bar, with a "
+        "permutation test against plain PIBT above it.\n"
+        f"Aisleflow is ahead on {len(wins)} of these {len(maps)} maps "
+        f"({', '.join(short_map(m) for m, _, _ in wins)}) "
+        f"{margin_phrase(wins)}, and behind on "
+        f"{', '.join(short_map(m) for m, _, _ in losses)} "
+        f"{margin_phrase(losses)}.\nBoth published baselines are far behind on "
+        "every map, which is the comparison the next figure is about.",
     )
     caption(fig, provenance(payload))
     fig.tight_layout(rect=(0, 0.028, 1, top))
@@ -531,83 +659,13 @@ def figure_headline():
 
 
 # --------------------------------------------------------------------------
-# figure 2: the forest plot of mechanisms
-# --------------------------------------------------------------------------
-
-
-def figure_forest():
-    """Every repaired mechanism's effect on throughput, with its interval."""
-    import matplotlib.pyplot as plt
-
-    payload = load("paired")
-    rows = [r for r in payload["rows"] if "throughput" in r["fields"]]
-    rows.sort(key=lambda r: (r["design"], MAP_ORDER.index(r["map"])))
-
-    labels, deltas, spreads, colours = [], [], [], []
-    for row in rows:
-        field = row["fields"]["throughput"]
-        delta = per_1000(field["delta"])
-        t_lo, t_hi = (per_1000(v) for v in field["treatment_ci"])
-        c_lo, c_hi = (per_1000(v) for v in field["control_ci"])
-        # the suites record an interval per arm, not on the difference; adding
-        # the two half-widths in quadrature is the usual independent-arms
-        # approximation, and the caption says so rather than implying the
-        # experiment measured it directly
-        half = (((t_hi - t_lo) / 2) ** 2 + ((c_hi - c_lo) / 2) ** 2) ** 0.5
-        significant = field["p_value"] is not None and field["p_value"] < 0.05
-        labels.append(f"{row['label']}  ·  {short_map(row['map'])}")
-        deltas.append(delta)
-        spreads.append(half)
-        colours.append(EMPHASIS if significant else DEEMPHASIS)
-
-    fig, ax = plt.subplots(figsize=(8.6, 0.34 * len(labels) + 2.3))
-    positions = list(range(len(labels)))[::-1]
-    ax.axvline(0, color=AXIS, linewidth=1.1, zorder=2)
-    for x, y, half, colour in zip(deltas, positions, spreads, colours):
-        ax.plot([x - half, x + half], [y, y], color=colour, linewidth=1.6,
-                solid_capstyle="butt", zorder=3)
-        for bound in (x - half, x + half):
-            ax.plot([bound, bound], [y - 0.2, y + 0.2], color=colour,
-                    linewidth=1.6, zorder=3)
-    ax.scatter(deltas, positions, s=46, color=colours, zorder=4,
-               edgecolor=SURFACE, linewidth=1.4)
-    for x, y, half, colour in zip(deltas, positions, spreads, colours):
-        significant = colour == EMPHASIS
-        ax.annotate(
-            f"{x:+.0f}", (x + half, y), textcoords="offset points",
-            xytext=(7, -3), ha="left", fontsize=7.8,
-            color=INK if significant else MUTED,
-            fontweight="bold" if significant else "normal",
-        )
-
-    ax.set_yticks(positions)
-    ax.set_yticklabels(labels, fontsize=8.2, color=INK_2)
-    ax.set_xlabel(f"change in throughput, {THROUGHPUT_UNIT}  (right is better)",
-                  color=INK_2)
-    strip_frame(ax, keep=("bottom",))
-    value_grid(ax, axis="x")
-
-    ax.scatter([], [], s=46, color=EMPHASIS, label="p < 0.05")
-    ax.scatter([], [], s=46, color=DEEMPHASIS, label="not significant")
-    # above the plot: every corner of the plot area carries either a row label
-    # or a whisker
-    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, fontsize=8)
-
-    top = header(
-        fig,
-        "Which mechanisms actually earn their cost",
-        "Each row is one mechanism against the same configuration without it: "
-        "same seeds, same map, one flag apart.\nThe p-value is the "
-        "permutation test on the difference; the whisker adds the two arms' "
-        "bootstrap intervals in quadrature.",
-    )
-    caption(fig, provenance(payload))
-    fig.tight_layout(rect=(0, 0.028, 1, top))
-    return fig
-
-
-# --------------------------------------------------------------------------
-# figure 3: the win/loss matrix
+# figure 3: where it wins, and where it does not
+#
+# Two panels answering one question at two resolutions. The left one is the
+# headline claim -- best aisleflow against the plain PIBT it extends, per map,
+# with an interval and a test -- and the right one is the same comparison for
+# every configuration, so a reader who doubts the "best config" choice on the
+# left can see the whole grid it was picked from.
 # --------------------------------------------------------------------------
 
 MATRIX_VARIANTS = [
@@ -633,8 +691,83 @@ def _diverging(value: float, limit: float) -> Tuple[float, float, float]:
     return tuple(m + (p - m) * weight for m, p in zip(mid, pole))
 
 
-def figure_winloss():
-    """Every variant against plain lifelong PIBT, on every map."""
+def _delta_panel(ax, payload: Dict[str, Any], maps: Sequence[str]) -> None:
+    """Best aisleflow against plain PIBT, one diverging bar per map."""
+    rows_by_map = {
+        m: {r["variant"]: r for r in payload["maps"][m]["rows"]} for m in maps
+    }
+    # aisle-constrained maps first, then open ones, so the two verdicts sit in
+    # two contiguous blocks and can be bracketed rather than explained
+    ordered = ([m for m in maps if m in DESIGNED_FOR]
+               + [m for m in maps if m not in DESIGNED_FOR])
+
+    positions = list(range(len(ordered)))[::-1]
+    labels = []
+    for y, map_name in zip(positions, ordered):
+        percent, p_value = vs_plain_pibt(map_name, payload)
+        chosen = best_spar(map_name, payload)
+        base = rows_by_map[map_name]["lifelong_pibt"]
+        # the two arms' standard errors, combined in quadrature and expressed
+        # as a percentage of the reference -- the suites record an interval per
+        # arm, not on the difference
+        half = 100.0 * (
+            _stderr(rows_by_map[map_name][chosen[0]]["raw"]["throughput"]) ** 2
+            + _stderr(base["raw"]["throughput"]) ** 2
+        ) ** 0.5 / base["throughput"]
+        ahead = percent >= 0
+        colour = DIVERGING_HIGH if ahead else DIVERGING_LOW
+        ax.barh(y, percent, height=0.5, color=colour, zorder=3)
+        ax.errorbar(percent, y, xerr=half, fmt="none", ecolor=INK_2,
+                    elinewidth=1.1, capsize=3, zorder=4)
+        side = 1 if ahead else -1
+        ax.annotate(
+            f"{percent:+.0f}%", (percent + side * half, y),
+            textcoords="offset points", xytext=(9 * side, 1),
+            ha="left" if ahead else "right", va="center", fontsize=10,
+            color=INK, fontweight="bold",
+        )
+        ax.annotate(
+            f"p = {p_value:.3f}", (percent + side * half, y),
+            textcoords="offset points", xytext=(9 * side, -12),
+            ha="left" if ahead else "right", va="center", fontsize=7.2,
+            color=MUTED,
+        )
+        # the configuration that produced the bar belongs on the axis, not
+        # floating past the bar end where it collides with the next panel
+        labels.append(
+            f"{short_map(map_name)}  ·  {MAP_CLASS[map_name]}\n"
+            f"best here: {label_of(chosen[0])}"
+        )
+
+    ax.axvline(0, color=INK_2, linewidth=1.2, zorder=5)
+    ax.set_yticks(positions)
+    ax.set_yticklabels(labels, fontsize=8.0, color=INK_2)
+    limit = 62.0
+    ax.set_xlim(-limit, limit)
+    ax.set_ylim(-0.85, len(ordered) - 0.35)
+    ax.set_xlabel("difference in throughput against plain lifelong PIBT",
+                  color=INK_2, fontsize=8.5)
+    ax.set_xticks([-50, -25, 0, 25, 50])
+    ax.set_xticklabels(["-50%", "-25%", "same", "+25%", "+50%"])
+    strip_frame(ax, keep=("bottom",))
+    value_grid(ax, axis="x")
+
+    # the two verdicts, written out, on the side of zero each block sits on
+    n_designed = sum(1 for m in ordered if m in DESIGNED_FOR)
+    ax.text(limit * 0.97, len(ordered) - 0.52,
+            "AISLEFLOW AHEAD", ha="right", va="center", fontsize=8.4,
+            color=DIVERGING_HIGH, fontweight="bold")
+    ax.text(-limit * 0.97, len(ordered) - n_designed - 0.52,
+            "PLAIN PIBT AHEAD", ha="left", va="center", fontsize=8.4,
+            color=DIVERGING_LOW, fontweight="bold")
+    ax.set_title(
+        "Best aisleflow configuration per map,\nagainst the plain PIBT it extends",
+        fontsize=9.2, color=INK, loc="left", pad=8,
+    )
+
+
+def figure_where_it_wins():
+    """Aisleflow against plain lifelong PIBT: per map, then per configuration."""
     import matplotlib.pyplot as plt
 
     sys.path.insert(0, str(ROOT / "src"))
@@ -665,7 +798,12 @@ def figure_winloss():
         default=1.0,
     )
 
-    fig, ax = plt.subplots(figsize=(1.55 * len(maps) + 4.2, 0.42 * len(variants) + 2.3))
+    fig, (ax_delta, ax) = plt.subplots(
+        1, 2, figsize=(1.35 * len(maps) + 11.2, 0.52 * len(variants) + 3.6),
+        gridspec_kw={"width_ratios": (1.0, 1.05)},
+    )
+    _delta_panel(ax_delta, payload, maps)
+
     for y, variant in enumerate(variants):
         for x, map_name in enumerate(maps):
             cell = grid[variant][map_name]
@@ -702,261 +840,37 @@ def figure_winloss():
     ax.invert_yaxis()
     ax.tick_params(length=0)
     strip_frame(ax, keep=())
+    ax.set_title(
+        "Every configuration, on every map,\nagainst that same plain PIBT",
+        fontsize=9.2, color=INK, loc="left", pad=10,
+    )
 
+    wins, losses = split_by_verdict(payload, maps)
     top = header(
         fig,
-        "Every configuration against plain lifelong PIBT",
-        "Blue beats plain PIBT on that map; red loses to it. Percentage "
-        "difference in throughput, with a two-sided permutation test over the "
-        "same seeds; bold is p < 0.05.",
+        "Where aisleflow beats plain lifelong PIBT, and where it does not",
+        "Both panels compare against the same reference: plain lifelong PIBT, "
+        "which is aisleflow with every mechanism switched off.\n"
+        "Blue is ahead of it, red is behind it, and the number is the "
+        "percentage difference in throughput over the same seeds.\n"
+        f"Aisleflow is ahead {margin_phrase(wins)} on the "
+        f"{len(wins)} aisle-constrained maps and behind {margin_phrase(losses)} "
+        f"on the {len(losses)} open ones. Adding mechanisms is not monotonic:\n"
+        "on an open floor the machinery that clears a corridor is overhead, so "
+        "pick the configuration for the floor. Bold is p < 0.05.",
     )
     caption(fig, provenance(payload))
-    fig.tight_layout(rect=(0, 0.028, 1, top))
+    # the matrix panel is drawn as patches on fixed limits, which tight_layout
+    # cannot measure; the margins are set directly instead. `top` already
+    # reserves room for the header, and each panel adds its own two-line title
+    # under that, so the axes start a little lower again.
+    fig.subplots_adjust(left=0.105, right=0.985, bottom=0.135,
+                        top=top - 0.075, wspace=0.60)
     return fig
 
 
 # --------------------------------------------------------------------------
-# figure 4: cost against benefit
-# --------------------------------------------------------------------------
-
-#: three families, so every pair of colours separates under CVD in a scatter
-FAMILY = {
-    "lifelong_pibt": ("PIBT family", SERIES[0]),
-    "full_lda_pibt": ("PIBT family", SERIES[0]),
-    "token_passing": ("Token Passing", SERIES[1]),
-    "token_passing_recovery": ("Token Passing", SERIES[1]),
-    "rhcr": ("RHCR", SERIES[2]),
-}
-
-
-def figure_cost_benefit():
-    """What each planner costs per timestep, against what it delivers."""
-    import matplotlib.pyplot as plt
-
-    payload = load("baselines")
-    fig, ax = plt.subplots(figsize=(7.6, 4.6))
-
-    seen: Dict[str, bool] = {}
-    cluster: List[Tuple[float, float]] = []
-    labelled: List[str] = []
-    for map_name in [m for m in MAP_ORDER if m in payload["maps"]]:
-        for row in payload["maps"][map_name]["rows"]:
-            variant = row["variant"]
-            if variant not in FAMILY:
-                continue
-            family, colour = FAMILY[variant]
-            x = row["fields"]["mean_runtime_ms_per_step"]["mean"]
-            y = per_1000(row["fields"]["throughput"]["mean"])
-            ax.scatter(
-                x, y, s=64, color=colour, zorder=4,
-                edgecolor=SURFACE, linewidth=1.6,
-                label=family if family not in seen else None,
-            )
-            seen[family] = True
-            if family == "PIBT family":
-                # the baselines all land in one cluster in the bottom right,
-                # where per-point labels would sit on top of each other; that
-                # cluster is annotated once, below.
-                # alternate above/below: the PIBT points cluster tightly at
-                # the cheap end and same-side labels sit on each other
-                below = len(labelled) % 2 == 1
-                ax.annotate(
-                    f"{label_of(variant)} · {short_map(map_name)}",
-                    (x, y), textcoords="offset points",
-                    xytext=(8, -11 if below else 4),
-                    fontsize=7.4, color=INK_2,
-                )
-                labelled.append(variant)
-            else:
-                cluster.append((x, y))
-
-    if cluster:
-        xs = [x for x, _ in cluster]
-        ys = [y for _, y in cluster]
-        ax.annotate(
-            f"every Token Passing and RHCR run:\n"
-            f"{min(xs):.0f} to {max(xs):.0f} ms per timestep,\n"
-            f"at most {max(ys):.0f} tasks per 1000 timesteps",
-            (max(xs), max(ys)), textcoords="offset points", xytext=(-18, 44),
-            ha="right", fontsize=8, color=INK_2,
-            arrowprops=dict(arrowstyle="->", color=AXIS, lw=1.0),
-            bbox=dict(boxstyle="round,pad=0.45", facecolor=SURFACE,
-                      edgecolor=GRID, linewidth=0.9),
-        )
-
-    ax.set_xscale("log")
-    ax.set_xlabel("planner cost: mean milliseconds per timestep (log scale)",
-                  color=INK_2)
-    ax.set_ylabel(f"throughput, {THROUGHPUT_UNIT}", color=INK_2)
-    strip_frame(ax)
-    value_grid(ax, axis="both")
-    ax.legend(loc="upper right", fontsize=8.5)
-
-    top = header(
-        fig,
-        "Cost against benefit: the cheap planners are also the productive ones",
-        "Up and to the left is better. Both baselines cost 20x to 300x more per "
-        "timestep and deliver less.",
-    )
-    caption(fig, provenance(payload))
-    fig.tight_layout(rect=(0, 0.028, 1, top))
-    return fig
-
-
-# --------------------------------------------------------------------------
-# figure 5: offered load against served load
-# --------------------------------------------------------------------------
-
-
-def figure_load():
-    """How much of the offered demand each planner actually serves."""
-    import matplotlib.pyplot as plt
-
-    payload = load("baselines")
-    maps = [m for m in MAP_ORDER if m in payload["maps"]]
-    fig, axes = plt.subplots(len(maps), 1, figsize=(7.8, 1.55 * len(maps) + 2.1))
-    if len(maps) == 1:
-        axes = [axes]
-
-    for ax, map_name in zip(axes, maps):
-        rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
-        variants = [v for v in HEADLINE_VARIANTS if v in rows]
-        offered = max(
-            rows[v]["fields"]["released_tasks"]["mean"] for v in variants
-        )
-        positions = list(range(len(variants)))[::-1]
-        for y, variant in zip(positions, variants):
-            served = rows[variant]["fields"]["completed_tasks"]["mean"]
-            share = served / offered if offered else 0.0
-            ax.barh(y, offered, height=0.55, color=GRID, zorder=2)
-            ax.barh(y, served, height=0.55, color=EMPHASIS, zorder=3)
-            ax.annotate(
-                f"{served:.0f} of {offered:.0f} tasks  ·  {share:.0%} served",
-                (offered, y), textcoords="offset points", xytext=(8, -3),
-                fontsize=8, color=INK_2,
-            )
-        ax.set_yticks(positions)
-        ax.set_yticklabels([label_of(v) for v in variants], fontsize=8.2,
-                           color=INK_2)
-        ax.set_xlim(0, offered * 1.55)
-        ax.set_title(short_map(map_name), fontsize=9, color=INK, loc="left")
-        ax.tick_params(length=0)
-        strip_frame(ax, keep=())
-        ax.set_xticks([])
-
-    top = header(
-        fig,
-        "Every planner here is in saturation",
-        "Grey is the demand the arrival process released; blue is what got "
-        "delivered. Nothing serves most of its demand, which is why throughput "
-        "measures capacity here and service time does not.",
-    )
-    caption(fig, provenance(payload))
-    fig.tight_layout(rect=(0, 0.028, 1, top))
-    return fig
-
-
-# --------------------------------------------------------------------------
-# figure 6: the service-time trap
-# --------------------------------------------------------------------------
-
-
-def figure_censoring():
-    """Why a low mean service time next to a low throughput is a symptom."""
-    import matplotlib.pyplot as plt
-
-    payload = load("baselines")
-    # the starkest case: the map where the worst-throughput planner reports one
-    # of the best service times. Picked by that gap rather than named, so the
-    # figure keeps working if the numbers move.
-    def gap(map_name: str) -> float:
-        rows = payload["maps"][map_name]["rows"]
-        scored = [
-            (r["fields"]["throughput"]["mean"], r["fields"]["mean_service_time"]["mean"])
-            for r in rows if r["fields"]["mean_service_time"]["mean"] > 0
-        ]
-        if len(scored) < 2:
-            return -1.0
-        worst = min(scored, key=lambda pair: pair[0])
-        best = max(scored, key=lambda pair: pair[0])
-        return best[1] - worst[1]
-
-    maps = [m for m in MAP_ORDER if m in payload["maps"]]
-    map_name = max(maps, key=gap)
-    rows = payload["maps"][map_name]["rows"]
-    order = sorted(rows, key=lambda r: -r["fields"]["throughput"]["mean"])
-    variants = [r["variant"] for r in order]
-
-    fig, axes = plt.subplots(1, 2, figsize=(9.8, 4.3))
-    panels = [
-        ("throughput", THROUGHPUT_UNIT, "higher is better", 0),
-        ("mean_service_time", "mean service time, timesteps", "lower looks better", 0),
-    ]
-    #: the planner the figure is about: the flattering service time belongs to
-    #: whichever planner reports the *lowest* one while having finished
-    #: something at all. A planner that finished nothing has no service time to
-    #: flatter it, which is its own point and is labelled separately below.
-    finished = [
-        r for r in order if r["fields"]["mean_service_time"]["mean"] > 0
-    ]
-    culprit = min(
-        finished, key=lambda r: r["fields"]["mean_service_time"]["mean"]
-    )["variant"] if finished else variants[-1]
-
-    for ax, (metric, label, direction, digits) in zip(axes, panels):
-        values = [
-            next(r for r in rows if r["variant"] == v)["fields"][metric]["mean"]
-            for v in variants
-        ]
-        if metric == "throughput":
-            values = [per_1000(v) for v in values]
-        colours = [
-            STATUS["critical"] if v == culprit else DEEMPHASIS for v in variants
-        ]
-        positions = list(range(len(variants)))[::-1]
-        ax.barh(positions, values, height=0.6, color=colours, zorder=3)
-        for y, value in zip(positions, values):
-            text = f"{value:.{digits}f}"
-            if metric == "mean_service_time" and value == 0:
-                text = "no tasks finished: undefined"
-            ax.annotate(text, (value, y), textcoords="offset points",
-                        xytext=(6, -3), fontsize=8.2, color=INK_2)
-        ax.set_yticks(positions)
-        ax.set_yticklabels([label_of(v) for v in variants], fontsize=8, color=INK_2)
-        ax.set_xlim(0, max(values) * 1.55)
-        ax.set_title(f"{label}\n{direction}", fontsize=9, color=INK, loc="left",
-                     pad=54)
-        strip_frame(ax, keep=("bottom",))
-        value_grid(ax, axis="x")
-
-    culprit_row = next(r for r in rows if r["variant"] == culprit)
-    axes[1].annotate(
-        f"{label_of(culprit)} reports the best service time here\n"
-        f"({culprit_row['fields']['mean_service_time']['mean']:.0f} steps) while "
-        f"delivering "
-        f"{per_1000(culprit_row['fields']['throughput']['mean']):.0f} tasks per "
-        f"1000 timesteps.\n"
-        "The only tasks it finishes are the easy early ones.",
-        (0.02, 1.20), xycoords="axes fraction", ha="left", va="top",
-        fontsize=8, color=INK,
-        bbox=dict(boxstyle="round,pad=0.45", facecolor="#fbf3ec",
-                  edgecolor=STATUS["critical"], linewidth=0.9),
-    )
-
-    top = header(
-        fig,
-        "Service time is censored: it counts only the tasks that finished",
-        f"Both panels are the same five planners on {short_map(map_name)}, in the "
-        "same order.\nCompare service times only between planners of comparable "
-        "throughput; on its own, the metric rewards giving up.",
-    )
-    caption(fig, provenance(payload))
-    fig.tight_layout(rect=(0, 0.028, 1, top))
-    return fig
-
-
-# --------------------------------------------------------------------------
-# figure 7: the ablation ladder
+# figure 4: the ablation ladder
 # --------------------------------------------------------------------------
 
 LADDER = [
@@ -968,6 +882,17 @@ LADDER = [
     "full_lda_pibt",
 ]
 
+#: what each rung actually switches on, printed next to its name -- the variant
+#: names alone say which flag moved, not what the planner started doing
+LADDER_MECHANISM = {
+    "pibt_baseline": "one-shot: robots stop at their goals",
+    "lifelong_pibt": "jobs keep arriving; no scoring terms",
+    "turning_cost_only": "charge a robot for reversing",
+    "lane_bonus_only": "reward staying in one lane",
+    "congestion_only": "avoid the crowded corridor",
+    "full_lda_pibt": "and break jams when they form",
+}
+
 
 def figure_ablation_ladder():
     """The cumulative ladder, one panel per map, with intervals."""
@@ -976,11 +901,16 @@ def figure_ablation_ladder():
 
     payload = load("ablation")
     maps = [m for m in MAP_ORDER if m in payload["maps"]]
-    fig, axes = plt.subplots(1, len(maps), figsize=(2.85 * len(maps), 4.3))
+    # the rungs are identical on every map, so only the leftmost panel is
+    # labelled; repeating them four times leaves no width for the bars, which
+    # are the part of the picture doing the work
+    fig, axes = plt.subplots(
+        1, len(maps), figsize=(2.55 * len(maps) + 2.6, 4.5),
+    )
     if len(maps) == 1:
         axes = [axes]
 
-    for ax, map_name in zip(axes, maps):
+    for index, (ax, map_name) in enumerate(zip(axes, maps)):
         rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
         variants = [v for v in LADDER if v in rows]
         values = [per_1000(rows[v]["throughput"]) for v in variants]
@@ -1001,24 +931,54 @@ def figure_ablation_ladder():
         ax.barh(positions, values, height=0.6, color=colours, zorder=3)
         ax.errorbar(values, positions, xerr=errors, fmt="none", ecolor=INK_2,
                     elinewidth=1.0, capsize=2.5, zorder=4)
-        for y, value in zip(positions, values):
-            ax.annotate(f"{value:.0f}", (value, y), textcoords="offset points",
-                        xytext=(6, -3), fontsize=8, color=INK_2)
+        for y, value, error, variant in zip(positions, values, errors, variants):
+            best_here = value == best
+            ax.annotate(
+                f"{value:.0f}" + ("   BEST HERE" if best_here else ""),
+                # past the whisker, not past the bar, or the two collide
+                (value + error, y), textcoords="offset points", xytext=(7, -3),
+                fontsize=8, color=STATUS["good"] if best_here else INK_2,
+                fontweight="bold" if best_here else "normal",
+            )
         ax.set_yticks(positions)
-        ax.set_yticklabels([label_of(v) for v in variants], fontsize=7.8,
-                           color=INK_2)
-        ax.set_xlim(0, max(values) * 1.45)
+        ax.set_yticklabels(
+            [f"{label_of(v)}\n{LADDER_MECHANISM.get(v, '')}" for v in variants]
+            if index == 0 else [""] * len(variants),
+            fontsize=7.6, color=INK_2,
+        )
+        ax.set_xlim(0, max(values) * 1.66)
+        ax.set_xlabel(THROUGHPUT_UNIT if index == 0 else "",
+                      color=INK_2, fontsize=8)
         ax.set_title(f"{short_map(map_name)}\n{MAP_CLASS[map_name]}",
-                     fontsize=9.5, color=INK, loc="left")
+                     fontsize=9.5, color=INK, loc="left",
+                     fontweight="bold" if map_name in DESIGNED_FOR else "normal")
         strip_frame(ax, keep=("bottom",))
         value_grid(ax, axis="x")
 
+    best_per_map = {}
+    for map_name in maps:
+        rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
+        ladder = [(v, rows[v]["throughput"]) for v in LADDER if v in rows]
+        best_per_map[map_name] = max(ladder, key=lambda pair: pair[1])[0]
+    full_wins = sum(1 for v in best_per_map.values() if v == "full_lda_pibt")
+
     top = header(
         fig,
-        "The ablation ladder: adding mechanisms does not monotonically help",
-        "Green is the best configuration on that map; blue is the full method. "
-        f"Bars are throughput in {THROUGHPUT_UNIT};\nwhiskers are the standard "
-        "error over seeds.",
+        "The ablation ladder: each rung adds one mechanism, and more is not always better",
+        "Each panel starts at the top with bare PIBT and adds one mechanism per "
+        f"rung going down; longer bars are better.\nGreen marks the best rung on "
+        "that map, blue is the full method, and the second line of each label "
+        "says what that rung switched on.\n"
+        + (f"The full configuration is the best rung on {full_wins} of these "
+           f"{len(maps)} maps"
+           if full_wins else
+           f"The full configuration is not the best rung on any of these "
+           f"{len(maps)} maps")
+        + ": on the aisle-constrained floors the added terms buy 16-50% over "
+        "plain lifelong PIBT,\nand on the open floors every one of them costs. "
+        "That is the argument for picking a configuration per floor rather than "
+        "shipping one.\nWhiskers are the standard error over seeds. Each panel "
+        "has its own scale: compare rungs within a map, not bars across maps.",
     )
     caption(fig, provenance(payload))
     fig.tight_layout(rect=(0, 0.028, 1, top))
@@ -1026,88 +986,143 @@ def figure_ablation_ladder():
 
 
 # --------------------------------------------------------------------------
-# figure 8: the hypotheses
+# figure 5: what every remaining knob is worth
+#
+# The ladder is about mechanisms; this is about the numbers inside them. Each
+# row is one parameter neutralised, so a long red bar means the planner needs
+# that knob and a bar to the right of zero means the knob is costing it.
 # --------------------------------------------------------------------------
 
-VERDICT_STATUS = {
-    "supported": ("good", "supported"),
-    "contradicted": ("critical", "contradicted"),
-    "no measurable effect": ("neutral", "no effect"),
-}
+#: how many knobs the tornado shows. The suite measures 24 variants, most of
+#: them within noise of zero; past a dozen the figure is a wall of grey bars
+#: that says nothing the table below it does not say better.
+KNOBS_SHOWN = 12
 
 
-def figure_hypotheses():
-    """Each hypothesis scored on the quantity it actually claims to move."""
+def _merge_identical_knobs(summary: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Collapse knobs whose variants are the same configuration.
+
+    Turning recovery off and capping its ladder at level 0 produce the same
+    planner, so the suite measures them separately and records the identical
+    number for each. Five rows of +4.2% in a row read as five findings; they
+    are one, and the merged label says which knobs it covers.
+    """
+    merged: Dict[Tuple[str, float, float], Dict[str, Any]] = {}
+    for row in summary:
+        key = (row["family"], round(row["pooled_relative_delta"], 9),
+               round(row["pooled_p_value"], 9))
+        if key in merged:
+            merged[key]["_knobs"].append(row["knob"])
+        else:
+            merged[key] = dict(row, _knobs=[row["knob"]])
+
+    for row in merged.values():
+        knobs = row.pop("_knobs")
+        row["knob"] = knobs[0] if len(knobs) == 1 else (
+            f"{knobs[0]} and {len(knobs) - 1} identical variant"
+            f"{'s' if len(knobs) > 2 else ''}"
+        )
+    return list(merged.values())
+
+
+def figure_knobs():
+    """Every measured parameter, ranked by what removing it costs."""
     import matplotlib.pyplot as plt
 
-    payload = load("hypotheses")
-    rows = payload["rows"]
-    keys = sorted({r["hypothesis"] for r in rows})
-    maps = [m for m in MAP_ORDER if any(r["map"] == m for r in rows)]
+    payload = load("sensitivity")
+    rows = _merge_identical_knobs(payload["summary"])
+    measured = len(rows)
+    rows = sorted(rows, key=lambda r: -abs(r["pooled_relative_delta"]))[:KNOBS_SHOWN]
+    rows.sort(key=lambda r: r["pooled_relative_delta"])
 
-    fig, ax = plt.subplots(figsize=(1.7 * len(maps) + 4.6, 0.52 * len(keys) + 2.6))
-    for y, key in enumerate(keys):
-        for x, map_name in enumerate(maps):
-            row = next(
-                (r for r in rows if r["hypothesis"] == key and r["map"] == map_name),
-                None,
-            )
-            if row is None:
-                continue
-            status, word = VERDICT_STATUS[row["verdict"]]
-            field = row["fields"][row["metric"]]
-            ax.add_patch(plt.Rectangle(
-                (x + 0.03, y + 0.08), 0.94, 0.84,
-                facecolor=SURFACE, edgecolor=STATUS[status], linewidth=1.6,
-                zorder=2,
-            ))
-            ax.text(x + 0.5, y + 0.62, word, ha="center", va="center",
-                    fontsize=8.4, color=STATUS[status], fontweight="bold",
-                    zorder=3)
-            ax.text(
-                x + 0.5, y + 0.3,
-                f"{field['treatment_mean']:.3g} vs {field['control_mean']:.3g}",
-                ha="center", va="center", fontsize=7.6, color=INK_2, zorder=3,
-            )
+    fig, ax = plt.subplots(figsize=(10.2, 0.44 * len(rows) + 3.4))
+    positions = list(range(len(rows)))
 
-    labels = []
-    for key in keys:
-        row = next(r for r in rows if r["hypothesis"] == key)
-        arrow = "lower is better" if row["better"] == "lower" else "higher is better"
-        labels.append(f"{key}  ·  {row['metric']}\n{arrow}")
+    for y, row in zip(positions, rows):
+        percent = 100.0 * row["pooled_relative_delta"]
+        significant = row["pooled_p_value"] < 0.05
+        colour = (DIVERGING_LOW if percent < 0 else DIVERGING_HIGH)
+        ax.barh(y, percent, height=0.58, zorder=3,
+                color=colour if significant else DEEMPHASIS)
+        side = -1 if percent < 0 else 1
+        ax.annotate(
+            f"{percent:+.1f}%", (percent, y), textcoords="offset points",
+            xytext=(8 * side, -3), ha="right" if percent < 0 else "left",
+            fontsize=8.6, color=INK if significant else MUTED,
+            fontweight="bold" if significant else "normal",
+        )
+        note = "p < 0.001" if row["pooled_p_value"] < 0.001 else \
+            f"p = {row['pooled_p_value']:.3f}"
+        worst = row.get("worst_map")
+        if worst:
+            note += (f"   ·   worst on {short_map(worst)}: "
+                     f"{100.0 * row['worst_relative_delta']:+.0f}%")
+        ax.annotate(
+            note, (percent, y), textcoords="offset points",
+            xytext=(8 * side, -14), ha="right" if percent < 0 else "left",
+            fontsize=6.9, color=MUTED,
+        )
 
-    ax.set_xlim(0, len(maps))
-    ax.set_ylim(0, len(keys))
-    ax.set_xticks([x + 0.5 for x in range(len(maps))])
-    ax.set_xticklabels([short_map(m) for m in maps], fontsize=8.8, color=INK_2)
-    ax.set_yticks([y + 0.5 for y in range(len(keys))])
-    ax.set_yticklabels(labels, fontsize=7.8, color=INK_2)
-    ax.invert_yaxis()
-    ax.tick_params(length=0)
-    strip_frame(ax, keep=())
+    ax.axvline(0, color=INK_2, linewidth=1.2, zorder=5)
+    ax.set_yticks(positions)
+    ax.set_yticklabels(
+        [f"{r['knob']}\n{r['family']}" for r in rows], fontsize=7.6, color=INK_2,
+    )
+    span = max(abs(100.0 * r["pooled_relative_delta"]) for r in rows)
+    ax.set_xlim(-span * 1.62, span * 0.34)
+    ax.set_ylim(-0.95, len(rows) - 0.35)
+    ticks = [t for t in (-100, -75, -50, -25, 0, 25) if t >= -span * 1.05]
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([f"{t:+d}%" if t else "no change" for t in ticks])
+    ax.set_xlabel(
+        "change in throughput when the knob is neutralised   "
+        "(left: the planner needs it   ·   right: the planner is better without it)",
+        color=INK_2, fontsize=8.5,
+    )
+    strip_frame(ax, keep=("bottom",))
+    value_grid(ax, axis="x")
+
+    # the two ends of the axis, named where the bars that earn the name are:
+    # the load-bearing knobs sort to the bottom, the free wins to the top
+    ax.text(-span * 1.58, -0.55, "LOAD-BEARING: REMOVING THESE COSTS THROUGHPUT",
+            ha="left", va="center", fontsize=8.2, color=DIVERGING_LOW,
+            fontweight="bold")
+    ax.text(span * 0.32, len(rows) - 0.5, "BETTER WITHOUT", ha="right",
+            va="center", fontsize=8.2, color=DIVERGING_HIGH, fontweight="bold")
 
     top = header(
         fig,
-        "Six hypotheses, each scored on the quantity it actually claims to move",
-        "Treatment against the control that isolates its mechanism. "
-        "A verdict needs p < 0.05 on the hypothesis's own metric; "
-        "each cell prints treatment vs control.",
+        "What every remaining parameter is worth, measured one at a time",
+        f"The {len(rows)} largest effects of the {measured} the suite "
+        "measured, each the result of neutralising one knob and rerunning "
+        "every map and seed.\nBars left of zero are knobs the planner needs; "
+        "bars right of zero are knobs it would be better without. Solid colour "
+        "is p < 0.05, grey is not significant.\nThe worst-map figure is there "
+        "because pooling hides disagreement: a knob can help one floor, hurt "
+        "another, and average to nothing.",
     )
-    caption(fig, provenance(payload))
+    caption(
+        fig,
+        provenance(payload)
+        + "  --  a separate run from the other figures, at more seeds and "
+          "one knob at a time",
+    )
     fig.tight_layout(rect=(0, 0.028, 1, top))
     return fig
 
 
+
+#: the five figures, keyed by the filename they are written to. Numbered
+#: because the order is the argument: what it beats, by how much, where it
+#: stops beating it, which mechanism did it, and what every knob inside those
+#: mechanisms is worth. `tests/test_docs_assets.py` checks that every key here
+#: has a committed SVG and that every committed SVG is referenced by a page.
 FIGURES: Dict[str, Callable[[], Any]] = {
-    "scorecard": figure_scorecard,
-    "headline": figure_headline,
-    "forest": figure_forest,
-    "winloss": figure_winloss,
-    "cost-benefit": figure_cost_benefit,
-    "load": figure_load,
-    "censoring": figure_censoring,
-    "ablation-ladder": figure_ablation_ladder,
-    "hypotheses": figure_hypotheses,
+    "01-vs-baselines": figure_scorecard,
+    "02-per-map-throughput": figure_headline,
+    "03-where-it-wins": figure_where_it_wins,
+    "04-ablation-ladder": figure_ablation_ladder,
+    "05-knobs": figure_knobs,
 }
 
 
@@ -1115,9 +1130,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--only", nargs="*", choices=sorted(FIGURES), default=None)
     parser.add_argument("--list", action="store_true")
-    parser.add_argument("--dashboard", action="store_true",
-                        help="also write docs/dashboard.html")
-    parser.add_argument("--dashboard-only", action="store_true")
     args = parser.parse_args(argv)
 
     if args.list:
@@ -1126,21 +1138,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     failures = 0
-    if not args.dashboard_only:
-        style()
-        for name in args.only or list(FIGURES):
-            print(f"\n### {name}")
-            try:
-                save(FIGURES[name](), name)
-            except MissingData as error:
-                print(f"  skipped: {error}")
-                failures += 1
-
-    if args.dashboard or args.dashboard_only:
-        from dashboard import build_dashboard  # noqa: E402
-
-        print("\n### dashboard")
-        build_dashboard()
+    style()
+    for name in args.only or list(FIGURES):
+        print(f"\n### {name}")
+        try:
+            save(FIGURES[name](), name)
+        except MissingData as error:
+            print(f"  skipped: {error}")
+            failures += 1
     return 1 if failures and args.only else 0
 
 

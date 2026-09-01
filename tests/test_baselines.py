@@ -33,9 +33,46 @@ MAPS = [
     "warehouse_medium",
 ]
 
+#: what the default run covers. These planners re-solve a space-time A* per
+#: robot per timestep, so they cost 100x what a PIBT variant costs: the full
+#: seven-map sweep is 28 s of a 50 s suite, and it re-proves on five more maps
+#: what these three already prove. One head-on map, one general map and one
+#: known-gridlock map keep the distinct failure modes; `-m slow` runs the rest.
+CORE_MAPS = ["corridor", "warehouse_small", "warehouse_bottleneck"]
+
+#: the default horizon. Long enough for the corridor to fill and for a planner
+#: that is going to deadlock to have deadlocked -- the gridlock in
+#: `warehouse_bottleneck` is established by t = 90 in `docs/gifs/`.
+CORE_STEPS = 60
+
+#: runs already computed, keyed by their arguments. Several assertions want the
+#: same simulation, and at 3-4 s a run on the wider maps that is worth caching
+#: rather than repeating.
+_RUNS: dict = {}
+
 
 def _grid(rows: int, cols: int) -> GridGraph:
     return GridGraph([[True] * cols for _ in range(rows)])
+
+
+def baseline_run(variant: str, map_name: str, steps: int = CORE_STEPS):
+    """A seeded lifelong run of one baseline planner, computed at most once."""
+    key = (variant, map_name, steps)
+    if key not in _RUNS:
+        params = Params(seed=3, max_timesteps=steps,
+                        recovery=BASELINE_PLANNERS[variant][1],
+                        **BASELINE_PARAMS_PRESET)
+        warehouse = Warehouse.from_file(f"maps/{map_name}.map", params)
+        generator = TaskGenerator(
+            warehouse.pickup_vertices, warehouse.delivery_vertices,
+            rate=0.6, seed=3,
+        )
+        sim = build_simulator(
+            warehouse, 6, params, task_generator=generator,
+            planner_factory=BASELINE_PLANNERS[variant][0],
+        )
+        _RUNS[key] = (sim, sim.run(max_timesteps=steps))
+    return _RUNS[key]
 
 
 # ------------------------------------------------------------ ReservationTable
@@ -121,19 +158,38 @@ def test_prioritized_plan_avoids_a_stationary_robot():
 
 # --------------------------------------------------------- simulator integration
 @pytest.mark.parametrize("variant", sorted(BASELINE_PLANNERS))
-@pytest.mark.parametrize("map_name", MAPS)
+@pytest.mark.parametrize("map_name", CORE_MAPS)
 def test_baseline_is_collision_free(variant, map_name):
-    params = Params(seed=3, max_timesteps=120, recovery=BASELINE_PLANNERS[variant][1],
-                     **BASELINE_PARAMS_PRESET)
-    warehouse = Warehouse.from_file(f"maps/{map_name}.map", params)
-    generator = TaskGenerator(
-        warehouse.pickup_vertices, warehouse.delivery_vertices, rate=0.6, seed=3
-    )
-    sim = build_simulator(
-        warehouse, 6, params, task_generator=generator,
-        planner_factory=BASELINE_PLANNERS[variant][0],
-    )
-    report = sim.run(max_timesteps=120)
+    sim, report = baseline_run(variant, map_name)
+    assert report.collision_free
+    assert no_vertex_conflicts(sim.robots)
+    assert no_swap_conflicts(sim.robots)
+
+
+@pytest.mark.parametrize("variant", sorted(BASELINE_PLANNERS))
+@pytest.mark.parametrize("map_name", CORE_MAPS)
+def test_baseline_robots_stay_on_the_graph(variant, map_name):
+    """The other half of "did not crash": every position is a real vertex.
+
+    Shares its simulation with the collision-freedom test above rather than
+    running a second one -- the run is the expensive part, not the assertion.
+    """
+    sim, _ = baseline_run(variant, map_name)
+    for robot in sim.robots:
+        assert robot.position in sim.warehouse.graph.vertex_set
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("variant", sorted(BASELINE_PLANNERS))
+@pytest.mark.parametrize("map_name", [m for m in MAPS if m not in CORE_MAPS])
+def test_baseline_is_collision_free_on_every_other_map(variant, map_name):
+    """The wide sweep: the four maps the default run leaves out, at 120 steps.
+
+    Deselected by default because it is 28 s of the suite for coverage that
+    has never caught anything the three core maps missed. Run it with
+    `pytest -m slow`, and in CI.
+    """
+    sim, report = baseline_run(variant, map_name, steps=120)
     assert report.collision_free
     assert no_vertex_conflicts(sim.robots)
     assert no_swap_conflicts(sim.robots)
@@ -145,13 +201,9 @@ def test_baseline_completes_some_tasks(variant):
     # corridor is a known genuine gridlock case for planners without
     # priority inheritance (see README) -- this checks the planner *works*,
     # not that it matches PIBT's performance everywhere.
-    result = run_once("maps/warehouse_small.map", variant, 10, 300, seed=1, rate=0.8)
+    #
+    # 150 steps, not 300: all three planners are well clear of zero deliveries
+    # by then, and the second 150 steps cost 9 s to re-prove it.
+    result = run_once("maps/warehouse_small.map", variant, 10, 150, seed=1, rate=0.8)
     assert result["collision_free"]
     assert result["completed_tasks"] > 0
-
-
-@pytest.mark.parametrize("variant", sorted(BASELINE_PLANNERS))
-@pytest.mark.parametrize("map_name", MAPS)
-def test_baseline_no_crash_all_maps(variant, map_name):
-    result = run_once(f"maps/{map_name}.map", variant, 6, 50, seed=2, rate=0.6)
-    assert result["collision_free"]

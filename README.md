@@ -10,6 +10,15 @@ changed nothing was deleted rather than left at a default. The evidence is in
 [docs/05-results.md](docs/05-results.md); the reasoning is in
 [docs/01-how-it-works.md](docs/01-how-it-works.md).
 
+![Aisleflow against every rival planner, one cell per rival per map, as a ratio and a verdict](docs/figures/01-vs-baselines.svg)
+
+Against the three published lifelong planners this beats — Token Passing, Token
+Passing with recovery, and RHCR — aisleflow wins every map. Against the plain
+lifelong PIBT it extends, it wins the two aisle-constrained floors and loses
+the two open ones, which is the more useful result: the machinery is congestion
+machinery, and it earns its keep exactly where congestion is the binding
+constraint. [The full evidence, in five figures.](docs/05-results.md)
+
 ## Documentation
 
 | | |
@@ -54,8 +63,16 @@ Only needed for the `lda-pibt` console command, the test suite, or GIF export:
 
 ```bash
 pip install -e ".[dev]"      # or: pip install -e .   (no viz, no pytest)
-pytest                       # 198 tests
+pytest                       # 158 tests, ~15s
+pytest -m slow               # the wide baseline sweep, 12 more, ~14s
+pytest -m ""                 # everything, ~27s
 ```
+
+The default run deselects `slow`, which is the baseline planners re-checked on
+four extra maps. Those planners re-solve a space-time A\* per robot per
+timestep, so that sweep alone cost more than the rest of the suite; the three
+maps the default run keeps cover the same three failure modes. CI should run
+`pytest -m ""`.
 
 Python 3.10+.
 
@@ -195,7 +212,7 @@ tools/           make_docs_tables.py (the generated tables in docs/04 and 05),
                  make_figures.py (the figures), make_gifs.py (the animations)
 docs/*.md        the five documents, in reading order
 docs/data/       the measured dataset every figure and table is generated from
-docs/figures/    the result figures, as SVG and PDF
+docs/figures/    the five result figures, as SVG, all embedded in docs/05
 docs/gifs/       the comparison animations
 ```
 

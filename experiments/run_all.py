@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Produce the one dataset every document, figure and dashboard reads.
+"""Produce the one dataset every document and figure reads.
 
 The other four scripts in this directory each answer one question and write
 into `results/` (git-ignored). This one runs all of them over a single set of
 scenarios and writes into **`docs/data/`**, which *is* committed, because the
-paper's tables, `tools/make_figures.py` and `docs/dashboard.html` must all be
-generated from the same measured numbers rather than from four runs that
+generated tables in `docs/04` and `docs/05`, the five figures written by
+`tools/make_figures.py` and the numbers quoted in the animation narration must
+all be generated from the same measured numbers rather than from four runs that
 happened on four different afternoons.
 
 Nothing here re-implements an experiment: every suite is a call into
@@ -48,8 +49,8 @@ from lda_pibt.experiments import (  # noqa: E402
 OUT_DIR = ROOT / "docs" / "data"
 
 #: `--quick` writes here instead. A two-seed smoke test that overwrote the
-#: committed dataset would silently invalidate every figure, the comparison matrix
-#: and the dashboard, all of which read `docs/data/` -- so it cannot.
+#: committed dataset would silently invalidate every figure and every generated
+#: table, all of which read `docs/data/` -- so it cannot.
 QUICK_DIR = ROOT / "results" / "quick"
 
 #: (map, robots, arrival rate). These are exactly the scenarios the four
@@ -263,9 +264,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.quick and out_dir == OUT_DIR:
         raise SystemExit(
             "refusing to write a --quick smoke test into docs/data/: those "
-            "files are the dataset the comparison matrix, the figures and "
-            "the dashboard are generated from. Drop --out, or pass a "
-            "different directory."
+            "files are the dataset the figures and the generated tables are "
+            "produced from. Drop --out, or pass a different directory."
         )
 
     started = time.time()

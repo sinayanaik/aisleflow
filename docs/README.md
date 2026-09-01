@@ -39,8 +39,8 @@ starves. That is the entire algorithm.
 ## Data and figures
 
 `data/` holds the experiment output — every file carries a `meta` block with
-the git SHA, seed count, horizon and scenarios. `figures/` and `gifs/` are
-generated from it:
+the git SHA, seed count, horizon and scenarios. `figures/` (five SVGs, all
+embedded in page 05) and `gifs/` are generated from it:
 
 ```bash
 python3 experiments/run_sensitivity.py --seeds 10 --jobs 4

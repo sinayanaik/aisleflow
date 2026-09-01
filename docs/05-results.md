@@ -1,6 +1,17 @@
 # Results
 
+Five figures carry this page, and each one is generated from `docs/data/` by
+`tools/make_figures.py`, so nothing here is drawn by hand or left behind when
+the planner changes.
+
 ## The headline
+
+![Aisleflow against every rival planner, one cell per rival per map, as a ratio and a verdict](figures/01-vs-baselines.svg)
+
+**What to look for:** the three left-hand columns are published planners, and
+aisleflow wins every cell against them. The right-hand column is the plain PIBT
+it extends, and there it wins two maps and loses two — that column is the
+honest comparison, and the rest of this page is about it.
 
 Tasks delivered per timestep, against every planner we can compare with.
 
@@ -16,6 +27,12 @@ Tasks delivered per timestep, against every planner we can compare with.
 *Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `b00ff91`.*
 <!-- /generated:headline -->
 
+![Throughput per map for aisleflow, plain lifelong PIBT and both published baselines, with a permutation test on each bar](figures/02-per-map-throughput.svg)
+
+**What to look for:** the same numbers as the table above, with their
+uncertainty. The blue bar is aisleflow, the orange one is the plain PIBT it
+extends, and the two grey stubs are the published baselines.
+
 **Read the baselines honestly.** Token Passing and RHCR score close to zero on
 these maps. That is not a scalp: both are published algorithms that starve
 here, because a robot whose space-time search fails simply waits, and in dense
@@ -25,6 +42,14 @@ scoring, matching or recovery machinery. That is the number to judge this
 planner by.
 
 ## The finding that matters most
+
+![Where aisleflow beats plain lifelong PIBT and where it does not: per-map margins with intervals, and every configuration on every map](figures/03-where-it-wins.svg)
+
+**What to look for:** the left panel is the whole argument in four bars — blue
+above the line on the two aisle-constrained floors, red below it on the two
+open ones. The right panel is the same comparison for every configuration, so
+you can check that the left panel's "best config per map" was not cherry-picked
+out of a grid that says something else.
 
 Every mechanism this planner adds on top of plain lifelong PIBT helps on a
 tight floor and hurts on an open one. Across the four maps, **the full
@@ -41,6 +66,12 @@ configuration is not the best on any of them**:
 
 *Tasks per timestep; **bold** is the best configuration for that map. 5 seeds x 400 steps, git `b00ff91`.*
 <!-- /generated:ladder -->
+
+![The ablation ladder: one panel per map, each rung adding one mechanism, with the best rung on each map marked](figures/04-ablation-ladder.svg)
+
+**What to look for:** read each panel top to bottom — every rung adds one
+mechanism. If more were always better, the green "best here" marker would sit
+on the bottom rung of all four panels. It sits there on none of them.
 
 On `bottleneck` and `corridors` — narrow, one-cell corridors with real
 chokepoints — the extra terms buy 16–50% over plain PIBT. On `narrow` and
@@ -116,6 +147,13 @@ measured per corridor.
 
 ## Every knob, measured
 
+![The twelve largest parameter effects, ranked by what neutralising each knob costs in throughput](figures/05-knobs.svg)
+
+**What to look for:** the bars that reach far left are the parameters the
+planner cannot do without — the progress reward, the deadlock corroboration
+rule, the job-class ordering. Everything clustered near the line is a knob that
+measured nothing, and the grey bars are the ones that did not clear p < 0.05.
+
 Negative means removing the knob costs throughput; positive means the planner
 is better without it.
 
@@ -188,6 +226,11 @@ the run that produced it.
 Side-by-side runs sharing a map, a seed, a robot count and a job stream, and
 differing only in the planner. Red means a robot has not moved for 15 steps.
 
-![Token Passing gridlock](gifs/01-token-passing-gridlock.gif)
+![Token Passing gridlocks in a one-corridor map while aisleflow drains the same queue](gifs/01-token-passing-gridlock.gif)
+
+Four more — the turning cost on a tight floor, RHCR stalling the same way Token
+Passing does, what the deadlock corroboration rule is worth, and the open-map
+case this planner loses — are in **[gifs/README.md](gifs/README.md)**, each with
+its narration written out beat by beat.
 
 Rebuild with `python3 tools/make_gifs.py`.
