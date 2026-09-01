@@ -1,0 +1,11 @@
+{
+  "name": "aisleflow-presentation",
+  "private": true,
+  "description": "Builds Aisleflow-Research-Review.pptx from docs/data and the committed figures",
+  "scripts": {
+    "build": "node build_deck.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1"
+  }
+}
