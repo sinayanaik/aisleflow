@@ -1,0 +1,4654 @@
+{
+  "meta": {
+    "suite": "baselines",
+    "seeds": 5,
+    "timesteps": 400,
+    "arrival": "poisson",
+    "scenarios": [
+      {
+        "map": "warehouse_bottleneck",
+        "robots": 16,
+        "rate": 0.8
+      },
+      {
+        "map": "warehouse_corridors",
+        "robots": 35,
+        "rate": 1.0
+      },
+      {
+        "map": "warehouse_medium",
+        "robots": 40,
+        "rate": 1.5
+      }
+    ],
+    "git_sha": "e38a849",
+    "generated_utc": "2026-08-31T18:46:55Z",
+    "generator": "experiments/run_all.py"
+  },
+  "reference": "lifelong_pibt",
+  "maps": {
+    "warehouse_bottleneck": {
+      "robots": 16,
+      "rate": 0.8,
+      "rows": [
+        {
+          "variant": "lifelong_pibt",
+          "n_robots": 16,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 47.0,
+              "ci_lo": 39.2,
+              "ci_hi": 54.8,
+              "p_vs_reference": null,
+              "raw": [
+                56.0,
+                40.0,
+                44.0,
+                36.0,
+                59.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 322.8,
+              "ci_lo": 313.4,
+              "ci_hi": 332.4,
+              "p_vs_reference": null,
+              "raw": [
+                317.0,
+                337.0,
+                335.0,
+                309.0,
+                316.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.11750000000000001,
+              "ci_lo": 0.098,
+              "ci_hi": 0.137,
+              "p_vs_reference": null,
+              "raw": [
+                0.14,
+                0.1,
+                0.11,
+                0.09,
+                0.1475
+              ]
+            },
+            "mean_service_time": {
+              "mean": 154.21533886076259,
+              "ci_lo": 135.9977777777778,
+              "ci_hi": 171.69484126984128,
+              "p_vs_reference": null,
+              "raw": [
+                162.23214285714286,
+                123.525,
+                156.22727272727272,
+                185.88888888888889,
+                143.20338983050848
+              ]
+            },
+            "median_service_time": {
+              "mean": 167.2,
+              "ci_lo": 125.6,
+              "ci_hi": 228.4,
+              "p_vs_reference": null,
+              "raw": [
+                156.0,
+                112.0,
+                152.0,
+                287.0,
+                129.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 293.84999999999997,
+              "ci_lo": 267.9799999999999,
+              "ci_hi": 320.77,
+              "p_vs_reference": null,
+              "raw": [
+                336.5,
+                252.29999999999978,
+                286.1,
+                319.75,
+                274.5999999999999
+              ]
+            },
+            "max_service_time": {
+              "mean": 335.4,
+              "ci_lo": 327.8,
+              "ci_hi": 343.0,
+              "p_vs_reference": null,
+              "raw": [
+                347.0,
+                337.0,
+                342.0,
+                329.0,
+                322.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 5113.8,
+              "ci_lo": 4740.4,
+              "ci_hi": 5454.8,
+              "p_vs_reference": null,
+              "raw": [
+                5553.0,
+                4817.0,
+                5342.0,
+                4444.0,
+                5413.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 5.0,
+              "ci_lo": 1.0,
+              "ci_hi": 12.2,
+              "p_vs_reference": null,
+              "raw": [
+                3.0,
+                19.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 392.6,
+              "ci_lo": 298.0,
+              "ci_hi": 512.8,
+              "p_vs_reference": null,
+              "raw": [
+                352.0,
+                422.0,
+                289.0,
+                620.0,
+                280.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 164.5,
+              "ci_lo": 145.125,
+              "ci_hi": 183.875,
+              "p_vs_reference": null,
+              "raw": [
+                186.875,
+                142.5,
+                174.375,
+                133.125,
+                185.625
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.8709177297729178,
+              "ci_lo": 0.841255868544601,
+              "ci_hi": 0.9010226207219878,
+              "p_vs_reference": null,
+              "raw": [
+                0.9074074074074074,
+                0.8333333333333334,
+                0.852112676056338,
+                0.84375,
+                0.9179852320675106
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 6400.0,
+              "ci_lo": 6400.0,
+              "ci_hi": 6400.0,
+              "p_vs_reference": null,
+              "raw": [
+                6400.0,
+                6400.0,
+                6400.0,
+                6400.0,
+                6400.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 532.8,
+              "ci_lo": 322.2,
+              "ci_hi": 755.2,
+              "p_vs_reference": null,
+              "raw": [
+                289.0,
+                771.0,
+                387.0,
+                894.0,
+                323.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 12550.4,
+              "ci_lo": 12225.4,
+              "ci_hi": 12875.4,
+              "p_vs_reference": null,
+              "raw": [
+                12927.0,
+                12114.0,
+                12585.0,
+                12157.0,
+                12969.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 0.3964650704996302,
+              "ci_lo": 0.38722809799855895,
+              "ci_hi": 0.4058853345030684,
+              "p_vs_reference": null,
+              "raw": [
+                0.4117107225016525,
+                0.39047701499669074,
+                0.3982671274945915,
+                0.37986874500120393,
+                0.4020017425040123
+              ]
+            }
+          }
+        },
+        {
+          "variant": "full_lda_pibt",
+          "n_robots": 16,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 57.8,
+              "ci_lo": 54.2,
+              "ci_hi": 61.4,
+              "p_vs_reference": 0.09523809523809523,
+              "raw": [
+                63.0,
+                52.0,
+                61.0,
+                59.0,
+                54.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 322.8,
+              "ci_lo": 313.4,
+              "ci_hi": 332.4,
+              "p_vs_reference": 1.0,
+              "raw": [
+                317.0,
+                337.0,
+                335.0,
+                309.0,
+                316.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.14450000000000002,
+              "ci_lo": 0.1355,
+              "ci_hi": 0.1535,
+              "p_vs_reference": 0.09523809523809523,
+              "raw": [
+                0.1575,
+                0.13,
+                0.1525,
+                0.1475,
+                0.135
+              ]
+            },
+            "mean_service_time": {
+              "mean": 154.27187153352753,
+              "ci_lo": 147.39149102263855,
+              "ci_hi": 161.23051702395964,
+              "p_vs_reference": 1.0,
+              "raw": [
+                151.4920634920635,
+                165.46153846153845,
+                158.40983606557376,
+                153.64406779661016,
+                142.35185185185185
+              ]
+            },
+            "median_service_time": {
+              "mean": 149.5,
+              "ci_lo": 144.6,
+              "ci_hi": 155.7,
+              "p_vs_reference": 0.8650793650793651,
+              "raw": [
+                143.0,
+                161.0,
+                151.0,
+                148.0,
+                144.5
+              ]
+            },
+            "p95_service_time": {
+              "mean": 298.47999999999996,
+              "ci_lo": 278.85999999999996,
+              "ci_hi": 323.41999999999996,
+              "p_vs_reference": 0.8174603174603174,
+              "raw": [
+                280.3,
+                313.79999999999995,
+                341.0,
+                276.3999999999999,
+                280.8999999999999
+              ]
+            },
+            "max_service_time": {
+              "mean": 334.0,
+              "ci_lo": 316.8,
+              "ci_hi": 350.6,
+              "p_vs_reference": 0.9206349206349206,
+              "raw": [
+                348.0,
+                339.0,
+                359.0,
+                302.0,
+                322.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 5018.6,
+              "ci_lo": 4936.4,
+              "ci_hi": 5106.8,
+              "p_vs_reference": 0.6825396825396826,
+              "raw": [
+                5161.0,
+                4939.0,
+                5112.0,
+                4961.0,
+                4920.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 1.6,
+              "ci_lo": 1.0,
+              "ci_hi": 2.4,
+              "p_vs_reference": 0.7222222222222222,
+              "raw": [
+                3.0,
+                1.0,
+                2.0,
+                1.0,
+                1.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 283.2,
+              "ci_lo": 275.4,
+              "ci_hi": 291.0,
+              "p_vs_reference": 0.07142857142857142,
+              "raw": [
+                292.0,
+                292.0,
+                287.0,
+                271.0,
+                274.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 69.75,
+              "ci_lo": 65.125,
+              "ci_hi": 76.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                81.25,
+                63.125,
+                65.625,
+                68.125,
+                70.625
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.2,
+              "ci_lo": 0.0,
+              "ci_hi": 0.6,
+              "p_vs_reference": 1.0,
+              "raw": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.2,
+              "ci_lo": 0.0,
+              "ci_hi": 0.6,
+              "p_vs_reference": 1.0,
+              "raw": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.900624546272662,
+              "ci_lo": 0.8683555690317364,
+              "ci_hi": 0.9328935235135875,
+              "p_vs_reference": 0.2619047619047619,
+              "raw": [
+                0.9504310344827587,
+                0.8711340206185567,
+                0.9120098039215686,
+                0.9257978723404255,
+                0.84375
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 6400.0,
+              "ci_lo": 6400.0,
+              "ci_hi": 6400.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                6400.0,
+                6400.0,
+                6400.0,
+                6400.0,
+                6400.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 511.6,
+              "ci_lo": 482.4,
+              "ci_hi": 538.4,
+              "p_vs_reference": 0.8571428571428571,
+              "raw": [
+                458.0,
+                518.0,
+                495.0,
+                544.0,
+                543.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 13144.8,
+              "ci_lo": 13108.6,
+              "ci_hi": 13175.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                13119.0,
+                13084.0,
+                13183.0,
+                13172.0,
+                13166.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 1.4455548685008353,
+              "ci_lo": 1.423304739500054,
+              "ci_hi": 1.4678049975016165,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1.4716340324974908,
+                1.4211939199987,
+                1.4721281375040007,
+                1.4515006475050996,
+                1.4113176049988851
+              ]
+            }
+          }
+        },
+        {
+          "variant": "token_passing",
+          "n_robots": 16,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 3.0,
+              "ci_lo": 0.0,
+              "ci_hi": 6.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                6.0,
+                0.0,
+                9.0,
+                0.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 322.8,
+              "ci_lo": 313.4,
+              "ci_hi": 332.4,
+              "p_vs_reference": 1.0,
+              "raw": [
+                317.0,
+                337.0,
+                335.0,
+                309.0,
+                316.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.0075,
+              "ci_lo": 0.0,
+              "ci_hi": 0.016499999999999997,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.015,
+                0.0,
+                0.0225,
+                0.0
+              ]
+            },
+            "mean_service_time": {
+              "mean": 31.055555555555554,
+              "ci_lo": 0.0,
+              "ci_hi": 66.85555555555555,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                89.5,
+                0.0,
+                65.77777777777777,
+                0.0
+              ]
+            },
+            "median_service_time": {
+              "mean": 31.5,
+              "ci_lo": 0.0,
+              "ci_hi": 67.7,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                90.5,
+                0.0,
+                67.0,
+                0.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 50.45,
+              "ci_lo": 0.0,
+              "ci_hi": 107.35,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                142.25,
+                0.0,
+                110.0,
+                0.0
+              ]
+            },
+            "max_service_time": {
+              "mean": 52.6,
+              "ci_lo": 0.0,
+              "ci_hi": 109.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                143.0,
+                0.0,
+                120.0,
+                0.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 316.0,
+              "ci_lo": 74.8,
+              "ci_hi": 577.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                50.0,
+                603.0,
+                81.0,
+                734.0,
+                112.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 359.2,
+              "ci_lo": 313.0,
+              "ci_hi": 396.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                399.0,
+                279.0,
+                397.0,
+                331.0,
+                390.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 522.8,
+              "ci_lo": 391.2,
+              "ci_hi": 677.0,
+              "p_vs_reference": 0.2222222222222222,
+              "raw": [
+                781.0,
+                414.0,
+                377.0,
+                648.0,
+                394.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 5.375,
+              "ci_lo": 2.125,
+              "ci_hi": 8.75,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.625,
+                8.125,
+                3.75,
+                11.25,
+                3.125
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.7875,
+              "ci_lo": 0.5375,
+              "ci_hi": 1.0,
+              "p_vs_reference": 0.5079365079365079,
+              "raw": [
+                1.0,
+                0.375,
+                1.0,
+                0.5625,
+                1.0
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 36.19924744250102,
+              "ci_lo": 29.141036853500736,
+              "ci_hi": 43.50311342100258,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                40.238282325001364,
+                31.65251482499798,
+                24.577484112501224,
+                35.986365965000005,
+                48.54158998500452
+              ]
+            }
+          }
+        },
+        {
+          "variant": "token_passing_recovery",
+          "n_robots": 16,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 3.4,
+              "ci_lo": 0.4,
+              "ci_hi": 6.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                2.0,
+                6.0,
+                9.0,
+                0.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 322.8,
+              "ci_lo": 313.4,
+              "ci_hi": 332.4,
+              "p_vs_reference": 1.0,
+              "raw": [
+                317.0,
+                337.0,
+                335.0,
+                309.0,
+                316.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.008499999999999999,
+              "ci_lo": 0.001,
+              "ci_hi": 0.016499999999999997,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.005,
+                0.015,
+                0.0225,
+                0.0
+              ]
+            },
+            "mean_service_time": {
+              "mean": 42.22222222222222,
+              "ci_lo": 9.1,
+              "ci_hi": 76.25555555555556,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                45.5,
+                107.83333333333333,
+                57.77777777777778,
+                0.0
+              ]
+            },
+            "median_service_time": {
+              "mean": 40.7,
+              "ci_lo": 9.1,
+              "ci_hi": 75.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                45.5,
+                109.0,
+                49.0,
+                0.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 56.81,
+              "ci_lo": 12.07,
+              "ci_hi": 101.55,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                60.35,
+                133.5,
+                90.19999999999999,
+                0.0
+              ]
+            },
+            "max_service_time": {
+              "mean": 59.2,
+              "ci_lo": 12.4,
+              "ci_hi": 106.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                62.0,
+                139.0,
+                95.0,
+                0.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 410.8,
+              "ci_lo": 172.6,
+              "ci_hi": 649.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                166.0,
+                307.0,
+                766.0,
+                703.0,
+                112.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 351.8,
+              "ci_lo": 303.6,
+              "ci_hi": 388.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                381.0,
+                390.0,
+                265.0,
+                333.0,
+                390.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 372.6,
+              "ci_lo": 189.4,
+              "ci_hi": 537.6,
+              "p_vs_reference": 0.9285714285714286,
+              "raw": [
+                391.0,
+                386.0,
+                55.0,
+                637.0,
+                394.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 8.0,
+              "ci_lo": 3.5,
+              "ci_hi": 13.625,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                3.125,
+                5.0,
+                18.125,
+                10.625,
+                3.125
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 42.4,
+              "ci_lo": 25.0,
+              "ci_hi": 64.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                31.0,
+                43.0,
+                82.0,
+                40.0,
+                16.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 39.4,
+              "ci_lo": 20.8,
+              "ci_hi": 61.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                28.0,
+                41.0,
+                80.0,
+                38.0,
+                10.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 12.6,
+              "ci_lo": 9.8,
+              "ci_hi": 15.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                10.0,
+                13.0,
+                16.0,
+                16.0,
+                8.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.5920454545454545,
+              "ci_lo": 0.29204545454545455,
+              "ci_hi": 0.8920454545454545,
+              "p_vs_reference": 0.16666666666666666,
+              "raw": [
+                1.0,
+                0.125,
+                0.375,
+                0.4602272727272727,
+                1.0
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 32.264274946998285,
+              "ci_lo": 25.856368408502476,
+              "ci_hi": 40.55810791649503,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                32.2963199074934,
+                31.41935769749807,
+                24.460387370003787,
+                24.470854802503368,
+                48.6744549574928
+              ]
+            }
+          }
+        },
+        {
+          "variant": "rhcr",
+          "n_robots": 16,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 4.6,
+              "ci_lo": 1.4,
+              "ci_hi": 7.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                9.0,
+                0.0,
+                7.0,
+                7.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 322.8,
+              "ci_lo": 313.4,
+              "ci_hi": 332.4,
+              "p_vs_reference": 1.0,
+              "raw": [
+                317.0,
+                337.0,
+                335.0,
+                309.0,
+                316.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.0115,
+              "ci_lo": 0.0035000000000000005,
+              "ci_hi": 0.0195,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0225,
+                0.0,
+                0.0175,
+                0.0175
+              ]
+            },
+            "mean_service_time": {
+              "mean": 22.63174603174603,
+              "ci_lo": 6.742857142857143,
+              "ci_hi": 38.52063492063492,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                35.44444444444444,
+                0.0,
+                44.0,
+                33.714285714285715
+              ]
+            },
+            "median_service_time": {
+              "mean": 23.0,
+              "ci_lo": 7.2,
+              "ci_hi": 38.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                36.0,
+                0.0,
+                43.0,
+                36.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 29.7,
+              "ci_lo": 8.68,
+              "ci_hi": 50.71999999999999,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                46.0,
+                0.0,
+                59.09999999999999,
+                43.4
+              ]
+            },
+            "max_service_time": {
+              "mean": 30.6,
+              "ci_lo": 8.8,
+              "ci_hi": 52.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                46.0,
+                0.0,
+                63.0,
+                44.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 456.0,
+              "ci_lo": 286.0,
+              "ci_hi": 580.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                449.0,
+                636.0,
+                128.0,
+                523.0,
+                544.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 364.4,
+              "ci_lo": 342.8,
+              "ci_hi": 386.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                395.0,
+                336.0,
+                395.0,
+                346.0,
+                350.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 311.8,
+              "ci_lo": 161.4,
+              "ci_hi": 391.4,
+              "p_vs_reference": 0.5079365079365079,
+              "raw": [
+                395.0,
+                13.0,
+                392.0,
+                383.0,
+                376.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 8.875,
+              "ci_lo": 5.125,
+              "ci_hi": 12.625,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                3.125,
+                9.375,
+                5.0,
+                13.75,
+                13.125
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.6875,
+              "ci_lo": 0.4625,
+              "ci_hi": 0.9125,
+              "p_vs_reference": 0.1746031746031746,
+              "raw": [
+                1.0,
+                0.5625,
+                1.0,
+                0.4375,
+                0.4375
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 75.0332344830025,
+              "ci_lo": 66.7592516210018,
+              "ci_hi": 82.30820684600303,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                70.11562485000525,
+                77.20993888499493,
+                81.65545023249706,
+                85.51009744001306,
+                60.67506100750223
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "warehouse_corridors": {
+      "robots": 35,
+      "rate": 1.0,
+      "rows": [
+        {
+          "variant": "lifelong_pibt",
+          "n_robots": 35,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 52.2,
+              "ci_lo": 49.0,
+              "ci_hi": 56.8,
+              "p_vs_reference": null,
+              "raw": [
+                52.0,
+                51.0,
+                48.0,
+                61.0,
+                49.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 390.6,
+              "ci_lo": 377.6,
+              "ci_hi": 406.2,
+              "p_vs_reference": null,
+              "raw": [
+                380.0,
+                416.0,
+                403.0,
+                374.0,
+                380.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.1305,
+              "ci_lo": 0.12250000000000001,
+              "ci_hi": 0.142,
+              "p_vs_reference": null,
+              "raw": [
+                0.13,
+                0.1275,
+                0.12,
+                0.1525,
+                0.1225
+              ]
+            },
+            "mean_service_time": {
+              "mean": 157.01763701697578,
+              "ci_lo": 145.8138192982111,
+              "ci_hi": 169.0856242118537,
+              "p_vs_reference": null,
+              "raw": [
+                166.09615384615384,
+                140.41176470588235,
+                177.41666666666666,
+                147.08196721311475,
+                154.08163265306123
+              ]
+            },
+            "median_service_time": {
+              "mean": 144.7,
+              "ci_lo": 127.4,
+              "ci_hi": 161.8,
+              "p_vs_reference": null,
+              "raw": [
+                159.0,
+                119.0,
+                166.5,
+                121.0,
+                158.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 304.34,
+              "ci_lo": 293.77,
+              "ci_hi": 318.98999999999995,
+              "p_vs_reference": null,
+              "raw": [
+                296.6499999999999,
+                304.0,
+                331.65,
+                300.0,
+                289.4
+              ]
+            },
+            "max_service_time": {
+              "mean": 345.4,
+              "ci_lo": 321.0,
+              "ci_hi": 367.0,
+              "p_vs_reference": null,
+              "raw": [
+                325.0,
+                358.0,
+                357.0,
+                381.0,
+                306.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 12975.2,
+              "ci_lo": 12819.0,
+              "ci_hi": 13109.2,
+              "p_vs_reference": null,
+              "raw": [
+                13037.0,
+                13204.0,
+                12938.0,
+                12701.0,
+                12996.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 0.6,
+              "ci_lo": 0.0,
+              "ci_hi": 1.8,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                3.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 998.0,
+              "ci_lo": 957.0,
+              "ci_hi": 1039.0,
+              "p_vs_reference": null,
+              "raw": [
+                1044.0,
+                1057.0,
+                970.0,
+                993.0,
+                926.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 281.7,
+              "ci_lo": 274.6,
+              "ci_hi": 290.1,
+              "p_vs_reference": null,
+              "raw": [
+                272.5,
+                285.5,
+                278.0,
+                297.5,
+                275.0
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.5098234529091707,
+              "ci_lo": 0.4331972789115646,
+              "ci_hi": 0.6145596449049964,
+              "p_vs_reference": null,
+              "raw": [
+                0.4598639455782313,
+                0.39319727891156464,
+                0.4912579957356077,
+                0.7040681173131504,
+                0.5007299270072992
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 14000.0,
+              "ci_lo": 14000.0,
+              "ci_hi": 14000.0,
+              "p_vs_reference": null,
+              "raw": [
+                14000.0,
+                14000.0,
+                14000.0,
+                14000.0,
+                14000.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 355.8,
+              "ci_lo": 303.6,
+              "ci_hi": 418.6,
+              "p_vs_reference": null,
+              "raw": [
+                338.0,
+                272.0,
+                364.0,
+                475.0,
+                330.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 21999.6,
+              "ci_lo": 21490.6,
+              "ci_hi": 22508.6,
+              "p_vs_reference": null,
+              "raw": [
+                21359.0,
+                21907.0,
+                22539.0,
+                22779.0,
+                21414.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 0.8428735104990892,
+              "ci_lo": 0.8264471449974735,
+              "ci_hi": 0.8592998760007049,
+              "p_vs_reference": null,
+              "raw": [
+                0.8242943599947239,
+                0.8196761950000564,
+                0.870989512497431,
+                0.8551128700054278,
+                0.844294614997807
+              ]
+            }
+          }
+        },
+        {
+          "variant": "full_lda_pibt",
+          "n_robots": 35,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 48.4,
+              "ci_lo": 40.6,
+              "ci_hi": 55.6,
+              "p_vs_reference": 0.49206349206349204,
+              "raw": [
+                35.0,
+                54.0,
+                49.0,
+                60.0,
+                44.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 390.6,
+              "ci_lo": 377.6,
+              "ci_hi": 406.2,
+              "p_vs_reference": 1.0,
+              "raw": [
+                380.0,
+                416.0,
+                403.0,
+                374.0,
+                380.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.121,
+              "ci_lo": 0.10149999999999999,
+              "ci_hi": 0.13899999999999998,
+              "p_vs_reference": 0.49206349206349204,
+              "raw": [
+                0.0875,
+                0.135,
+                0.1225,
+                0.15,
+                0.11
+              ]
+            },
+            "mean_service_time": {
+              "mean": 148.8553714010857,
+              "ci_lo": 128.88111317254175,
+              "ci_hi": 169.65954648526076,
+              "p_vs_reference": 0.5555555555555556,
+              "raw": [
+                135.4,
+                180.07407407407408,
+                133.77551020408163,
+                174.3,
+                120.72727272727273
+              ]
+            },
+            "median_service_time": {
+              "mean": 141.6,
+              "ci_lo": 113.4,
+              "ci_hi": 170.6,
+              "p_vs_reference": 0.9206349206349206,
+              "raw": [
+                107.0,
+                186.0,
+                120.0,
+                178.5,
+                116.5
+              ]
+            },
+            "p95_service_time": {
+              "mean": 294.4,
+              "ci_lo": 280.99999999999994,
+              "ci_hi": 306.56,
+              "p_vs_reference": 0.373015873015873,
+              "raw": [
+                295.09999999999997,
+                299.04999999999995,
+                271.59999999999997,
+                315.3,
+                290.95
+              ]
+            },
+            "max_service_time": {
+              "mean": 330.2,
+              "ci_lo": 317.6,
+              "ci_hi": 342.8,
+              "p_vs_reference": 0.3412698412698413,
+              "raw": [
+                326.0,
+                343.0,
+                317.0,
+                351.0,
+                314.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 9829.2,
+              "ci_lo": 8240.6,
+              "ci_hi": 11417.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                7863.0,
+                11647.0,
+                10301.0,
+                11747.0,
+                7588.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 7.0,
+              "ci_lo": 2.4,
+              "ci_hi": 11.6,
+              "p_vs_reference": 0.0873015873015873,
+              "raw": [
+                10.0,
+                0.0,
+                11.0,
+                1.0,
+                13.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 3.2,
+              "ci_lo": 1.6,
+              "ci_hi": 4.4,
+              "p_vs_reference": 0.047619047619047616,
+              "raw": [
+                5.0,
+                4.0,
+                3.0,
+                0.0,
+                4.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 8.0,
+              "ci_lo": 4.0,
+              "ci_hi": 11.0,
+              "p_vs_reference": 0.047619047619047616,
+              "raw": [
+                12.5,
+                10.0,
+                7.5,
+                0.0,
+                10.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 3.0,
+              "ci_lo": 2.4,
+              "ci_hi": 3.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                3.0,
+                2.0,
+                3.0,
+                3.0,
+                4.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 955.8,
+              "ci_lo": 883.0,
+              "ci_hi": 1026.4,
+              "p_vs_reference": 0.3968253968253968,
+              "raw": [
+                1044.0,
+                844.0,
+                865.0,
+                1008.0,
+                1018.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 777.0,
+              "ci_lo": 683.8,
+              "ci_hi": 879.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                831.0,
+                957.0,
+                695.0,
+                627.0,
+                775.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 222.4,
+              "ci_lo": 192.5,
+              "ci_hi": 252.3,
+              "p_vs_reference": 0.015873015873015872,
+              "raw": [
+                181.0,
+                245.5,
+                221.5,
+                274.5,
+                189.5
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 77.6,
+              "ci_lo": 51.4,
+              "ci_hi": 103.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                107.0,
+                48.0,
+                71.0,
+                45.0,
+                117.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 77.0,
+              "ci_lo": 51.2,
+              "ci_hi": 102.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                106.0,
+                48.0,
+                70.0,
+                45.0,
+                116.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.4,
+              "ci_lo": 0.0,
+              "ci_hi": 1.2,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                2.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.5635703844893352,
+              "ci_lo": 0.4647354643430406,
+              "ci_hi": 0.6476986823222439,
+              "p_vs_reference": 0.46825396825396826,
+              "raw": [
+                0.39325842696629215,
+                0.5951020408163266,
+                0.5488,
+                0.7045009784735812,
+                0.5761904761904761
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 14000.0,
+              "ci_lo": 14000.0,
+              "ci_hi": 14000.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                14000.0,
+                14000.0,
+                14000.0,
+                14000.0,
+                14000.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 1855.0,
+              "ci_lo": 751.4,
+              "ci_hi": 3055.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                3810.0,
+                605.0,
+                1015.0,
+                766.0,
+                3079.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 24806.0,
+              "ci_lo": 23964.6,
+              "ci_hi": 25647.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                23338.0,
+                24483.0,
+                25928.0,
+                24332.0,
+                25949.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 2.8442833364991884,
+              "ci_lo": 2.7713644830042767,
+              "ci_hi": 2.895651775498436,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                2.7056966525111648,
+                2.852557652495875,
+                2.9128421400014304,
+                2.8871748049920143,
+                2.8631454324954575
+              ]
+            }
+          }
+        },
+        {
+          "variant": "token_passing",
+          "n_robots": 35,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 390.6,
+              "ci_lo": 377.6,
+              "ci_hi": 406.2,
+              "p_vs_reference": 1.0,
+              "raw": [
+                380.0,
+                416.0,
+                403.0,
+                374.0,
+                380.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "median_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "max_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 44.0,
+              "ci_lo": 26.8,
+              "ci_hi": 61.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                61.0,
+                30.0,
+                42.0,
+                71.0,
+                16.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 397.0,
+              "ci_lo": 395.4,
+              "ci_hi": 398.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                399.0,
+                399.0,
+                396.0,
+                394.0,
+                397.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 1159.6,
+              "ci_lo": 929.6,
+              "ci_hi": 1378.6,
+              "p_vs_reference": 0.23809523809523808,
+              "raw": [
+                1169.0,
+                1173.0,
+                768.0,
+                1517.0,
+                1171.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 2.8,
+              "ci_lo": 2.1,
+              "ci_hi": 3.5,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                3.0,
+                3.0,
+                2.5,
+                4.0,
+                1.5
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 1.0,
+              "ci_lo": 1.0,
+              "ci_hi": 1.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 80.76689286399903,
+              "ci_lo": 63.278931226999134,
+              "ci_hi": 98.5347573704978,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                63.90258053750187,
+                108.58928398249475,
+                102.13792437750044,
+                57.98530528999947,
+                71.21937013249863
+              ]
+            }
+          }
+        },
+        {
+          "variant": "token_passing_recovery",
+          "n_robots": 35,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 390.6,
+              "ci_lo": 377.6,
+              "ci_hi": 406.2,
+              "p_vs_reference": 1.0,
+              "raw": [
+                380.0,
+                416.0,
+                403.0,
+                374.0,
+                380.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "median_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "max_service_time": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 302.8,
+              "ci_lo": 258.4,
+              "ci_hi": 347.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                255.0,
+                351.0,
+                376.0,
+                282.0,
+                250.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 368.6,
+              "ci_lo": 356.0,
+              "ci_hi": 379.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                373.0,
+                361.0,
+                346.0,
+                382.0,
+                381.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 901.8,
+              "ci_lo": 763.6,
+              "ci_hi": 1066.8,
+              "p_vs_reference": 0.31746031746031744,
+              "raw": [
+                1196.0,
+                784.0,
+                689.0,
+                873.0,
+                967.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 10.1,
+              "ci_lo": 8.2,
+              "ci_hi": 12.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                7.5,
+                11.5,
+                13.0,
+                11.0,
+                7.5
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 172.2,
+              "ci_lo": 140.8,
+              "ci_hi": 201.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                140.0,
+                192.0,
+                187.0,
+                124.0,
+                218.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 165.6,
+              "ci_lo": 134.0,
+              "ci_hi": 195.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                134.0,
+                187.0,
+                181.0,
+                116.0,
+                210.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 35.6,
+              "ci_lo": 27.8,
+              "ci_hi": 43.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                29.0,
+                47.0,
+                47.0,
+                26.0,
+                29.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 1.0,
+              "ci_lo": 1.0,
+              "ci_hi": 1.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 40.30824280399759,
+              "ci_lo": 35.22554040599721,
+              "ci_hi": 45.6379359769952,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                40.383321870002646,
+                49.64758468499269,
+                43.638117385000896,
+                32.26338163499463,
+                35.60880844499707
+              ]
+            }
+          }
+        },
+        {
+          "variant": "rhcr",
+          "n_robots": 35,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 0.2,
+              "ci_lo": 0.0,
+              "ci_hi": 0.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 390.6,
+              "ci_lo": 377.6,
+              "ci_hi": 406.2,
+              "p_vs_reference": 1.0,
+              "raw": [
+                380.0,
+                416.0,
+                403.0,
+                374.0,
+                380.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.0005,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0015,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0025,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_service_time": {
+              "mean": 8.6,
+              "ci_lo": 0.0,
+              "ci_hi": 25.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                43.0,
+                0.0,
+                0.0
+              ]
+            },
+            "median_service_time": {
+              "mean": 8.6,
+              "ci_lo": 0.0,
+              "ci_hi": 25.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                43.0,
+                0.0,
+                0.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 8.6,
+              "ci_lo": 0.0,
+              "ci_hi": 25.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                43.0,
+                0.0,
+                0.0
+              ]
+            },
+            "max_service_time": {
+              "mean": 8.6,
+              "ci_lo": 0.0,
+              "ci_hi": 25.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                43.0,
+                0.0,
+                0.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 351.6,
+              "ci_lo": 281.4,
+              "ci_hi": 443.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                349.0,
+                275.0,
+                342.0,
+                261.0,
+                531.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 395.2,
+              "ci_lo": 394.2,
+              "ci_hi": 396.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                394.0,
+                397.0,
+                395.0,
+                394.0,
+                396.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 1536.8,
+              "ci_lo": 1239.4,
+              "ci_hi": 1839.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1173.0,
+                1940.0,
+                1532.0,
+                1146.0,
+                1893.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 19.1,
+              "ci_lo": 4.6,
+              "ci_hi": 46.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                4.5,
+                4.5,
+                8.0,
+                5.0,
+                73.5
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.8057142857142857,
+              "ci_lo": 0.41714285714285715,
+              "ci_hi": 1.0,
+              "p_vs_reference": 0.1746031746031746,
+              "raw": [
+                1.0,
+                1.0,
+                0.02857142857142857,
+                1.0,
+                1.0
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 42.99545113400052,
+              "ci_lo": 35.62588856399884,
+              "ci_hi": 49.504895336001134,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                29.381371309999622,
+                44.99266444499767,
+                53.4606283825002,
+                45.947254705006344,
+                41.19533682749875
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "warehouse_medium": {
+      "robots": 40,
+      "rate": 1.5,
+      "rows": [
+        {
+          "variant": "lifelong_pibt",
+          "n_robots": 40,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 200.8,
+              "ci_lo": 194.8,
+              "ci_hi": 206.8,
+              "p_vs_reference": null,
+              "raw": [
+                198.0,
+                192.0,
+                208.0,
+                196.0,
+                210.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 601.6,
+              "ci_lo": 582.6,
+              "ci_hi": 620.6,
+              "p_vs_reference": null,
+              "raw": [
+                571.0,
+                631.0,
+                601.0,
+                585.0,
+                620.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.502,
+              "ci_lo": 0.487,
+              "ci_hi": 0.517,
+              "p_vs_reference": null,
+              "raw": [
+                0.495,
+                0.48,
+                0.52,
+                0.49,
+                0.525
+              ]
+            },
+            "mean_service_time": {
+              "mean": 138.99867041688472,
+              "ci_lo": 135.21391156462587,
+              "ci_hi": 144.5246794871795,
+              "p_vs_reference": null,
+              "raw": [
+                148.94444444444446,
+                135.64583333333334,
+                140.14423076923077,
+                135.73979591836735,
+                134.51904761904763
+              ]
+            },
+            "median_service_time": {
+              "mean": 137.3,
+              "ci_lo": 132.7,
+              "ci_hi": 144.0,
+              "p_vs_reference": null,
+              "raw": [
+                149.5,
+                133.5,
+                138.0,
+                134.5,
+                131.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 245.99999999999994,
+              "ci_lo": 242.0,
+              "ci_hi": 252.07999999999987,
+              "p_vs_reference": null,
+              "raw": [
+                257.3499999999998,
+                242.34999999999997,
+                243.29999999999995,
+                241.0,
+                246.0
+              ]
+            },
+            "max_service_time": {
+              "mean": 301.8,
+              "ci_lo": 285.8,
+              "ci_hi": 317.4,
+              "p_vs_reference": null,
+              "raw": [
+                317.0,
+                281.0,
+                277.0,
+                315.0,
+                319.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 14488.4,
+              "ci_lo": 14396.2,
+              "ci_hi": 14580.6,
+              "p_vs_reference": null,
+              "raw": [
+                14630.0,
+                14384.0,
+                14558.0,
+                14527.0,
+                14343.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 1.2,
+              "ci_lo": 0.2,
+              "ci_hi": 2.2,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                3.0,
+                2.0,
+                1.0,
+                0.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 1143.4,
+              "ci_lo": 1134.2,
+              "ci_hi": 1156.6,
+              "p_vs_reference": null,
+              "raw": [
+                1139.0,
+                1143.0,
+                1133.0,
+                1169.0,
+                1133.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 209.1304347826087,
+              "ci_lo": 207.19565217391306,
+              "ci_hi": 211.43478260869566,
+              "p_vs_reference": null,
+              "raw": [
+                208.15217391304347,
+                205.7608695652174,
+                212.93478260869566,
+                210.43478260869566,
+                208.3695652173913
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": null,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.9573977421785382,
+              "ci_lo": 0.9489564687880959,
+              "ci_hi": 0.9662811637924614,
+              "p_vs_reference": null,
+              "raw": [
+                0.9703960396039604,
+                0.9442622950819672,
+                0.952112676056338,
+                0.9681451612903226,
+                0.9520725388601037
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 16000.0,
+              "ci_lo": 16000.0,
+              "ci_hi": 16000.0,
+              "p_vs_reference": null,
+              "raw": [
+                16000.0,
+                16000.0,
+                16000.0,
+                16000.0,
+                16000.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 338.0,
+              "ci_lo": 328.2,
+              "ci_hi": 346.8,
+              "p_vs_reference": null,
+              "raw": [
+                342.0,
+                330.0,
+                322.0,
+                343.0,
+                353.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 38128.0,
+              "ci_lo": 37986.4,
+              "ci_hi": 38292.4,
+              "p_vs_reference": null,
+              "raw": [
+                38068.0,
+                38060.0,
+                38396.0,
+                37878.0,
+                38238.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 1.0282510720001028,
+              "ci_lo": 1.0107882884975652,
+              "ci_hi": 1.0538150029984763,
+              "p_vs_reference": null,
+              "raw": [
+                1.020467837501542,
+                1.023899175007159,
+                1.0060088899922448,
+                1.0120155975039324,
+                1.0788638599956357
+              ]
+            }
+          }
+        },
+        {
+          "variant": "full_lda_pibt",
+          "n_robots": 40,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 125.2,
+              "ci_lo": 98.0,
+              "ci_hi": 152.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                85.0,
+                134.0,
+                156.0,
+                158.0,
+                93.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 601.6,
+              "ci_lo": 582.6,
+              "ci_hi": 620.6,
+              "p_vs_reference": 1.0,
+              "raw": [
+                571.0,
+                631.0,
+                601.0,
+                585.0,
+                620.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.313,
+              "ci_lo": 0.24500000000000002,
+              "ci_hi": 0.381,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.2125,
+                0.335,
+                0.39,
+                0.395,
+                0.2325
+              ]
+            },
+            "mean_service_time": {
+              "mean": 149.98099834641133,
+              "ci_lo": 138.0459611981866,
+              "ci_hi": 157.6671288383103,
+              "p_vs_reference": 0.15079365079365079,
+              "raw": [
+                159.96470588235294,
+                152.65671641791045,
+                155.02564102564102,
+                155.78481012658227,
+                126.47311827956989
+              ]
+            },
+            "median_service_time": {
+              "mean": 142.6,
+              "ci_lo": 122.1,
+              "ci_hi": 155.0,
+              "p_vs_reference": 0.6825396825396826,
+              "raw": [
+                158.0,
+                150.5,
+                150.5,
+                151.0,
+                103.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 274.43,
+              "ci_lo": 265.66999999999996,
+              "ci_hi": 283.38,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                290.0,
+                266.15,
+                280.75,
+                274.45000000000005,
+                260.79999999999995
+              ]
+            },
+            "max_service_time": {
+              "mean": 329.0,
+              "ci_lo": 311.6,
+              "ci_hi": 354.4,
+              "p_vs_reference": 0.15873015873015872,
+              "raw": [
+                376.0,
+                311.0,
+                311.0,
+                333.0,
+                314.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 12409.4,
+              "ci_lo": 12199.8,
+              "ci_hi": 12619.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                12703.0,
+                12459.0,
+                12083.0,
+                12615.0,
+                12187.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 6.8,
+              "ci_lo": 2.0,
+              "ci_hi": 12.2,
+              "p_vs_reference": 0.09523809523809523,
+              "raw": [
+                11.0,
+                1.0,
+                16.0,
+                4.0,
+                2.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 14.2,
+              "ci_lo": 7.2,
+              "ci_hi": 20.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                8.0,
+                16.0,
+                25.0,
+                19.0,
+                3.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 35.5,
+              "ci_lo": 18.0,
+              "ci_hi": 52.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                20.0,
+                40.0,
+                62.5,
+                47.5,
+                7.5
+              ]
+            },
+            "starvation_flips": {
+              "mean": 3.0,
+              "ci_lo": 1.4,
+              "ci_hi": 4.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                5.0,
+                1.0,
+                3.0,
+                1.0,
+                5.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 1447.2,
+              "ci_lo": 1174.6,
+              "ci_hi": 1719.8,
+              "p_vs_reference": 0.16666666666666666,
+              "raw": [
+                1801.0,
+                1375.0,
+                1118.0,
+                1131.0,
+                1811.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 409.8,
+              "ci_lo": 390.4,
+              "ci_hi": 436.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                460.0,
+                412.0,
+                402.0,
+                390.0,
+                385.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 180.30434782608694,
+              "ci_lo": 168.91304347826087,
+              "ci_hi": 190.76086956521738,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                170.54347826086956,
+                184.2391304347826,
+                188.15217391304347,
+                196.6304347826087,
+                161.95652173913044
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 45.2,
+              "ci_lo": 26.0,
+              "ci_hi": 68.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                16.0,
+                38.0,
+                88.0,
+                54.0,
+                30.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 44.4,
+              "ci_lo": 25.2,
+              "ci_hi": 66.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                15.0,
+                38.0,
+                86.0,
+                54.0,
+                29.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.8271889985478712,
+              "ci_lo": 0.7581222786495184,
+              "ci_hi": 0.896255718446224,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.7372448979591837,
+                0.850189393939394,
+                0.9162650602409639,
+                0.8992795389048991,
+                0.7329661016949153
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 16000.0,
+              "ci_lo": 16000.0,
+              "ci_hi": 16000.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                16000.0,
+                16000.0,
+                16000.0,
+                16000.0,
+                16000.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 1030.8,
+              "ci_lo": 817.6,
+              "ci_hi": 1283.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1436.0,
+                914.0,
+                892.0,
+                695.0,
+                1217.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 35366.2,
+              "ci_lo": 33490.8,
+              "ci_hi": 37037.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                32164.0,
+                36060.0,
+                37645.0,
+                36918.0,
+                34044.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 4.361775661499564,
+              "ci_lo": 4.092495660998793,
+              "ci_hi": 4.631055662000335,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                3.914904237496444,
+                4.465709655006549,
+                4.667368037495407,
+                4.6774162900021565,
+                4.083480087497264
+              ]
+            }
+          }
+        },
+        {
+          "variant": "token_passing",
+          "n_robots": 40,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 1.6,
+              "ci_lo": 0.6,
+              "ci_hi": 2.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                1.0,
+                3.0,
+                2.0,
+                2.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 601.6,
+              "ci_lo": 582.6,
+              "ci_hi": 620.6,
+              "p_vs_reference": 1.0,
+              "raw": [
+                571.0,
+                631.0,
+                601.0,
+                585.0,
+                620.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.004,
+              "ci_lo": 0.0015,
+              "ci_hi": 0.006,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0025,
+                0.0075,
+                0.005,
+                0.005
+              ]
+            },
+            "mean_service_time": {
+              "mean": 49.86666666666666,
+              "ci_lo": 22.0,
+              "ci_hi": 78.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                58.0,
+                99.33333333333333,
+                37.0,
+                55.0
+              ]
+            },
+            "median_service_time": {
+              "mean": 52.4,
+              "ci_lo": 22.2,
+              "ci_hi": 86.2,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                58.0,
+                112.0,
+                37.0,
+                55.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 60.32000000000001,
+              "ci_lo": 25.419999999999998,
+              "ci_hi": 95.32000000000001,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                58.0,
+                116.5,
+                38.8,
+                88.3
+              ]
+            },
+            "max_service_time": {
+              "mean": 61.2,
+              "ci_lo": 26.2,
+              "ci_hi": 96.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                58.0,
+                117.0,
+                39.0,
+                92.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 396.6,
+              "ci_lo": 332.6,
+              "ci_hi": 478.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                330.0,
+                349.0,
+                433.0,
+                544.0,
+                327.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 397.8,
+              "ci_lo": 395.6,
+              "ci_hi": 399.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                400.0,
+                399.0,
+                394.0,
+                396.0,
+                400.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 761.0,
+              "ci_lo": 249.0,
+              "ci_hi": 1418.8,
+              "p_vs_reference": 0.12698412698412698,
+              "raw": [
+                1118.0,
+                389.0,
+                380.0,
+                48.0,
+                1870.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 6.130434782608695,
+              "ci_lo": 5.260869565217392,
+              "ci_hi": 7.1521739130434785,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                5.326086956521739,
+                5.869565217391305,
+                6.413043478260869,
+                8.152173913043478,
+                4.891304347826087
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.24,
+              "ci_lo": 0.04,
+              "ci_hi": 0.625,
+              "p_vs_reference": 0.047619047619047616,
+              "raw": [
+                1.0,
+                0.025,
+                0.075,
+                0.05,
+                0.05
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 222.19649262849862,
+              "ci_lo": 205.53889341000036,
+              "ci_hi": 238.85409184699688,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                247.067204439993,
+                220.51562420499522,
+                199.85025385000256,
+                239.81021307500157,
+                203.73916757250075
+              ]
+            }
+          }
+        },
+        {
+          "variant": "token_passing_recovery",
+          "n_robots": 40,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 10.8,
+              "ci_lo": 5.6,
+              "ci_hi": 16.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                10.0,
+                2.0,
+                20.0,
+                14.0,
+                8.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 601.6,
+              "ci_lo": 582.6,
+              "ci_hi": 620.6,
+              "p_vs_reference": 1.0,
+              "raw": [
+                571.0,
+                631.0,
+                601.0,
+                585.0,
+                620.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.027000000000000003,
+              "ci_lo": 0.014000000000000002,
+              "ci_hi": 0.041,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.025,
+                0.005,
+                0.05,
+                0.035,
+                0.02
+              ]
+            },
+            "mean_service_time": {
+              "mean": 144.9192857142857,
+              "ci_lo": 89.20357142857142,
+              "ci_hi": 209.7442857142857,
+              "p_vs_reference": 0.8968253968253969,
+              "raw": [
+                254.5,
+                66.0,
+                187.65,
+                97.57142857142857,
+                118.875
+              ]
+            },
+            "median_service_time": {
+              "mean": 157.8,
+              "ci_lo": 90.1,
+              "ci_hi": 244.9,
+              "p_vs_reference": 0.7698412698412699,
+              "raw": [
+                310.0,
+                66.0,
+                194.5,
+                100.0,
+                118.5
+              ]
+            },
+            "p95_service_time": {
+              "mean": 221.09,
+              "ci_lo": 127.75999999999999,
+              "ci_hi": 314.41999999999996,
+              "p_vs_reference": 0.6904761904761905,
+              "raw": [
+                350.04999999999995,
+                74.10000000000001,
+                339.40000000000003,
+                148.7,
+                193.2
+              ]
+            },
+            "max_service_time": {
+              "mean": 227.2,
+              "ci_lo": 134.4,
+              "ci_hi": 320.0,
+              "p_vs_reference": 0.19047619047619047,
+              "raw": [
+                355.0,
+                75.0,
+                347.0,
+                163.0,
+                196.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 1345.4,
+              "ci_lo": 906.6,
+              "ci_hi": 1743.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1660.0,
+                593.0,
+                1988.0,
+                1392.0,
+                1094.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 270.6,
+              "ci_lo": 173.4,
+              "ci_hi": 358.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                119.0,
+                398.0,
+                175.0,
+                335.0,
+                326.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 547.4,
+              "ci_lo": 292.6,
+              "ci_hi": 742.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                782.0,
+                63.0,
+                765.0,
+                509.0,
+                618.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 19.913043478260867,
+              "ci_lo": 14.021739130434781,
+              "ci_hi": 24.93478260869565,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                23.152173913043477,
+                10.326086956521738,
+                28.26086956521739,
+                21.847826086956523,
+                15.978260869565217
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 316.8,
+              "ci_lo": 180.4,
+              "ci_hi": 459.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                538.0,
+                89.0,
+                457.0,
+                224.0,
+                276.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 307.8,
+              "ci_lo": 172.0,
+              "ci_hi": 449.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                528.0,
+                80.0,
+                447.0,
+                216.0,
+                268.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 61.8,
+              "ci_lo": 37.8,
+              "ci_hi": 85.8,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                94.0,
+                23.0,
+                93.0,
+                44.0,
+                55.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.21458333333333335,
+              "ci_lo": 0.11791666666666667,
+              "ci_hi": 0.30583333333333335,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.25,
+                0.05,
+                0.3333333333333333,
+                0.30625,
+                0.13333333333333333
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 191.2148724655035,
+              "ci_lo": 171.62943770400398,
+              "ci_hi": 214.46119258450312,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                192.21245824500784,
+                192.5715032575033,
+                165.79122424250727,
+                168.20201253499476,
+                237.29716404750434
+              ]
+            }
+          }
+        },
+        {
+          "variant": "rhcr",
+          "n_robots": 40,
+          "seeds": 5,
+          "collision_free": true,
+          "fields": {
+            "completed_tasks": {
+              "mean": 5.8,
+              "ci_lo": 2.2,
+              "ci_hi": 9.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                12.0,
+                2.0,
+                9.0,
+                1.0,
+                5.0
+              ]
+            },
+            "released_tasks": {
+              "mean": 601.6,
+              "ci_lo": 582.6,
+              "ci_hi": 620.6,
+              "p_vs_reference": 1.0,
+              "raw": [
+                571.0,
+                631.0,
+                601.0,
+                585.0,
+                620.0
+              ]
+            },
+            "throughput": {
+              "mean": 0.014499999999999999,
+              "ci_lo": 0.0055,
+              "ci_hi": 0.0235,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.03,
+                0.005,
+                0.0225,
+                0.0025,
+                0.0125
+              ]
+            },
+            "mean_service_time": {
+              "mean": 38.74111111111111,
+              "ci_lo": 30.96,
+              "ci_hi": 45.35,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                43.083333333333336,
+                36.0,
+                49.22222222222222,
+                24.0,
+                41.4
+              ]
+            },
+            "median_service_time": {
+              "mean": 39.9,
+              "ci_lo": 31.2,
+              "ci_hi": 47.1,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                43.5,
+                36.0,
+                47.0,
+                24.0,
+                49.0
+              ]
+            },
+            "p95_service_time": {
+              "mean": 48.440000000000005,
+              "ci_lo": 35.44,
+              "ci_hi": 58.86,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                54.9,
+                45.9,
+                64.80000000000001,
+                24.0,
+                52.6
+              ]
+            },
+            "max_service_time": {
+              "mean": 49.2,
+              "ci_lo": 35.6,
+              "ci_hi": 60.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                56.0,
+                47.0,
+                66.0,
+                24.0,
+                53.0
+              ]
+            },
+            "total_travel_distance": {
+              "mean": 936.6,
+              "ci_lo": 779.6,
+              "ci_hi": 1093.6,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                1128.0,
+                944.0,
+                1134.0,
+                806.0,
+                671.0
+              ]
+            },
+            "max_waiting_time": {
+              "mean": 396.4,
+              "ci_lo": 395.6,
+              "ci_hi": 397.4,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                398.0,
+                396.0,
+                396.0,
+                397.0,
+                395.0
+              ]
+            },
+            "direction_switches": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "direction_switches_per_1000": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "starvation_flips": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "head_on_conflicts": {
+              "mean": 1949.2,
+              "ci_lo": 1708.4,
+              "ci_hi": 2190.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                2246.0,
+                1489.0,
+                1853.0,
+                2300.0,
+                1858.0
+              ]
+            },
+            "counterflow_moves": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "aisle_throughput_per_1000": {
+              "mean": 11.978260869565217,
+              "ci_lo": 8.782608695652174,
+              "ci_hi": 15.26086956521739,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                17.065217391304348,
+                10.217391304347826,
+                15.76086956521739,
+                7.5,
+                9.347826086956522
+              ]
+            },
+            "deadlocks_detected": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_recovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "deadlocks_unrecovered": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 1.0,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "jain_fairness": {
+              "mean": 0.145,
+              "ci_lo": 0.05500000000000001,
+              "ci_hi": 0.23500000000000001,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.3,
+                0.05,
+                0.225,
+                0.025,
+                0.125
+              ]
+            },
+            "pibt_recursive_calls": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "pibt_backtracks": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "candidate_evaluations": {
+              "mean": 0.0,
+              "ci_lo": 0.0,
+              "ci_hi": 0.0,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            "mean_runtime_ms_per_step": {
+              "mean": 97.93992045150071,
+              "ci_lo": 83.93989810600624,
+              "ci_hi": 111.93994279699518,
+              "p_vs_reference": 0.007936507936507936,
+              "raw": [
+                75.5824775250062,
+                118.37569153501023,
+                88.16066562250853,
+                115.36756333997688,
+                92.21320423500174
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
