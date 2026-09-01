@@ -14,14 +14,17 @@ changed nothing was deleted rather than left at a default. The evidence is in
 
 Aisleflow is measured against three published lifelong planners, each
 implemented from its paper: **Token Passing** and **Token Passing with Task
-Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). The verdict
-is a split decision: aisleflow leads on the two floors with the least room to
-manoeuvre, and **RHCR beats it on the other two**.
-Token Passing falls away as the floor fills, for a reason its own paper
-gives: it is complete only on *well-formed* MAPD instances — one parking
-endpoint per agent — and none of these maps provides that at these robot
-counts. [The density sweep](docs/05-results.md) shows all four planners level
-on a quiet floor and separating as it crowds, which is the honest shape of the
+Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). Against the
+two Token Passing variants it is ahead everywhere. Against **RHCR it is not**:
+the two are within noise of each other on three of the four floors, and RHCR
+is measurably ahead on the fourth (484 tasks per 1000 timesteps against 416,
+p = 0.008).
+
+Token Passing falls away as the floor fills, for a reason its own paper gives:
+it is complete only on *well-formed* MAPD instances — one parking endpoint per
+agent — and none of these maps provides that at these robot counts.
+[The density sweep](docs/05-results.md) shows every planner level on a quiet
+floor and separating as it crowds, which is the honest shape of the
 comparison.
 
 None of that is the comparison that decides whether this project earned

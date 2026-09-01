@@ -30,12 +30,18 @@ Three published lifelong (MAPD) planners, each implemented from its paper in
 *Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `0930d9a`.*
 <!-- /generated:headline -->
 
-**What to look for:** this is a split decision, not a sweep. **RHCR beats
-aisleflow on two of the four floors** — 484 tasks per 1000 timesteps against
-416 on `medium`, and 158 against 147 on `bottleneck`. Aisleflow is ahead on
-the two floors where a robot that meets another one has the least room to
-manoeuvre: `corridors`, five 22-cell single-file runs, and `narrow`, whose
-aisles are seven cells deep with one cross-lane.
+**What to look for:** this is a split decision, not a sweep, and most of it is
+not even a decision. **RHCR beats aisleflow on two of the four floors** — 484
+tasks per 1000 timesteps against 416 on `medium`, and 158 against 147 on
+`bottleneck` — while aisleflow is ahead on `corridors` and `narrow`. But at
+five seeds only one of those four differences separates: `medium`, where RHCR
+is ahead at p = 0.008. On the other three the permutation test returns p =
+0.33, 0.14 and 0.33, and the figure marks them `n.s.`
+
+The defensible statement is therefore: **aisleflow and RHCR are within noise
+of each other on three of these four floors, and RHCR is measurably better on
+the fourth.** Against Token Passing and TPTS aisleflow is ahead everywhere,
+and the next figure is about how much that is worth.
 
 Token Passing delivers nothing at all on `corridors`, which is a fact about
 that map rather than about the algorithm: it has no parking bays, so with 35

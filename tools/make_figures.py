@@ -327,6 +327,9 @@ def figure_vs_baselines():
     """Throughput per map: aisleflow against Token Passing, TPTS and RHCR."""
     import matplotlib.pyplot as plt
 
+    sys.path.insert(0, str(ROOT / "src"))
+    from lda_pibt.stats import permutation_test
+
     payload = load("baselines")
     maps = [m for m in MAP_ORDER if m in payload["maps"]]
     series = [(AISLEFLOW, "aisleflow")] + PUBLISHED_RIVALS
@@ -337,21 +340,33 @@ def figure_vs_baselines():
     width = group / len(series)
 
     for index, ((variant, label), colour) in enumerate(zip(series, colours)):
-        centres, values, lows, highs = [], [], [], []
+        centres, values, lows, highs, notes = [], [], [], [], []
         for position, map_name in enumerate(maps):
             entry = _throughput(payload, map_name, variant)
             if entry is None:
                 continue
-            mean, lo, hi, _ = entry
+            mean, lo, hi, seeds = entry
             centres.append(position - group / 2 + width * (index + 0.5))
             values.append(mean)
             lows.append(max(0.0, mean - lo))
             highs.append(max(0.0, hi - mean))
+            # five seeds is thin, and three of these four maps do not
+            # actually separate aisleflow from its nearest rival. A bar chart
+            # that shows only the means invites reading a 147-against-158 as a
+            # result, so every rival bar carries its own test against ours.
+            if variant == AISLEFLOW or mean <= 0:
+                # a shutout bar already carries the footnote marker, and a
+                # p-value stacked on top of it collides with the marker
+                notes.append("")
+            else:
+                ours = _throughput(payload, map_name, AISLEFLOW)[3]
+                _, p_value = permutation_test(ours, seeds)
+                notes.append("n.s." if p_value >= 0.05 else f"p={p_value:.3f}")
         ax.bar(centres, values, width=width * 0.88, color=colour, zorder=3,
                label=label)
         ax.errorbar(centres, values, yerr=[lows, highs], fmt="none",
                     ecolor=INK_2, elinewidth=1.0, capsize=2.5, zorder=4)
-        for x, value, high in zip(centres, values, highs):
+        for x, value, high, note in zip(centres, values, highs, notes):
             # a planner that delivered 0.4 per 1000 is not the same finding as
             # one that delivered nothing, and `:.0f` prints them identically
             text = f"{value:.1f}" if 0 < value < 1 else f"{value:.0f}"
@@ -359,6 +374,10 @@ def figure_vs_baselines():
                         textcoords="offset points", xytext=(0, 4), ha="center",
                         fontsize=8, color=INK,
                         fontweight="bold" if variant == AISLEFLOW else "normal")
+            if note:
+                ax.annotate(note, (x, value + high), textcoords="offset points",
+                            xytext=(0, 14), ha="center", fontsize=6.4,
+                            color=MUTED if note == "n.s." else INK_2)
         # a bar at zero is the one bar a reader is entitled to an explanation
         # for on the figure itself rather than three paragraphs away
         for x, value in zip(centres, values):
@@ -419,6 +438,9 @@ def figure_vs_baselines():
         "map.\nWhiskers are 95% bootstrap intervals over "
         f"{payload['meta']['seeds']} seeds. Each map is a different traffic "
         "problem, named under its bars; compare planners within a map.\n"
+        "Above each rival bar is a permutation test against aisleflow on the "
+        "same seeds: `n.s.` means the two are not separated at p < 0.05, which "
+        "at five seeds is most of them.\n"
         "Token Passing and TPTS are complete only on well-formed MAPD "
         "instances -- one parking endpoint per agent -- which none of these "
         "floors provides at these robot counts. The next figure sweeps\nthe "
