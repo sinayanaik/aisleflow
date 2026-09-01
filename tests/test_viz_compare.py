@@ -33,7 +33,7 @@ def panels():
         )
         for variant, title in (
             ("lifelong_pibt", "plain PIBT"),
-            ("aisle_direction_only", "TOLL"),
+            ("aisle_direction_only", "SPAR"),
         )
     ]
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aisleflow"
 version = "0.1.0"
-description = "TOLL: an implementation and benchmark of TOLL-PIBT, a directional and congestion-aware extension of PIBT for multi-agent pickup and delivery"
+description = "SPAR: an implementation and benchmark of SPAR-PIBT, a directional and congestion-aware extension of PIBT for multi-agent pickup and delivery"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

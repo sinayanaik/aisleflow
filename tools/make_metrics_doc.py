@@ -2,7 +2,7 @@
 """Write ``docs/metrics.md`` -- what every reported number means, from the data.
 
 The project reports about twenty quantities across five suites, and the honest
-answer to "is TOLL-PIBT better?" is different for each of them. Three of the
+answer to "is SPAR-PIBT better?" is different for each of them. Three of the
 twenty are actively misleading if read alone: mean service time is censored,
 total travel distance confounds efficiency with how much got delivered, and any
 raw count scales with how long the run lasted rather than with how well it went.
@@ -36,8 +36,8 @@ MAP_ORDER = ["warehouse_bottleneck", "warehouse_corridors",
              "warehouse_narrow", "warehouse_medium"]
 AISLE_SHAPED = {"warehouse_bottleneck", "warehouse_corridors"}
 
-#: the configuration this guide reports as "TOLL-PIBT": the best-throughput
-#: TOLL configuration on every map in this dataset, and the one the headline
+#: the configuration this guide reports as "SPAR-PIBT": the best-throughput
+#: SPAR configuration on every map in this dataset, and the one the headline
 #: figure uses
 OURS = "aisle_direction_only"
 BASE = "lifelong_pibt"
@@ -78,7 +78,7 @@ def compare(
 ) -> List[str]:
     """One markdown table: our number, plain PIBT's, the delta and a p-value."""
     out = [
-        "| map | TOLL-PIBT | plain PIBT | difference | p | |",
+        "| map | SPAR-PIBT | plain PIBT | difference | p | |",
         "|---|---:|---:|---:|---:|---|",
     ]
     for map_name in MAP_ORDER:
@@ -126,7 +126,8 @@ def headon_per_1000(row: Dict[str, Any], steps: int = 400) -> List[float]:
 
 def baseline_table(baselines: Dict[str, Any]) -> List[str]:
     out = [
-        "| map | planner | throughput | ms/step | p vs plain PIBT |",
+        "| map | planner | throughput (per 1000 steps) | ms/step | "
+        "p vs plain PIBT |",
         "|---|---|---:|---:|---:|",
     ]
     for map_name in MAP_ORDER:
@@ -136,7 +137,7 @@ def baseline_table(baselines: Dict[str, Any]) -> List[str]:
             fields = row["fields"]
             out.append(
                 f"| {short(map_name)} | `{row['variant']}` | "
-                f"{fields['throughput']['mean']:.3f} | "
+                f"{1000 * fields['throughput']['mean']:.0f} | "
                 f"{fields['mean_runtime_ms_per_step']['mean']:.1f} | "
                 f"{fmt_p(fields['throughput']['p_vs_reference'])} |"
             )
@@ -148,7 +149,10 @@ def baseline_table(baselines: Dict[str, Any]) -> List[str]:
 # --------------------------------------------------------------------------
 
 CATALOGUE = [
-    ("`throughput`", "higher", "Tasks delivered per timestep. The primary objective.",
+    ("`throughput`", "higher",
+     "Tasks delivered per timestep — the primary objective. Reported "
+     "**per 1000 timesteps** everywhere it is shown, so 149 means 149 tasks "
+     "out of every 1000 steps.",
      "Nothing, in this regime — but see the saturation note above: it measures "
      "the floor's *capacity*, not how busy the robots were."),
     ("`completed_tasks`", "higher", "Total deliveries over the run.",
@@ -213,7 +217,7 @@ CATALOGUE = [
     ("`pibt_recursive_calls` / `pibt_backtracks`", "lower",
      "How much work the priority-inheritance recursion did.",
      "Effort, not quality. Divide by `completed_tasks` for effort per delivery. "
-     "TOLL-PIBT's backtracks rise sharply — that is the aisle layer making PIBT "
+     "SPAR-PIBT's backtracks rise sharply — that is the aisle layer making PIBT "
      "work harder, and it is a real cost."),
     ("`mean_runtime_ms_per_step`", "lower", "Wall-clock cost of one planning step.",
      "Machine- and load-dependent in absolute terms; quote the *ratios* between "
@@ -246,10 +250,10 @@ def build() -> Path:
         "(`python3 tools/make_metrics_doc.py`), so its numbers cannot drift "
         "from the dataset.")
     add("")
-    add("Throughout: **TOLL-PIBT** is the `aisle_direction_only` configuration "
-        "(the best-throughput TOLL configuration on every map in this dataset, "
+    add("Throughout: **SPAR-PIBT** is the `aisle_direction_only` configuration "
+        "(the best-throughput SPAR configuration on every map in this dataset, "
         "and the one the headline figure uses), **plain PIBT** is "
-        "`lifelong_pibt`, and ★ marks the two aisle-shaped maps the method is "
+        "`lifelong_pibt`, and ★ marks the two aisle-constrained maps the method is "
         "designed for. `p` is a two-sided permutation test over the same five "
         "seeds; **bold** is p < 0.05.")
     add("")
@@ -260,9 +264,9 @@ def build() -> Path:
         "can serve them — between an eighth and a third of offered demand gets "
         "delivered — so the backlog grows for the whole run. Throughput is "
         "therefore not \"how busy the fleet was\"; it is the floor's *service "
-        "capacity* under that planner. That is why 0.50 against 0.31 tasks per "
-        "timestep is a 61% difference in warehouse capacity and not a rounding "
-        "error.")
+        "capacity* under that planner. That is why 502 against 313 tasks per "
+        "1000 timesteps is a 61% difference in warehouse capacity and not a "
+        "rounding error.")
     add("")
     add("**Five seeds is a thin sample.** With five values a side the exact "
         "permutation test has C(10,5) = 252 label splits, so **the smallest "
@@ -273,7 +277,7 @@ def build() -> Path:
 
     add("---")
     add("")
-    add("## The three metrics where TOLL-PIBT shines")
+    add("## The three metrics where SPAR-PIBT shines")
     add("")
     add("Not the metrics that flatter it most — the ones where the advantage is "
         "*significant, consistent, and caused by the mechanism the method is "
@@ -289,14 +293,14 @@ def build() -> Path:
         "reversing, so the same delivery costs less driving.")
     add("")
     add("It has to be the *ratio*. Raw `total_travel_distance` is lower for "
-        "TOLL-PIBT on every map — including the ones where it delivers less — "
+        "SPAR-PIBT on every map — including the ones where it delivers less — "
         "because a planner that delivers less also drives less. Dividing by "
         "deliveries removes that confound, and the result splits cleanly along "
         "the design boundary:")
     add("")
     lines.extend(compare(ablation, travel_per_task, digits=1))
     add("")
-    add("**About a quarter less driving per delivery on both aisle-shaped maps, "
+    add("**About a quarter less driving per delivery on both aisle-constrained maps, "
         "significant on both.** And it reverses on the open maps — the same "
         "story the throughput numbers tell: where aisles are not scarce, a "
         "committed direction only buys detours. One metric, both halves of the "
@@ -323,7 +327,7 @@ def build() -> Path:
     add("### 3. Throughput against the published baselines — the decisive win")
     add("")
     add("**`throughput` vs Token Passing and RHCR.** Against plain PIBT the "
-        "aisle layer is ahead on aisle-shaped maps and behind on open ones, and "
+        "aisle layer is ahead on aisle-constrained maps and behind on open ones, and "
         "at five seeds neither win is significant. Against the two published "
         "lifelong baselines there is no such ambiguity: every cell is "
         "significant at the floor of the test, and the margin is two orders of "
@@ -337,7 +341,7 @@ def build() -> Path:
         "configuration is absorbing. That is the structural failure priority "
         "inheritance exists to remove, and "
         "[the first animation](gifs/01-token-passing-gridlock.gif) shows it "
-        "beside the same scenario under TOLL-PIBT.")
+        "beside the same scenario under SPAR-PIBT.")
     add("")
     add("This margin belongs to the PIBT family rather than to the aisle layer "
         "specifically — plain PIBT wins it too. It is here because it is the "
@@ -357,7 +361,7 @@ def build() -> Path:
         "further before they resolve. This is the cost side of pricing rather "
         "than forbidding, and it is the largest one.")
     add("")
-    add("Also: **planner runtime** rises from 0.4–1.0 ms per step to 1.4–4.4 "
+    add("Also: **planner runtime** rises from 0.4–1.0 ms per step to 0.6–2.0 "
         "(significant on every map), and **throughput on the two open maps** is "
         "18–19% below plain PIBT (p = 0.016 and 0.008). The full picture is in "
         "[`dashboard.html`](dashboard.html) and "
@@ -399,7 +403,7 @@ def build() -> Path:
     add("- [`dashboard.html`](dashboard.html) — every metric, every map, "
         "interactively, with the interval and p-value on each bar")
     add("- [`figures/`](figures/) — the eight result figures")
-    add("- [`pdf/toll-paper.pdf`](pdf/toll-paper.pdf) — the paper, whose results "
+    add("- [`pdf/spar-paper.pdf`](pdf/spar-paper.pdf) — the paper, whose results "
         "section is built from this same dataset")
 
     OUT.write_text("\n".join(lines) + "\n")

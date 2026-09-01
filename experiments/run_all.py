@@ -157,7 +157,7 @@ def suite_ablation(seeds: int, horizon: int) -> Dict[str, Any]:
 
 
 def suite_baselines(seeds: int, horizon: int) -> Dict[str, Any]:
-    """TOLL against the two literature baselines, with CIs and p-values."""
+    """SPAR against the two literature baselines, with CIs and p-values."""
     scenarios = scenarios_for(BASELINE_MAPS)
     payload: Dict[str, Any] = {
         "meta": header("baselines", seeds, horizon, scenarios),

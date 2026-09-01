@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>TOLL &mdash; MAPF project review</title>
+<title>SPAR &mdash; MAPF project review</title>
 <!--
   The editable source of docs/pdf/aisleflow-mapf-presentation.pdf.
 
@@ -199,7 +199,7 @@
 <!-- ==================================================================== 1 -->
 <section class="slide title-slide" data-slug="title" data-num="1">
   <p class="eyebrow">Multi-agent path finding &middot; project review</p>
-  <h1>TOLL</h1>
+  <h1>SPAR</h1>
   <div class="rule"></div>
   <p class="sub">Forty years of multi-agent path finding, the warehouse problem
      it grew into, and what a directional, congestion-aware lifelong planner
@@ -210,8 +210,8 @@
     <div class="stat"><div class="n small">0</div><div class="l">runtime dependencies</div></div>
   </div>
   <div class="foot">
-    <b>TOLL-PIBT</b> &mdash; Lifelong Aisle-Managed Priority Inheritance with
-    Backtracking. TOLL is the implementation; TOLL-PIBT is the algorithm.
+    <b>SPAR-PIBT</b> &mdash; Lifelong Aisle-Managed Priority Inheritance with
+    Backtracking. SPAR is the implementation; SPAR-PIBT is the algorithm.
   </div>
   <aside class="notes">
     <p>Set the frame before any detail: this is a review of a research
@@ -239,7 +239,7 @@
       <li>
         <h3>What problem were we solving?</h3>
         <p>Warehouse aisles are narrow and effectively one-way. PIBT is
-           direction-blind. TOLL-PIBT adds an aisle layer that decides direction,
+           direction-blind. SPAR-PIBT adds an aisle layer that decides direction,
            and a recovery layer that survives it.</p>
       </li>
       <li>
@@ -738,7 +738,7 @@
     </table>
   </div>
   <div class="foot">
-    TOLL lives on the bottom row. The question the project asks: can a
+    SPAR lives on the bottom row. The question the project asks: can a
     warehouse-aware layer on top of a greedy planner <b>buy back</b> some of the
     quality the greedy choice gave away?
   </div>
@@ -956,7 +956,7 @@
       <div>
         <p class="pull">Robots generate directional requests, but aisles make
           directional decisions.
-          <span class="src">the architectural commitment of TOLL-PIBT,
+          <span class="src">the architectural commitment of SPAR-PIBT,
             stated verbatim in the code</span></p>
       </div>
     </div>
@@ -1234,7 +1234,7 @@
     </div>
   </div>
   <div class="foot">
-    Worth <b>0.022 &rarr; 0.134 tasks/step</b> on
+    Worth <b>22 &rarr; 134 tasks per 1000 steps</b> on
     <span class="mono">warehouse_corridors</span>. Levels 5&ndash;7 are
     destructive when nothing is actually stuck.
   </div>
@@ -1295,9 +1295,9 @@
     </div>
   </div>
   <div class="foot">
-    Measured on <span class="mono">corridors</span> 0.084 &rarr; 0.158,
-    <span class="mono">narrow</span> 0.112 &rarr; 0.304,
-    <span class="mono">medium</span> 0.161 &rarr; 0.405 tasks/step;
+    Measured on <span class="mono">corridors</span> 84 &rarr; 158,
+    <span class="mono">narrow</span> 112 &rarr; 304,
+    <span class="mono">medium</span> 161 &rarr; 405 tasks per 1000 steps;
     <b>p = 0.008</b> on each.
   </div>
   <aside class="notes">
@@ -1450,18 +1450,18 @@
 
 <!-- =================================================================== 31 -->
 <section class="slide" data-slug="result-lda" data-num="31">
-  <p class="eyebrow">Result 1 &middot; where TOLL-PIBT lands</p>
+  <p class="eyebrow">Result 1 &middot; where SPAR-PIBT lands</p>
   <h2 class="wide">The aisle layer wins where corridors are the constraint</h2>
   <div class="body">
     <div class="cols3">
       <div class="card warm">
         <h3>bottleneck</h3>
-        <p><span class="mono">full_lda_pibt</span> now wins: 0.14 vs 0.13,
+        <p><span class="mono">full_lda_pibt</span> now wins: 145 vs 118 tasks per 1000 steps,
            <b>p = 0.016</b>.</p>
       </div>
       <div class="card">
         <h3>corridors</h3>
-        <p>Ties, where it used to lose 0.02 to 0.16.</p>
+        <p>Ties, where it used to lose 20 to 160 tasks per 1000 steps.</p>
       </div>
       <div class="card">
         <h3>medium and narrow</h3>
@@ -1494,17 +1494,17 @@
       <div class="card">
         <h3 style="color:var(--good)">Aisle direction alone</h3>
         <p style="font-size:26px;color:var(--ink);font-family:var(--mono)">
-          0.337 &rarr; 0.405</p>
+          337 &rarr; 405</p>
       </div>
       <div class="card">
         <h3 style="color:var(--bad)">Entry admission alone</h3>
         <p style="font-size:26px;color:var(--ink);font-family:var(--mono)">
-          0.337 &rarr; 0.262</p>
+          337 &rarr; 262</p>
       </div>
       <div class="card">
         <h3 style="color:var(--bad)">Both together</h3>
         <p style="font-size:26px;color:var(--ink);font-family:var(--mono)">
-          0.217</p>
+          217</p>
       </div>
     </div>
   </div>
@@ -1598,13 +1598,13 @@
     <ol class="steps">
       <li>
         <h3>Direction ranks candidates instead of rejecting them</h3>
-        <p>The largest effect in the repository: 0.084 &rarr; 0.158 on corridors,
-           0.112 &rarr; 0.304 on narrow, 0.161 &rarr; 0.405 on medium,
+        <p>The largest effect in the repository: 84 &rarr; 158 on corridors,
+           112 &rarr; 304 on narrow, 161 &rarr; 405 on medium,
            p = 0.008 on each.</p>
       </li>
       <li>
         <h3>Recovery escalates only on a corroborated stall</h3>
-        <p>0.022 &rarr; 0.134 tasks/step on
+        <p>22 &rarr; 134 tasks per 1000 steps on
            <span class="mono">warehouse_corridors</span> &mdash; invisible
            before, because the hard constraints were manufacturing the deadlocks
            recovery was rescuing.</p>
@@ -1621,7 +1621,7 @@
   <div class="foot">
     Coordinated direction assignment across parallel aisles &mdash; the last
     review's most promising fix &mdash; is implemented, and measures
-    <b>&plusmn;0.011</b>.
+    <b>&plusmn;11 tasks per 1000 steps</b>.
   </div>
   <aside class="notes">
     <p>The footer deserves a sentence out loud: the fix we expected most from

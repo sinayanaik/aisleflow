@@ -185,7 +185,7 @@ def _format_table(rows: List[dict]) -> str:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lda_pibt",
-        description="TOLL-PIBT: tolled one-way lanes for lifelong warehouse MAPD",
+        description="SPAR-PIBT: soft-priced aisle reversal for lifelong warehouse MAPD",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

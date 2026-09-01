@@ -94,10 +94,10 @@ DESIGNED_FOR = {"warehouse_bottleneck", "warehouse_corridors"}
 
 VARIANT_LABEL = {
     "lifelong_pibt": "plain lifelong PIBT",
-    "full_lda_pibt": "TOLL (full)",
-    "aisle_direction_only": "TOLL (aisle direction)",
+    "full_lda_pibt": "SPAR (full)",
+    "aisle_direction_only": "SPAR (aisle direction)",
     "hysteresis_pibt": "PIBT + hysteresis",
-    "aisle_managed_pibt": "TOLL (aisle managed)",
+    "aisle_managed_pibt": "SPAR (aisle managed)",
     "directional_pibt": "PIBT + robot direction",
     "token_passing": "Token Passing",
     "token_passing_recovery": "Token Passing + recovery",
@@ -135,6 +135,33 @@ def short_map(name: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# units
+#
+# The experiment records throughput as tasks per timestep, which puts every
+# interesting number in this project between 0.001 and 0.5 and makes two
+# planners three decimals apart look identical at a glance. Every figure
+# reports the same quantity per 1000 timesteps instead: same measurement,
+# same ratios, integers a reader can hold in their head.
+# --------------------------------------------------------------------------
+
+THROUGHPUT_UNIT = "tasks delivered per 1000 timesteps"
+
+
+def per_1000(value: float) -> float:
+    return 1000.0 * value
+
+
+#: how each map is classified in the argument, printed next to its name so a
+#: reader never has to remember which of the four is which
+MAP_CLASS = {
+    "warehouse_bottleneck": "aisle-constrained",
+    "warehouse_corridors": "aisle-constrained",
+    "warehouse_narrow": "open floor",
+    "warehouse_medium": "open floor",
+}
+
+
+# --------------------------------------------------------------------------
 # data
 # --------------------------------------------------------------------------
 
@@ -158,7 +185,7 @@ def provenance(payload: Dict[str, Any]) -> str:
     meta = payload["meta"]
     return (
         f"{meta['seeds']} seeds x {meta['timesteps']} timesteps, Poisson "
-        f"arrivals, generated {meta['generated_utc']} from TOLL "
+        f"arrivals, generated {meta['generated_utc']} from SPAR "
         f"@ {meta['git_sha']} by {meta['generator']}"
     )
 
@@ -243,12 +270,137 @@ def save(fig, name: str) -> List[Path]:
 
 
 # --------------------------------------------------------------------------
+# figure 0: the scorecard -- the one question, answered in one picture
+#
+# Everything else in this directory explains *why*. This one answers "is it
+# better than the alternatives, and where?", once per opponent per map, in the
+# only form that needs no arithmetic from the reader: how many times as much
+# work SPAR-PIBT gets done.
+# --------------------------------------------------------------------------
+
+#: the opponents, in the order the argument meets them: the planner SPAR
+#: extends, then the two published lifelong baselines.
+RIVALS = [
+    ("lifelong_pibt", "plain lifelong\nPIBT"),
+    ("token_passing", "Token\nPassing"),
+    ("token_passing_recovery", "Token Passing\n+ recovery"),
+    ("rhcr", "RHCR"),
+]
+
+
+def _throughput_seeds(map_name: str, variant: str, ablation, baselines):
+    """Per-seed throughput for a variant on a map, from whichever suite has it."""
+    if map_name in ablation["maps"]:
+        for row in ablation["maps"][map_name]["rows"]:
+            if row["variant"] == variant:
+                return row["raw"]["throughput"]
+    if map_name in baselines["maps"]:
+        for row in baselines["maps"][map_name]["rows"]:
+            if row["variant"] == variant:
+                return row["fields"]["throughput"]["raw"]
+    return None
+
+
+def figure_scorecard():
+    """SPAR against every rival, on every map, as a ratio and a verdict."""
+    import matplotlib.pyplot as plt
+    import statistics
+
+    sys.path.insert(0, str(ROOT / "src"))
+    from lda_pibt.stats import permutation_test
+
+    ablation = load("ablation")
+    baselines = load("baselines")
+    maps = [m for m in MAP_ORDER if m in ablation["maps"]]
+
+    fig, ax = plt.subplots(figsize=(2.05 * len(RIVALS) + 3.3,
+                                    1.03 * len(maps) + 2.9))
+
+    for y, map_name in enumerate(maps):
+        chosen = best_spar(map_name, ablation)
+        ours = _throughput_seeds(map_name, chosen[0], ablation, baselines)
+        our_mean = statistics.fmean(ours)
+        for x, (variant, _) in enumerate(RIVALS):
+            theirs = _throughput_seeds(map_name, variant, ablation, baselines)
+            if theirs is None:
+                ax.text(x + 0.5, y + 0.5, "not run\non this map", ha="center",
+                        va="center", fontsize=7.6, color=MUTED, zorder=3)
+                continue
+            their_mean = statistics.fmean(theirs)
+            _, p_value = permutation_test(ours, theirs)
+            significant = p_value < 0.05
+            if their_mean <= 0:
+                ratio, ratio_text = float("inf"), "delivers\nnothing at all"
+            else:
+                ratio = our_mean / their_mean
+                ratio_text = f"{ratio:.2f}x" if ratio < 10 else f"{ratio:.0f}x"
+            # the colour scale saturates at 2x: past that every baseline cell
+            # would be the same flat blue and the PIBT column, where the
+            # argument actually lives, would be invisible
+            shade = (ratio - 1.0) if ratio != float("inf") else 1.0
+            ax.add_patch(plt.Rectangle(
+                (x + 0.03, y + 0.06), 0.94, 0.88,
+                facecolor=_diverging(shade, 1.0), edgecolor=SURFACE,
+                linewidth=2, zorder=2,
+            ))
+            ink = "#ffffff" if abs(shade) > 0.55 else INK
+            ax.text(x + 0.5, y + 0.31, ratio_text, ha="center", va="center",
+                    fontsize=12 if ratio == float("inf") else 15,
+                    color=ink, fontweight="bold", zorder=3,
+                    linespacing=1.15)
+            if ratio == float("inf"):
+                verdict = "SPAR wins"
+            elif ratio >= 1.0:
+                verdict = "SPAR ahead" if significant else "ahead, not significant"
+            else:
+                verdict = "SPAR behind" if significant else "behind, not significant"
+            ax.text(x + 0.5, y + 0.55, verdict, ha="center", va="center",
+                    fontsize=8, color=ink, zorder=3,
+                    fontweight="bold" if significant else "normal")
+            ax.text(x + 0.5, y + 0.70,
+                    f"{per_1000(our_mean):.0f} vs {per_1000(their_mean):.0f} "
+                    f"per 1000 steps", ha="center", va="center",
+                    fontsize=7.2, color=ink, zorder=3)
+            ax.text(x + 0.5, y + 0.84,
+                    f"p = {p_value:.3f}", ha="center", va="center",
+                    fontsize=7, color=ink, zorder=3)
+
+    ax.set_xlim(0, len(RIVALS))
+    ax.set_ylim(0, len(maps))
+    ax.set_xticks([x + 0.5 for x in range(len(RIVALS))])
+    ax.set_xticklabels([label for _, label in RIVALS], fontsize=8.6, color=INK_2)
+    ax.xaxis.set_ticks_position("top")
+    ax.set_yticks([y + 0.5 for y in range(len(maps))])
+    ax.set_yticklabels(
+        [f"{short_map(m)}\n{MAP_CLASS[m]}" for m in maps],
+        fontsize=8.6, color=INK_2,
+    )
+    ax.invert_yaxis()
+    ax.tick_params(length=0)
+    strip_frame(ax, keep=())
+
+    top = header(
+        fig,
+        "Is SPAR-PIBT better? One cell per rival per map",
+        "Each cell is SPAR-PIBT's throughput divided by that rival's on that "
+        "map: above 1.00x SPAR delivers more, below 1.00x it delivers less.\n"
+        "Against both published baselines SPAR wins everywhere by 13x to 315x. "
+        "Against the plain PIBT it extends it is ahead on the two "
+        "aisle-constrained maps\nand behind on the two open ones -- and at five "
+        "seeds only the two losses clear p < 0.05.",
+    )
+    caption(fig, provenance(baselines))
+    fig.tight_layout(rect=(0, 0.028, 1, top))
+    return fig
+
+
+# --------------------------------------------------------------------------
 # figure 1: the headline
 # --------------------------------------------------------------------------
 
 HEADLINE_VARIANTS = ["lifelong_pibt", "full_lda_pibt", "token_passing", "rhcr"]
 
-#: TOLL configurations eligible for the headline. The ladder's full
+#: SPAR configurations eligible for the headline. The ladder's full
 #: variant is not always its best one -- on `warehouse_corridors` aisle
 #: direction alone beats it -- and a headline that always picked `full` would
 #: understate the method exactly where its own argument is strongest.
@@ -269,15 +421,15 @@ def wrap_label(text: str, width: int = 14) -> str:
     return "\n".join(lines)
 
 
-def best_toll(map_name: str, ablation: Dict[str, Any]) -> Optional[Tuple[str, float]]:
-    """The best-throughput TOLL configuration on this map, if any."""
+def best_spar(map_name: str, ablation: Dict[str, Any]) -> Optional[Tuple[str, float]]:
+    """The best-throughput SPAR configuration on this map, if any."""
     rows = {r["variant"]: r for r in ablation["maps"][map_name]["rows"]}
     scored = [(v, rows[v]["throughput"]) for v in AISLEFLOW_CANDIDATES if v in rows]
     return max(scored, key=lambda pair: pair[1]) if scored else None
 
 
 def figure_headline():
-    """Throughput per map for TOLL, plain PIBT and both baselines."""
+    """Throughput per map for SPAR, plain PIBT and both baselines."""
     import matplotlib.pyplot as plt
 
     sys.path.insert(0, str(ROOT / "src"))
@@ -296,9 +448,9 @@ def figure_headline():
     for ax, map_name in zip(axes, maps):
         rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
         variants = [v for v in HEADLINE_VARIANTS if v in rows]
-        # swap the ladder's full variant for whichever TOLL configuration
+        # swap the ladder's full variant for whichever SPAR configuration
         # is actually best here; both suites ran the same scenario and seeds
-        chosen = best_toll(map_name, ablation)
+        chosen = best_spar(map_name, ablation)
         if chosen and chosen[0] != "full_lda_pibt":
             variants = [chosen[0] if v == "full_lda_pibt" else v for v in variants]
         values, lows, highs = [], [], []
@@ -312,9 +464,9 @@ def figure_headline():
                 mean = row["throughput"]
                 spread = _stderr(row["raw"]["throughput"])
                 lo, hi = mean - 1.96 * spread, mean + 1.96 * spread
-            values.append(mean)
-            lows.append(max(0.0, mean - lo))
-            highs.append(max(0.0, hi - mean))
+            values.append(per_1000(mean))
+            lows.append(per_1000(max(0.0, mean - lo)))
+            highs.append(per_1000(max(0.0, hi - mean)))
 
         positions = range(len(variants))
         ax.bar(
@@ -333,7 +485,7 @@ def figure_headline():
                         if r["variant"] == "lifelong_pibt")["raw"]["throughput"]
         for x, variant, value, high in zip(positions, variants, values, highs):
             ax.annotate(
-                f"{value:.2f}", (x, value + high), textcoords="offset points",
+                f"{value:.0f}", (x, value + high), textcoords="offset points",
                 xytext=(0, 7), ha="center", fontsize=8.5, color=INK,
                 fontweight="bold",
             )
@@ -361,24 +513,26 @@ def figure_headline():
         ax.set_xticklabels(
             [wrap_label(label_of(v)) for v in variants], fontsize=7.4, color=INK_2,
         )
-        ax.set_ylim(0, max([v + h for v, h in zip(values, highs)] + [0.05]) * 1.42)
-        kind = "aisle-shaped" if map_name in DESIGNED_FOR else "open"
+        ax.set_ylim(0, max([v + h for v, h in zip(values, highs)] + [50.0]) * 1.42)
         ax.set_title(
-            f"{MAP_LABEL[map_name]}\n{kind} map", fontsize=8.8, color=INK,
+            f"{MAP_LABEL[map_name]}\n{MAP_CLASS[map_name]} map", fontsize=8.8,
+            color=INK,
             loc="left", pad=8,
             fontweight="bold" if map_name in DESIGNED_FOR else "normal",
         )
         strip_frame(ax)
         value_grid(ax, axis="y")
 
-    axes[0].set_ylabel("tasks delivered per timestep", color=INK_2)
+    axes[0].set_ylabel(THROUGHPUT_UNIT, color=INK_2)
     top = header(
         fig,
-        "Throughput: TOLL wins where aisles are scarce, and loses where they are not",
-        "Each map shows the best TOLL configuration on that map, named "
-        "under its bar, with a permutation test against plain PIBT.\nThe two "
-        "wins are ahead by 21-27% but land at p = 0.06 on five seeds; the two "
-        "losses are significant. Both baselines are far behind everywhere.",
+        "Throughput: SPAR wins where aisles are scarce, and loses where they are not",
+        "Taller is better: tasks delivered per 1000 timesteps, so 149 means "
+        "149 tasks out of every 1000 steps of simulated time.\nEach map shows "
+        "the best SPAR configuration on that map, named under its bar, with a "
+        "permutation test against plain PIBT. The two wins are ahead by "
+        "21-27%\nbut land at p = 0.06 on five seeds; the two losses are "
+        "significant. Both baselines are far behind everywhere.",
     )
     caption(fig, provenance(payload))
     fig.tight_layout(rect=(0, 0.028, 1, top))
@@ -401,9 +555,9 @@ def figure_forest():
     labels, deltas, spreads, colours = [], [], [], []
     for row in rows:
         field = row["fields"]["throughput"]
-        delta = field["delta"]
-        t_lo, t_hi = field["treatment_ci"]
-        c_lo, c_hi = field["control_ci"]
+        delta = per_1000(field["delta"])
+        t_lo, t_hi = (per_1000(v) for v in field["treatment_ci"])
+        c_lo, c_hi = (per_1000(v) for v in field["control_ci"])
         # the suites record an interval per arm, not on the difference; adding
         # the two half-widths in quadrature is the usual independent-arms
         # approximation, and the caption says so rather than implying the
@@ -429,7 +583,7 @@ def figure_forest():
     for x, y, half, colour in zip(deltas, positions, spreads, colours):
         significant = colour == EMPHASIS
         ax.annotate(
-            f"{x:+.3f}", (x + half, y), textcoords="offset points",
+            f"{x:+.0f}", (x + half, y), textcoords="offset points",
             xytext=(7, -3), ha="left", fontsize=7.8,
             color=INK if significant else MUTED,
             fontweight="bold" if significant else "normal",
@@ -437,7 +591,7 @@ def figure_forest():
 
     ax.set_yticks(positions)
     ax.set_yticklabels(labels, fontsize=8.2, color=INK_2)
-    ax.set_xlabel("change in throughput, tasks per timestep  (right is better)",
+    ax.set_xlabel(f"change in throughput, {THROUGHPUT_UNIT}  (right is better)",
                   color=INK_2)
     strip_frame(ax, keep=("bottom",))
     value_grid(ax, axis="x")
@@ -550,7 +704,10 @@ def figure_winloss():
     ax.set_xlim(0, len(maps))
     ax.set_ylim(0, len(variants))
     ax.set_xticks([x + 0.5 for x in range(len(maps))])
-    ax.set_xticklabels([short_map(m) for m in maps], fontsize=8.8, color=INK_2)
+    ax.set_xticklabels(
+        [f"{short_map(m)}\n{MAP_CLASS[m]}" for m in maps], fontsize=8.4,
+        color=INK_2,
+    )
     ax.set_yticks([y + 0.5 for y in range(len(variants))])
     ax.set_yticklabels([label_of(v) for v in variants], fontsize=8.4, color=INK_2)
     ax.invert_yaxis()
@@ -600,7 +757,7 @@ def figure_cost_benefit():
                 continue
             family, colour = FAMILY[variant]
             x = row["fields"]["mean_runtime_ms_per_step"]["mean"]
-            y = row["fields"]["throughput"]["mean"]
+            y = per_1000(row["fields"]["throughput"]["mean"])
             ax.scatter(
                 x, y, s=64, color=colour, zorder=4,
                 edgecolor=SURFACE, linewidth=1.6,
@@ -630,7 +787,7 @@ def figure_cost_benefit():
         ax.annotate(
             f"every Token Passing and RHCR run:\n"
             f"{min(xs):.0f} to {max(xs):.0f} ms per timestep,\n"
-            f"at most {max(ys):.2f} tasks per timestep",
+            f"at most {max(ys):.0f} tasks per 1000 timesteps",
             (max(xs), max(ys)), textcoords="offset points", xytext=(-18, 44),
             ha="right", fontsize=8, color=INK_2,
             arrowprops=dict(arrowstyle="->", color=AXIS, lw=1.0),
@@ -641,7 +798,7 @@ def figure_cost_benefit():
     ax.set_xscale("log")
     ax.set_xlabel("planner cost: mean milliseconds per timestep (log scale)",
                   color=INK_2)
-    ax.set_ylabel("throughput, tasks per timestep", color=INK_2)
+    ax.set_ylabel(f"throughput, {THROUGHPUT_UNIT}", color=INK_2)
     strip_frame(ax)
     value_grid(ax, axis="both")
     ax.legend(loc="upper right", fontsize=8.5)
@@ -743,7 +900,7 @@ def figure_censoring():
 
     fig, axes = plt.subplots(1, 2, figsize=(9.8, 4.3))
     panels = [
-        ("throughput", "tasks delivered per timestep", "higher is better", 3),
+        ("throughput", THROUGHPUT_UNIT, "higher is better", 0),
         ("mean_service_time", "mean service time, timesteps", "lower looks better", 0),
     ]
     #: the planner the figure is about: the flattering service time belongs to
@@ -762,6 +919,8 @@ def figure_censoring():
             next(r for r in rows if r["variant"] == v)["fields"][metric]["mean"]
             for v in variants
         ]
+        if metric == "throughput":
+            values = [per_1000(v) for v in values]
         colours = [
             STATUS["critical"] if v == culprit else DEEMPHASIS for v in variants
         ]
@@ -786,7 +945,8 @@ def figure_censoring():
         f"{label_of(culprit)} reports the best service time here\n"
         f"({culprit_row['fields']['mean_service_time']['mean']:.0f} steps) while "
         f"delivering "
-        f"{culprit_row['fields']['throughput']['mean']:.3f} tasks per timestep.\n"
+        f"{per_1000(culprit_row['fields']['throughput']['mean']):.0f} tasks per "
+        f"1000 timesteps.\n"
         "The only tasks it finishes are the easy early ones.",
         (0.02, 1.20), xycoords="axes fraction", ha="left", va="top",
         fontsize=8, color=INK,
@@ -833,13 +993,13 @@ def figure_ablation_ladder():
     for ax, map_name in zip(axes, maps):
         rows = {r["variant"]: r for r in payload["maps"][map_name]["rows"]}
         variants = [v for v in LADDER if v in rows]
-        values = [rows[v]["throughput"] for v in variants]
+        values = [per_1000(rows[v]["throughput"]) for v in variants]
         errors = []
         for v in variants:
             raw = rows[v].get("raw", {}).get("throughput")
             errors.append(
-                statistics.stdev(raw) / (len(raw) ** 0.5) if raw and len(raw) > 1
-                else 0.0
+                per_1000(statistics.stdev(raw) / (len(raw) ** 0.5))
+                if raw and len(raw) > 1 else 0.0
             )
         best = max(values)
         colours = [
@@ -852,13 +1012,14 @@ def figure_ablation_ladder():
         ax.errorbar(values, positions, xerr=errors, fmt="none", ecolor=INK_2,
                     elinewidth=1.0, capsize=2.5, zorder=4)
         for y, value in zip(positions, values):
-            ax.annotate(f"{value:.3f}", (value, y), textcoords="offset points",
+            ax.annotate(f"{value:.0f}", (value, y), textcoords="offset points",
                         xytext=(6, -3), fontsize=8, color=INK_2)
         ax.set_yticks(positions)
         ax.set_yticklabels([label_of(v) for v in variants], fontsize=7.8,
                            color=INK_2)
         ax.set_xlim(0, max(values) * 1.45)
-        ax.set_title(short_map(map_name), fontsize=9.5, color=INK, loc="left")
+        ax.set_title(f"{short_map(map_name)}\n{MAP_CLASS[map_name]}",
+                     fontsize=9.5, color=INK, loc="left")
         strip_frame(ax, keep=("bottom",))
         value_grid(ax, axis="x")
 
@@ -866,7 +1027,8 @@ def figure_ablation_ladder():
         fig,
         "The ablation ladder: adding mechanisms does not monotonically help",
         "Green is the best configuration on that map; blue is the full method. "
-        "Bars are throughput; whiskers are the standard error over seeds.",
+        f"Bars are throughput in {THROUGHPUT_UNIT};\nwhiskers are the standard "
+        "error over seeds.",
     )
     caption(fig, provenance(payload))
     fig.tight_layout(rect=(0, 0.028, 1, top))
@@ -947,6 +1109,7 @@ def figure_hypotheses():
 
 
 FIGURES: Dict[str, Callable[[], Any]] = {
+    "scorecard": figure_scorecard,
     "headline": figure_headline,
     "forest": figure_forest,
     "winloss": figure_winloss,
