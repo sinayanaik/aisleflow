@@ -103,3 +103,23 @@ def test_paired_test_rejects_mismatched_arms():
 
     with pytest.raises(ValueError):
         paired_permutation_test([1.0, 2.0], [1.0])
+
+
+def test_no_legacy_alias_shadows_a_live_parameter():
+    """A rename table entry keyed on a *current* field silently eats overrides.
+
+    `_expand_aliases` pops each legacy key it finds, so if a key were also a
+    real field name, setting that field would drop the value on the floor and
+    quietly hand back the default -- the worst failure mode a config layer
+    has, because nothing raises and the run looks fine.
+    """
+    from lda_pibt.config import LEGACY_NAMES, REMOVED_NAMES, Params
+
+    live = set(Params().to_dict())
+    assert not (set(LEGACY_NAMES) & live), "legacy alias shadows a live field"
+    assert not (REMOVED_NAMES & live), "a live field is listed as removed"
+    assert set(LEGACY_NAMES.values()) <= live, "alias points at a missing field"
+
+    # And the round trip actually works.
+    assert Params.from_dict({"lambda_turn": 1.5}).turn_penalty == 1.5
+    assert Params().merged(turn_penalty=1.5).turn_penalty == 1.5

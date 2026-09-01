@@ -9,7 +9,6 @@ from collections import deque
 
 from .task import Task
 from .types import (
-    AisleDirection,
     Compass,
     ProximityMode,
     RobotState,
@@ -33,9 +32,6 @@ class Robot:
     waypoint: Optional[Vertex] = None
 
     current_aisle: Optional[int] = None
-    next_aisle: Optional[int] = None
-    preferred_direction: Compass = Compass.STAY
-    preferred_aisle_direction: AisleDirection = AisleDirection.NONE
 
     waiting_time: int = 0
     blocked_time: int = 0
@@ -53,7 +49,6 @@ class Robot:
     #: routing sends robots around aisles flowing the wrong way -- and an aisle
     #: that never sees the traffic it is turning away has no demand to flip
     #: for, so it would hold one direction forever.
-    demand_route: List[Vertex] = field(default_factory=list)
     route_distance_to_waypoint: float = INF
     previous_route_distance: float = INF
     mode: ProximityMode = ProximityMode.TRANSIT
@@ -63,7 +58,6 @@ class Robot:
     parking_vertex: Optional[Vertex] = None
     recovery_vertex: Optional[Vertex] = None
     allow_reverse_until: int = -1
-    ignore_direction_until: int = -1
 
     # statistics
     travel_distance: int = 0

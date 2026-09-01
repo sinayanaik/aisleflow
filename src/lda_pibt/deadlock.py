@@ -9,11 +9,10 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from .aisle_manager import AisleManager
 from .config import Params
 from .congestion import OccupancyIndex
 from .robot import Robot
-from .types import INF, AisleDirection, AisleState, RobotState, Vertex
+from .types import INF, RobotState, Vertex
 from .warehouse import Warehouse
 
 #: The remedies, in escalation order. Two more used to sit above these --
@@ -22,13 +21,12 @@ from .warehouse import Warehouse
 #: truncating the ladder at this depth measured 6% *better* than running the
 #: full one, because the strongest remedy tore up routes faster than the jam
 #: was clearing.
-RECOVERY_LEVEL_COUNT = 5
+RECOVERY_LEVEL_COUNT = 4
 
 #: Human-readable names, in the same order, for the docs and the sensitivity
 #: study.  Index i here describes `recovery_l{i+1}_fires`.
 RECOVERY_LEVEL_NAMES = (
     "recompute routes",
-    "reopen affected aisles",
     "raise blocked priorities",
     "allow temporary reverse",
     "assign escape vertices",
@@ -42,12 +40,10 @@ class DeadlockMonitor:
         self,
         warehouse: Warehouse,
         index: OccupancyIndex,
-        aisle_manager: AisleManager,
         params: Params,
     ):
         self.warehouse = warehouse
         self.index = index
-        self.aisles = aisle_manager
         self.params = params
 
         self.detected = 0
@@ -256,7 +252,6 @@ class DeadlockMonitor:
         key = frozenset(r.id for r in group)
         all_levels = (
             self._recompute_routes,
-            self._recompute_affected_aisles,
             self._increase_blocked_priorities,
             self._allow_temporary_reverse_move,
             self._assign_escape_vertices,
@@ -300,22 +295,6 @@ class DeadlockMonitor:
             )
 
     # Level 2
-    def _recompute_affected_aisles(
-        self, group: Sequence[Robot], timestep: int
-    ) -> None:
-        for robot in group:
-            for aisle_id in (robot.current_aisle, robot.next_aisle):
-                aisle = self.warehouse.get_aisle(aisle_id)
-                if aisle is None:
-                    continue
-                aisle.lock_until = timestep  # allow an immediate re-decision
-                if aisle.occupancy == 0:
-                    aisle.state = AisleState.OPEN
-                    aisle.current_direction = AisleDirection.NONE
-                elif aisle.state in (AisleState.FORWARD, AisleState.REVERSE):
-                    aisle.state = AisleState.DRAINING
-
-    # Level 3
     def _increase_blocked_priorities(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
@@ -323,17 +302,15 @@ class DeadlockMonitor:
         for robot in group:
             robot.priority += self.params.waiting_weight * robot.no_progress_steps
 
-    # Level 4
+    # Level 3
     def _allow_temporary_reverse_move(
         self, group: Sequence[Robot], timestep: int
     ) -> None:
+        """Let the group back out of wherever it wedged itself."""
         for robot in group:
             robot.allow_reverse_until = timestep + self.params.stall_steps
-            robot.ignore_direction_until = timestep + max(
-                1, self.params.stall_steps // 2
-            )
 
-    # Level 5
+    # Level 4
     def _assign_escape_vertices(
         self, group: Sequence[Robot], timestep: int
     ) -> None:

@@ -8,7 +8,7 @@ from .config import Params
 from .congestion import CongestionModel
 from .robot import Robot
 from .task import Task, TaskQueue
-from .types import INF, AisleDirection, AisleState, RobotState, TaskStatus, Vertex
+from .types import INF, RobotState, TaskStatus, Vertex
 from .warehouse import Warehouse
 
 
@@ -27,29 +27,6 @@ class TaskAssigner:
         self.assignments_made = 0
 
     # ------------------------------------------------------------- costing
-    def directional_delay(self, source: Vertex, goal: Vertex) -> float:
-        r"""T_direction(i, tau) = sum over route aisles of expected delay (19.1)."""
-        if self.params.direction_control != "aisle":
-            return 0.0
-        route = self.warehouse.graph.shortest_route(source, goal)
-        delay = 0.0
-        seen = set()
-        for k in range(len(route) - 1):
-            u, v = route[k], route[k + 1]
-            aisle = self.warehouse.aisle_of(v)
-            if aisle is None or aisle.id in seen:
-                continue
-            seen.add(aisle.id)
-            if aisle.state is AisleState.OPEN:
-                continue
-            direction = self.warehouse.traversal_direction(u, v)
-            if aisle.state is AisleState.DRAINING:
-                delay += aisle.occupancy + 1.0
-            elif direction is not aisle.current_direction:
-                # Must wait for the aisle to drain and flip.
-                delay += aisle.minimum_lock_time * 0.5 + aisle.occupancy
-        return delay
-
     def blocking_estimate(self, robot: Robot, task: Task) -> float:
         r"""B(i, tau): penalise routes through bottlenecks and narrow aisles."""
         route = self.warehouse.graph.shortest_route(robot.position, task.pickup)
@@ -59,7 +36,13 @@ class TaskAssigner:
         return bottlenecks / max(1, len(route))
 
     def assignment_cost(self, robot: Robot, task: Task, timestep: int) -> float:
-        r"""J(i, tau) = a*d(r_i,p) + b*d(p,d) + g*C + d*W + e*T_dir + z*B."""
+        """What it would cost this robot to take this task; lower wins.
+
+        Distance to the pickup, plus the trip that commits it, plus how
+        crowded the way there is, minus how long the task has already waited.
+        A term estimating delay from one-way aisles used to sit here too; it
+        went with the aisle-direction layer.
+        """
         p = self.params
         graph = self.warehouse.graph
         d_to_pickup = graph.route_distance(robot.position, task.pickup)
@@ -79,11 +62,6 @@ class TaskAssigner:
         # degenerates to oldest-task-first, which is why congestion-aware
         # assignment could never show an effect.
         waiting = min(float(task.waiting_time(timestep)), p.cost_waiting_cap)
-        directional = (
-            self.directional_delay(robot.position, task.pickup)
-            if p.congestion_assignment or p.direction_control == "aisle"
-            else 0.0
-        )
         blocking = (
             self.blocking_estimate(robot, task) if p.congestion_assignment else 0.0
         )
@@ -93,7 +71,6 @@ class TaskAssigner:
             + p.cost_pickup_to_delivery * d_pickup_to_delivery
             + p.cost_congestion * congestion
             + p.cost_waiting * waiting
-            + p.cost_direction * directional
             + p.cost_blocking * blocking
         )
 

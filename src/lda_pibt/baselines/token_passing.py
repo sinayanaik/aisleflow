@@ -36,8 +36,8 @@ class TokenPassingPlanner:
     """Drop-in low-level planner satisfying `Simulator`'s `plan_step`/`stats` contract.
 
     Accepts the same 5-argument constructor as `PIBTPlanner` so both can be
-    built through the same `planner_factory` call site; `scorer` and
-    `aisle_manager` are unused since Token Passing neither scores candidates
+    built through the same `planner_factory` call site; `scorer` is unused,
+    since Token Passing neither scores candidates
     nor manages aisle direction.
     """
 
@@ -51,7 +51,6 @@ class TokenPassingPlanner:
         warehouse: Warehouse,
         index: OccupancyIndex,
         scorer: CandidateScorer,
-        aisle_manager: Any,
         params: Params,
     ):
         self.graph = warehouse.graph

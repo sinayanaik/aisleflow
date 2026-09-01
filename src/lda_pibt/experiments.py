@@ -66,12 +66,7 @@ REPORT_FIELDS = (
     "max_service_time",
     "total_travel_distance",
     "max_waiting_time",
-    "direction_switches",
-    "direction_switches_per_1000",
-    "starvation_flips",
     "head_on_conflicts",
-    "counterflow_moves",
-    "aisle_throughput_per_1000",
     "deadlocks_detected",
     "deadlocks_recovered",
     "deadlocks_unrecovered",
@@ -234,7 +229,7 @@ def run_density_sweep(
 
 #: Metrics reported by the factorial decomposition (a subset of REPORT_FIELDS
 #: relevant to the specific hypotheses each design was built to separate).
-FACTORIAL_FIELDS = ("throughput", "mean_service_time", "direction_switches_per_1000")
+FACTORIAL_FIELDS = ("throughput", "mean_service_time", "p95_service_time")
 
 
 def run_factorial_table(
@@ -651,7 +646,6 @@ SENSITIVITY_FIELDS: Tuple[str, ...] = (
     "p95_service_time",
     "deadlocks_unrecovered",
     "head_on_conflicts",
-    "counterflow_moves",
     "mean_runtime_ms_per_step",
 )
 

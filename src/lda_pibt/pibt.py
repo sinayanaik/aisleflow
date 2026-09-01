@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Set
 
-from .aisle_manager import AisleManager
 from .config import Params
 from .congestion import OccupancyIndex
 from .robot import Robot
@@ -27,22 +26,17 @@ class PIBTPlanner:
         warehouse: Warehouse,
         index: OccupancyIndex,
         scorer: CandidateScorer,
-        aisle_manager: AisleManager,
         params: Params,
     ):
         self.warehouse = warehouse
         self.index = index
         self.scorer = scorer
-        self.aisles = aisle_manager
         self.params = params
 
         self.reserved_vertices: Set[Vertex] = set()
         self.recursive_calls = 0
         self.backtracks = 0
         self.invalid_results = 0
-        #: moves actually taken against a committed aisle direction -- the
-        #: price of making direction a ranking term rather than a constraint
-        self.counterflow_moves = 0
 
     # ------------------------------------------------------------ per-step
     def plan_step(self, ordered_robots: Sequence[Robot], timestep: int) -> None:
@@ -94,19 +88,6 @@ class PIBTPlanner:
         feasible.sort(key=lambda c: self.scorer.sort_key(robot, c))
         return feasible
 
-    def record_counterflow(self, robots: Sequence[Robot], timestep: int) -> None:
-        """Count the moves that were taken against an aisle's direction."""
-        if not self.aisles.enabled:
-            return
-        for robot in robots:
-            target = robot.next_position
-            if target is None or target == robot.position:
-                continue
-            if self.aisles.violates_aisle_direction(
-                robot, robot.position, target, timestep
-            ):
-                self.counterflow_moves += 1
-
     def explain_candidates(
         self, robot: Robot, timestep: int
     ) -> List[Dict[str, object]]:
@@ -133,10 +114,6 @@ class PIBTPlanner:
                 reasons.append("off-graph")
             if self.violates_kinematics(robot, current, candidate):
                 reasons.append("kinematics")
-            if self.aisles.violates_aisle_direction(
-                robot, current, candidate, timestep
-            ):
-                notes.append("against aisle direction")
             # A robot's own claim is not a conflict with itself; without
             # this the cell it actually moved into looks blocked afterwards.
             if candidate != robot.next_position and self.creates_vertex_conflict(
@@ -250,7 +227,6 @@ class PIBTPlanner:
             "pibt_backtracks": self.backtracks,
             "pibt_invalid_results": self.invalid_results,
             "candidate_evaluations": self.scorer.evaluations,
-            "counterflow_moves": self.counterflow_moves,
         }
 
 

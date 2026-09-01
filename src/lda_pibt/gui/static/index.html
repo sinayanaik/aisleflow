@@ -144,7 +144,6 @@ details summary { cursor: pointer; color: var(--dim); font-size: 11px; margin-bo
     <button class="ov active" data-ov="none">Plain</button>
     <button class="ov" data-ov="aisles">Aisles</button>
     <button class="ov" data-ov="congestion">Congestion</button>
-    <button class="ov" data-ov="counterflow" title="Cells whose aisle direction opposes a robot that wants them">Counterflow</button>
     <button class="ov" data-ov="stall">Stalled</button>
     <button id="paths" class="active" title="Show every active robot's route and current goal">Paths &amp; goals</button>
     <span id="clock"><b>t=0</b></span>
@@ -409,7 +408,7 @@ function drawAisles() {
   S.state.aisles.forEach((a) => (byId[a.id] = a));
   S.layout.aisles.forEach((aisle) => {
     const live = byId[aisle.id]; if (!live) return;
-    ctx.fillStyle = live.manageable ? AISLE_COLOR[live.state] : "rgba(255,255,255,.02)";
+    ctx.fillStyle = "rgba(255,255,255,.02)";
     aisle.vertices.forEach(([r, c]) => ctx.fillRect(OX + c * CELL, OY + r * CELL, CELL - 1, CELL - 1));
     if (S.sel && S.sel.type === "aisle" && S.sel.id === aisle.id) {
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
@@ -466,7 +465,7 @@ function drawMetrics() {
     ["travel", m.travel],
     ["dir. switches", `${m.switches} (${m.forced_switches} forced)`],
     ["aisle thr. /1000", m.aisle_throughput],
-    ["head-on conflicts", m.head_on], ["counterflow moves", m.counterflow],
+    ["head-on conflicts", m.head_on],
     ["deadlocks", `${m.deadlocks} / ${m.recovered} rec`],
     ["backtracks", m.backtracks], ["Jain fairness", m.fairness],
     ["ms / step", m.ms],
@@ -533,11 +532,9 @@ function drawInspector() {
       <div class="stat"><span>axis</span><b>${live.axis || "single cell"}</b></div>
       <div class="stat"><span>occupancy</span><b>${live.occupancy} / ${live.capacity}</b></div>
       <div class="stat"><span>length</span><b>${stat.vertices.length}</b></div>
-      <div class="stat"><span>managed</span><b>${live.manageable ? "yes" : "no (short or cut edge)"}</b></div>
       <div class="stat"><span>min green until</span><b>t=${live.lock_until}</b></div>
       <div class="stat"><span>held (max green)</span><b>${green}</b></div>
       <div class="stat"><span>pending flip</span><b>${name(live.pending)}</b></div>
-      <div class="stat"><span>switches (forced)</span><b>${live.switches} (${live.starvation_flips})</b></div>
       <div class="stat"><span>robots cleared</span><b>${live.exits}</b></div>
       <div class="hint">Minimum green stops the direction flapping; maximum
       green stops it starving the other way. Once "held" reaches the maximum,
@@ -566,7 +563,7 @@ function drawInspector() {
     <div class="stat"><span>waypoint</span><b>${robot.waypoint ? robot.waypoint.join(",") : "—"}</b></div>
     <div class="stat"><span>route distance</span><b>${S.inspect && S.inspect.route_distance !== null ? S.inspect.route_distance : "—"}</b></div>
     <div class="stat"><span>proximity mode</span><b>${robot.mode}</b></div>
-    <div class="stat"><span>aisle / next</span><b>${robot.aisle ?? "—"} / ${robot.next_aisle ?? "—"}</b></div>
+    <div class="stat"><span>aisle</span><b>${robot.aisle ?? "—"}</b></div>
     <div class="stat"><span>priority</span><b>${robot.priority}</b></div>
     <div class="stat"><span>waiting / stalled</span><b>${robot.waiting} / ${robot.stalled}</b></div>
     <div class="stat"><span>waiting for</span><b>${robot.waiting_for !== null ? "R" + robot.waiting_for : "—"}</b></div>

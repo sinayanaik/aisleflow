@@ -31,7 +31,6 @@ from lda_pibt.scoring import (
     turning_cost,
 )
 from lda_pibt.types import (
-    AisleDirection,
     Compass,
     ProximityMode,
     RobotState,
@@ -168,7 +167,7 @@ def test_proximity_modes():
 
 
 def test_aisle_weight_weakens_with_proximity():
-    params = Params(direction_control="aisle")
+    params = Params()
     transit = compute_aisle_bonus(ProximityMode.TRANSIT, params)
     arrival = compute_aisle_bonus(ProximityMode.ARRIVAL, params)
     assert transit > arrival
@@ -183,7 +182,7 @@ def test_turning_cost_penalises_reversal_most():
 
 def test_progress_dominates_the_score():
     """The score's tier structure: progress dominates every tie-break."""
-    params = Params(direction_control="aisle")
+    params = Params()
     wh = warehouse()
     wh.precompute()
     index = OccupancyIndex(wh, params)
@@ -222,9 +221,8 @@ def test_dependency_cycle_is_found():
     params = Params()
     wh = warehouse()
     index = OccupancyIndex(wh, params)
-    from lda_pibt import AisleManager
-
-    monitor = DeadlockMonitor(wh, index, AisleManager(wh, index, params), params)
+    
+    monitor = DeadlockMonitor(wh, index, params)
     a, b = Robot(id=0, position=(0, 0)), Robot(id=1, position=(0, 1))
     a.waiting_for_robot, b.waiting_for_robot = b, a
     cycles = monitor.find_cycles(monitor.build_dependency_graph([a, b]))
@@ -235,9 +233,8 @@ def test_arrived_robots_are_never_counted_as_stalled():
     params = Params()
     wh = warehouse()
     index = OccupancyIndex(wh, params)
-    from lda_pibt import AisleManager
-
-    monitor = DeadlockMonitor(wh, index, AisleManager(wh, index, params), params)
+    
+    monitor = DeadlockMonitor(wh, index, params)
     robot = Robot(id=0, position=(0, 0), waypoint=(0, 0))
     robot.route_distance_to_waypoint = 0.0
     for t in range(50):
@@ -249,9 +246,8 @@ def test_stalled_robot_accumulates_no_progress():
     params = Params()
     wh = warehouse()
     index = OccupancyIndex(wh, params)
-    from lda_pibt import AisleManager
-
-    monitor = DeadlockMonitor(wh, index, AisleManager(wh, index, params), params)
+    
+    monitor = DeadlockMonitor(wh, index, params)
     robot = Robot(id=0, position=(3, 3), waypoint=(0, 7), state=RobotState.TO_PICKUP)
     robot.route_distance_to_waypoint = 7.0
     robot.previous_route_distance = 7.0
@@ -303,7 +299,7 @@ def test_runs_are_reproducible_for_a_fixed_seed():
 
 
 def test_one_shot_mode_terminates_at_goals():
-    params = Params(lifelong=False, direction_control="none")
+    params = Params(lifelong=False)
     wh = Warehouse.from_string("\n".join(["......"] * 4), params)
     from lda_pibt import Simulator
 
@@ -373,47 +369,3 @@ def test_uncorroborated_mode_restores_the_old_trigger():
     assert monitor.detect_deadlocked_groups(sim.robots, 100)
 
 
-def test_no_aisle_starves_a_direction_indefinitely():
-    """The liveness property the aisle layer lacked.
-
-    On `warehouse_corridors` every aisle carries traffic both ways by
-    construction, so before the maximum-green rule the corridors locked one way
-    and never changed again: 35 of 35 robots stalled by t=120 and the state was
-    still identical at t=199.
-    """
-    root = Path(__file__).resolve().parents[1]
-    params = ablation(
-        "aisle_direction_only",
-        Params(seed=0, max_timesteps=300, maximum_aisle_lock_time=40),
-    )
-    warehouse = Warehouse.from_file(root / "maps" / "warehouse_corridors.map", params)
-    generator = TaskGenerator(
-        warehouse.pickup_vertices, warehouse.delivery_vertices,
-        mode="poisson", rate=1.0, seed=0,
-    )
-    sim = build_simulator(warehouse, 35, params, task_generator=generator)
-
-    # Only a *committed* direction can starve anyone: an OPEN aisle lets both
-    # directions through, so holding OPEN forever is not a liveness failure.
-    held = {a.id: 0 for a in warehouse.aisles.values()}
-    worst = {a.id: 0 for a in warehouse.aisles.values()}
-    last = {a.id: None for a in warehouse.aisles.values()}
-    for _ in range(300):
-        sim.step()
-        for aisle in warehouse.aisles.values():
-            if not aisle.manageable:
-                continue
-            direction = aisle.current_direction
-            if direction is AisleDirection.NONE:
-                held[aisle.id] = 0
-            else:
-                held[aisle.id] = held[aisle.id] + 1 if direction == last[aisle.id] else 0
-            worst[aisle.id] = max(worst[aisle.id], held[aisle.id])
-            last[aisle.id] = direction
-
-    # Max green plus the drain gives some slack, but nothing may hold forever.
-    ceiling = params.maximum_aisle_lock_time + params.max_drain_time + 20
-    longest = max(worst.values())
-    assert longest < ceiling, f"an aisle held one direction for {longest} steps"
-    assert sim.aisles.direction_switches > 0, "the aisle layer never acted"
-    assert sim.collision_free

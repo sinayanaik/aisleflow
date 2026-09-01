@@ -134,11 +134,9 @@ def test_waiting_is_always_a_candidate():
     [
         "pibt_baseline",
         "lifelong_pibt",
-        "hysteresis_pibt",
         "full_lda_pibt",
         "turning_cost_only",
-        "aisle_direction_only",
-        "aisle_direction_no_routing",
+        "lane_bonus_only",
         "congestion_only",
         "recovery_only",
         "recovery_full_ladder",
@@ -184,62 +182,6 @@ def test_moves_are_to_a_neighbour_or_the_same_cell():
 
 # ----------------------------------------- direction ranks, it does not reject
 CORRIDOR_GRID = "\n".join([".........", ".@@@@@@@.", "........."])
-
-
-def _directional_corridor(**overrides):
-    """One 9-cell aisle locked FORWARD, one robot inside it at index 6."""
-    params = Params(
-        direction_control="aisle",
-        hysteresis=True,
-        directional_aisle_min_length=1,
-        **overrides,
-    )
-    warehouse = Warehouse.from_string(CORRIDOR_GRID, params)
-    sim = build_simulator(warehouse, 1, params, task_generator=None)
-    aisle = max(warehouse.aisles.values(), key=lambda a: a.length)
-    sim.index.rebuild(sim.robots)
-    sim.aisles.update_aisle_direction(aisle, 20.0, 0.0, 0)
-
-    robot = sim.robots[0]
-    robot.position = aisle.vertices[6]
-    robot.current_aisle = aisle.id
-    robot.waypoint = aisle.vertices[0]
-    sim.index.rebuild(sim.robots)
-    # Moving to index 5 is neither with the flow nor an egress move.
-    return sim, aisle, robot, aisle.vertices[5]
-
-
-def test_aisle_direction_does_not_shrink_the_candidate_set():
-    """The invariant the aisle layer must never break.
-
-    Priority inheritance works because a robot can always be pushed into an
-    adjacent cell. Deleting counterflow moves from the candidate set removes
-    exactly that freedom, so inheritance chains dead-end. Nothing in the
-    movement layer looks at aisle direction at all now -- routes are planned
-    to avoid wrong-way aisles instead -- so the move stays available, and
-    stays unpenalised.
-    """
-    sim, aisle, robot, against = _directional_corridor()
-    assert sim.aisles.violates_aisle_direction(robot, robot.position, against, 1)
-
-    candidates = sim.planner.feasible_candidates(robot, None, 1)
-    assert against in candidates, "a legal move was deleted from the candidate set"
-
-    # Against the flow and with it must score identically: the score has no
-    # opinion about direction any more.
-    with_flow = aisle.vertices[7]
-    robot.waypoint = aisle.vertices[0]
-    assert sim.scorer.score(robot, against) > sim.scorer.score(robot, with_flow), (
-        "progress, not direction, must decide"
-    )
-
-
-def test_routing_avoids_aisles_flowing_the_other_way():
-    """Direction acts on the route, which is the only place it acts now."""
-    sim, aisle, robot, _against = _directional_corridor()
-    penalty = sim.router.edge_penalty(aisle.vertices[7], aisle.vertices[6])
-    assert penalty == sim.params.route_direction_penalty
-    assert sim.router.edge_penalty(aisle.vertices[6], aisle.vertices[7]) == 0.0
 
 
 def test_the_score_has_exactly_the_terms_the_documents_claim():

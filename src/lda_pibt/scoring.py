@@ -52,8 +52,6 @@ def compute_aisle_bonus(mode: ProximityMode, params: Params) -> float:
     Full strength in TRANSIT, half at APPROACH, weakest at ARRIVAL, so a robot
     commits to a lane while travelling and is free to leave it near its target.
     """
-    if params.direction_control == "none":
-        return 0.0
     if mode is ProximityMode.TRANSIT:
         return params.aisle_bonus
     if mode is ProximityMode.APPROACH:
@@ -139,60 +137,9 @@ class CandidateScorer:
         return (-self.score(robot, candidate), candidate)
 
 
-def compute_route_direction(warehouse: Warehouse, robot: Robot) -> Compass:
-    """Which way the robot's route leaves its current cell.
-
-    Read by the aisle layer to work out which direction a robot is asking an
-    aisle to flow; it no longer feeds the movement score.
-    """
-    route = robot.route
-    if len(route) >= 2:
-        return movement_direction(route[0], route[1])
-    waypoint = robot.waypoint
-    if waypoint is None or waypoint == robot.position:
-        return Compass.STAY
-    graph = warehouse.graph
-    best: Optional[Vertex] = None
-    best_delta = 0.0
-    base = graph.route_distance(robot.position, waypoint)
-    for n in graph.neighbors(robot.position):
-        delta = base - graph.route_distance(n, waypoint)
-        if best is None or delta > best_delta:
-            best = n
-            best_delta = delta
-    if best is None:
-        return Compass.STAY
-    return movement_direction(robot.position, best)
-
-
-def apply_direction_hysteresis(
-    robot: Robot, proposed: Compass, timestep: int, params: Params
-) -> Compass:
-    """Keep the previous heading unless the robot is at a real decision point.
-
-    Without this a robot equidistant by two routes flips between them every
-    step and never commits to either.
-    """
-    if not params.hysteresis:
-        return proposed
-    previous = robot.preferred_direction
-    if previous is Compass.STAY or proposed is previous:
-        return proposed
-    if robot.blocked_time >= params.stall_steps:
-        return proposed
-    if robot.mode is not ProximityMode.TRANSIT:
-        return proposed
-    # Only re-commit to a new direction at an intersection.
-    if robot.current_aisle is None:
-        return proposed
-    return previous
-
-
 __all__ = [
     "CandidateScorer",
     "compute_proximity_mode",
     "compute_aisle_bonus",
     "turning_cost",
-    "compute_route_direction",
-    "apply_direction_hysteresis",
 ]

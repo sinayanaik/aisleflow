@@ -39,12 +39,8 @@ TUNABLE = [
     ("local_congestion_radius", "crowding radius", 1, 10, 1),
     ("r_near", "near distance", 0, 20, 1),
     ("r_far", "far distance", 1, 40, 1),
-    ("minimum_aisle_lock_time", "minimum green", 1, 60, 1),
-    ("maximum_aisle_lock_time", "maximum green", 2, 400, 1),
-    ("direction_switch_threshold", "flip threshold", 0.0, 30.0, 0.5),
     ("aisle_capacity", "aisle capacity", 1, 30, 1),
     ("max_drain_time", "max drain time", 1, 120, 1),
-    ("route_direction_penalty", "detour to avoid wrong-way", 0.0, 30.0, 0.5),
     ("priority_class_spread", "priority class spread", 0.0, 400.0, 10.0),
     ("waiting_weight", "rank per step waited", 0.0, 40.0, 0.5),
     ("stall_steps", "steps before stalled", 1, 60, 1),
@@ -53,13 +49,11 @@ TUNABLE = [
 ]
 
 TOGGLES = [
-    ("hysteresis", "hysteresis"),
     ("congestion_scoring", "crowding in movement"),
     ("congestion_assignment", "crowding in matching"),
     ("recovery", "deadlock recovery"),
     ("require_deadlock_corroboration", "corroborated deadlocks"),
     ("turning_cost", "turning cost"),
-    ("direction_aware_routing", "route around one-way aisles"),
     ("park_when_idle", "park when idle"),
 ]
 
@@ -165,8 +159,6 @@ class SimulationSession:
                     "id": a.id,
                     "vertices": [list(v) for v in a.vertices],
                     "capacity": a.capacity,
-                    "manageable": a.manageable,
-                    "minimum_lock_time": a.minimum_lock_time,
                 }
                 for a in wh.aisles.values()
             ],
@@ -199,7 +191,9 @@ class SimulationSession:
             # ``Simulator.step``.  Rebuild the presentation route from the
             # robot's *current* position so the GUI line never appears one
             # cell behind the robot after a step.
-            display_route = sim.router.route(robot.position, robot.waypoint)
+            display_route = sim.warehouse.graph.shortest_route(
+                robot.position, robot.waypoint
+            )
             robots.append(
                 {
                     "id": robot.id,
@@ -209,7 +203,6 @@ class SimulationSession:
                     "waypoint": list(robot.waypoint) if robot.waypoint else None,
                     "route": [list(v) for v in display_route],
                     "aisle": robot.current_aisle,
-                    "next_aisle": robot.next_aisle,
                     "priority": round(robot.priority, 3),
                     "waiting": robot.waiting_time,
                     "blocked": robot.blocked_time,
@@ -229,28 +222,12 @@ class SimulationSession:
 
         aisles = []
         for aisle in wh.aisles.values():
-            held = sim.timestep - aisle.direction_since
             aisles.append(
                 {
                     "id": aisle.id,
-                    "state": aisle.state.value,
-                    "direction": int(aisle.current_direction),
                     "occupancy": aisle.occupancy,
                     "capacity": aisle.capacity,
-                    "lock_until": aisle.lock_until,
-                    "switches": aisle.direction_switches,
-                    "manageable": aisle.manageable,
                     "axis": aisle.axis,
-                    # How the direction is doing against the two clocks: the
-                    # minimum green it must serve, and the maximum green past
-                    # which any opposing demand forces a flip.
-                    "held_for": held,
-                    "min_green": aisle.minimum_lock_time,
-                    "max_green": aisle.maximum_lock_time,
-                    "green_left": max(0, aisle.maximum_lock_time - held),
-                    "pending": int(aisle.pending_direction),
-                    "starvation_flips": aisle.starvation_flips,
-                    "exits": aisle.exits,
                 }
             )
 
@@ -273,11 +250,7 @@ class SimulationSession:
                 "p95_service": round(report.p95_service_time, 1),
                 "max_wait": report.max_waiting_time,
                 "travel": report.total_travel_distance,
-                "switches": report.direction_switches,
-                "forced_switches": report.starvation_flips,
-                "aisle_throughput": round(report.aisle_throughput_per_1000, 1),
                 "head_on": report.head_on_conflicts,
-                "counterflow": report.counterflow_moves,
                 "deadlocks": report.deadlocks_detected,
                 "recovered": report.deadlocks_recovered,
                 "fairness": round(report.jain_fairness, 3),
@@ -297,63 +270,44 @@ class SimulationSession:
         }
 
     def _hypothesis_rows(self, report) -> List[Dict[str, Any]]:
-        """Live value of the metric each hypothesis is actually judged on.
+        """Live value of the metric each surviving mechanism is judged on.
 
-        The offline scoreboard compares these against a control run; here they
-        are shown for the configuration on screen, so flipping a toggle and
+        The offline study compares these against a control run; here they are
+        shown for the configuration on screen, so flipping a toggle and
         watching the row move is the same evidence the tables report.
         """
         params = self.sim.params
         return [
             {
-                "key": "H1",
-                "mechanism": "aisle direction (soft, straight runs, max green)",
-                "metric": "aisle throughput /1000",
-                "value": round(report.aisle_throughput_per_1000, 1),
-                "active": params.direction_control == "aisle",
+                "key": "lane",
+                "mechanism": "stay-in-lane bonus",
+                "metric": "head-on conflicts",
+                "value": report.head_on_conflicts,
+                "active": params.aisle_bonus > 0.0,
+                "better": "lower",
+            },
+            {
+                "key": "crowd",
+                "mechanism": "crowding in movement + matching",
+                "metric": "throughput",
+                "value": round(report.throughput, 4),
+                "active": params.congestion_scoring or params.congestion_assignment,
                 "better": "higher",
             },
             {
-                "key": "H2",
-                "mechanism": "hysteresis without starvation",
-                "metric": "switches /1000 (forced)",
-                "value": f"{report.direction_switches_per_1000:.1f} "
-                         f"({report.starvation_flips})",
-                "active": params.hysteresis and params.direction_control == "aisle",
-                "better": "lower",
-            },
-            {
-                "key": "H3",
-                "mechanism": "entry capacity admission",
-                "metric": "head-on conflicts",
-                "value": report.head_on_conflicts,
-                "active": params.direction_control == "aisle",
-                "better": "lower",
-            },
-            {
-                "key": "H4",
-                "mechanism": "congestion in matching (not movement)",
-                "metric": "mean / p95 service",
-                "value": f"{report.mean_service_time:.0f} / "
-                         f"{report.p95_service_time:.0f}",
-                "active": params.congestion_assignment,
-                "better": "lower",
-            },
-            {
-                "key": "H5",
-                "mechanism": "proximity-dependent β decay",
-                "metric": "max service time",
-                "value": round(report.max_service_time),
-                "active": params.direction_control != "none"
-                and params.r_far > params.r_near,
-                "better": "lower",
-            },
-            {
-                "key": "H6",
-                "mechanism": "recovery on corroborated stalls",
-                "metric": "deadlocks det / rec",
-                "value": f"{report.deadlocks_detected} / {report.deadlocks_recovered}",
+                "key": "recover",
+                "mechanism": "corroborated deadlock recovery",
+                "metric": "unrecovered deadlocks",
+                "value": report.deadlocks_unrecovered,
                 "active": params.recovery,
+                "better": "lower",
+            },
+            {
+                "key": "turn",
+                "mechanism": "turning cost",
+                "metric": "total travel distance",
+                "value": report.total_travel_distance,
+                "active": params.turning_cost,
                 "better": "lower",
             },
         ]
@@ -383,17 +337,6 @@ class SimulationSession:
         if kind == "congestion":
             for v in wh.graph.vertices:
                 grid[v[0]][v[1]] = float(sim.index.local_density(v))
-        elif kind == "counterflow":
-            # Cells whose aisle direction opposes the traffic that wants
-            # them. Nothing charges a robot for entering one any more -- routes
-            # are planned to avoid them instead -- so this shows where the
-            # routing detour is being spent.
-            for robot in sim.robots:
-                for candidate in wh.graph.neighbors(robot.position):
-                    if sim.aisles.violates_aisle_direction(
-                        robot, robot.position, candidate, max(0, sim.timestep - 1)
-                    ):
-                        grid[candidate[0]][candidate[1]] += 1.0
         elif kind == "stall":
             for robot in sim.robots:
                 r, c = robot.position
@@ -442,7 +385,6 @@ class Handler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length) or b"{}")
 
-    # -------------------------------------------------------------- routing
     def do_GET(self) -> None:
         url = urlparse(self.path)
         query = parse_qs(url.query)

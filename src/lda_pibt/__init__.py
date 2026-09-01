@@ -13,7 +13,6 @@ Quick start::
     print(report)
 """
 
-from .aisle_manager import AisleManager
 from .assignment import TaskAssigner, update_task_state, update_waypoint
 from .baselines import RHCRPlanner, TokenPassingPlanner
 from .config import (
@@ -40,14 +39,11 @@ from .metrics import MetricsCollector, MetricsReport, jain_fairness, percentile
 from .pibt import PIBTPlanner
 from .priority import compute_priority, order_by_priority
 from .robot import Robot
-from .routing import Router
 from .scoring import CandidateScorer
 from .simulator import Simulator, build_simulator
 from .stats import bootstrap_ci, permutation_test
 from .task import Task, TaskGenerator, TaskQueue
 from .types import (
-    AisleDirection,
-    AisleState,
     Compass,
     PIBTResult,
     PlanningError,
@@ -65,9 +61,6 @@ __all__ = [
     "__version__",
     "ABLATIONS",
     "Aisle",
-    "AisleDirection",
-    "AisleManager",
-    "AisleState",
     "BASELINE_PARAMS_PRESET",
     "BASELINE_PLANNERS",
     "CandidateScorer",
@@ -88,7 +81,6 @@ __all__ = [
     "ProximityMode",
     "RHCRPlanner",
     "Robot",
-    "Router",
     "RobotState",
     "Simulator",
     "Task",

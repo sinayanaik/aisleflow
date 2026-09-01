@@ -33,7 +33,7 @@ def panels():
         )
         for variant, title in (
             ("lifelong_pibt", "plain PIBT"),
-            ("aisle_direction_only", "SPAR"),
+            ("lane_bonus_only", "SPAR"),
         )
     ]
 
@@ -42,13 +42,6 @@ def test_a_panel_records_a_frame_per_timestep(panels):
     for panel in panels:
         assert len(panel.history) == STEPS
         assert len(panel.stalled) == STEPS
-        assert len(panel.flips) == STEPS
-
-
-def test_flip_counts_never_decrease(panels):
-    """They are cumulative: a running total that fell would be a bug."""
-    for panel in panels:
-        assert panel.flips == sorted(panel.flips)
 
 
 def test_stalls_are_derived_from_positions(panels):
@@ -101,33 +94,39 @@ def test_narration_shows_the_last_beat_that_has_come_due():
 
 
 def test_the_chart_can_plot_either_series(panels):
-    """`max-green` argues about flips, not throughput, and plots that instead."""
+    """Either series can be plotted; both are cumulative and non-decreasing."""
     for panel in panels:
         delivered = viz_compare._series_values(panel, "delivered")
-        flips = viz_compare._series_values(panel, "flips")
-        assert len(delivered) == len(flips) == len(panel.history)
+        assert len(delivered) == len(panel.history)
         assert delivered == [s.completed_tasks for s in panel.history]
-        assert flips == panel.flips
+        assert delivered == sorted(delivered), "tasks delivered cannot go down"
     # an unknown name must not blow up mid-render; it falls back to the default
     assert viz_compare._series_values(panels[0], "nonsense") == [
         s.completed_tasks for s in panels[0].history
     ]
 
 
-def test_a_frame_renders_with_narration_and_either_series(panels):
+def test_a_frame_renders_with_narration(panels):
+    """A frame draws, and the narration beat changes what it draws.
+
+    There used to be a second chart series here -- cumulative aisle direction
+    flips -- and this test compared the two pictures. The aisle-direction layer
+    was removed after it measured -0.3% (p = 0.95), so tasks delivered is the
+    only series left, and the thing worth guarding is that narration reaches
+    the canvas at all.
+    """
     layout = viz_compare._fit_layout(panels, max_width=1000)
     statics = [viz_compare._draw_static(p.warehouse, layout) for p in panels]
     frames = [
         viz_compare.render_frame(
             panels, 10, layout, "title", "caption", statics, best_completed=1,
-            beats=[viz_compare.Beat(0, "a sentence about what is happening")],
-            chart_series=series,
+            beats=beats, chart_series="delivered",
         )
-        for series in ("delivered", "flips")
+        for beats in ([], [viz_compare.Beat(0, "a sentence about what happens")])
     ]
     assert frames[0].size == frames[1].size
     assert frames[0].tobytes() != frames[1].tobytes(), (
-        "the two series drew the same picture, so the chart ignored `series`"
+        "the narration beat never reached the canvas"
     )
 
 
