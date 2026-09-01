@@ -57,8 +57,8 @@ OUT_DIR = ROOT / "docs" / "figures"
 # four clear every adjacent-form gate (worst CVD dE 9.1, normal-vision 22.9 on
 # this surface). Two of the four sit below 3:1 against the surface, so every
 # figure that uses them carries visible direct labels rather than relying on
-# the colour alone -- every bar, cell and rung on these five figures prints its
-# own value and, where there is one, its own verdict in words.
+# the colour alone -- every bar, cell and rung on these figures prints its own
+# value.
 #
 # These figures are deliberately single-mode: they are rendered inline on
 # GitHub, which does not pass a viewer theme down into an embedded SVG, so the

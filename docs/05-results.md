@@ -30,9 +30,9 @@ Three published lifelong (MAPD) planners, each implemented from its paper in
 *Tasks delivered per timestep; higher is better. 5 seeds x 400 steps, identical job streams across planners. git `ef0910e`.*
 <!-- /generated:headline -->
 
-**What to look for:** aisleflow leads on the three floors where every route
-crosses a chokepoint, and **RHCR beats it on the open one** — 478 tasks per
-1000 timesteps against 416 on `medium`. Token Passing delivers nothing at all
+**What to look for:** aisleflow leads on three of the four floors, and **RHCR
+beats it on `medium`** — 478 tasks per 1000 timesteps against 416. Token
+Passing delivers nothing at all
 on `corridors`, which is a fact about that map rather than about the
 algorithm: it has no parking bays, so with 35 agents every one of its five
 single-file runs has an idle agent standing in it before the first task is

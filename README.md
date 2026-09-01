@@ -15,7 +15,7 @@ changed nothing was deleted rather than left at a default. The evidence is in
 Aisleflow is measured against three published lifelong planners, each
 implemented from its paper: **Token Passing** and **Token Passing with Task
 Swaps** (Ma et al. 2017) and **RHCR** (Li et al. 2021, over PBS). It leads on
-the three aisle-constrained floors and **loses to RHCR on the open one**.
+three of the four floors and **loses to RHCR on `warehouse_medium`**.
 Token Passing falls away as the floor fills, for a reason its own paper
 gives: it is complete only on *well-formed* MAPD instances — one parking
 endpoint per agent — and none of these maps provides that at these robot
@@ -222,15 +222,18 @@ tests/           graph, PIBT, lifelong layer, GUI, baselines, statistics, the
                  committed doc assets, and the documents themselves (every
                  parameter documented, every generated table current)
 experiments/     run_sensitivity.py (what each knob is worth) and run_all.py
-                 (the ablation ladder, baselines, hypotheses, paired designs
-                 and factorials) -- both write docs/data/. Plus the older
-                 single-purpose runners, which write to results/.
+                 (the ablation ladder, the published baselines, the density
+                 sweep, hypotheses, paired designs and factorials) -- both
+                 write docs/data/. Plus the older single-purpose runners,
+                 which write to results/.
 results/         JSON from the individual runners (git-ignored)
-tools/           make_docs_tables.py (the generated tables in docs/04 and 05),
-                 make_figures.py (the figures), make_gifs.py (the animations)
-docs/*.md        the five documents, in reading order
+tools/           make_docs_tables.py (the generated tables in docs/04, 05
+                 and 06), make_figures.py (the figures), make_gifs.py (the
+                 animations -- their captions read their numbers from
+                 docs/data/ at render time)
+docs/*.md        the six documents, in reading order
 docs/data/       the measured dataset every figure and table is generated from
-docs/figures/    the five result figures, as SVG, all embedded in docs/05
+docs/figures/    the five result figures, as SVG, embedded in docs/05 and 06
 docs/gifs/       the comparison animations
 ```
 

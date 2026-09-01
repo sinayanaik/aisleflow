@@ -4,7 +4,7 @@
 The other four scripts in this directory each answer one question and write
 into `results/` (git-ignored). This one runs all of them over a single set of
 scenarios and writes into **`docs/data/`**, which *is* committed, because the
-generated tables in `docs/04` and `docs/05`, the five figures written by
+generated tables in `docs/04`, `docs/05` and `docs/06`, the figures written by
 `tools/make_figures.py` and the numbers quoted in the animation narration must
 all be generated from the same measured numbers rather than from four runs that
 happened on four different afternoons.
