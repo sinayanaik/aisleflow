@@ -21,7 +21,7 @@ a **negative** number means the planner is *better* without it.
 | `reverse_multiplier` | 2.0 | Reversing costs this many times a turn. | +17.2% | **load-bearing** |
 | `crowding_penalty` | 1.0 | Cost of moving into a completely crowded cell. | +0.3% | within noise |
 | `local_congestion_radius` | 3 | Radius of the “how full is it around here” measurement. | +7.9% | earns its place |
-| `priority_class_spread` | 100.0 | Rank gap between adjacent job classes. | not measured | — |
+| `priority_class_spread` | 100.0 | Rank gap between adjacent job classes. | +38.7% | **load-bearing** |
 | `priority_inside_aisle` | 50.0 | Rank bonus for a robot already inside an aisle. | +4.4% | within noise |
 | `waiting_weight` | 5.0 | Rank bought per step waited. The anti-starvation guarantee. | +10.0% | earns its place |
 | `stall_steps` | 10 | Steps without progress before a robot counts as stalled. | +2.9% | within noise |

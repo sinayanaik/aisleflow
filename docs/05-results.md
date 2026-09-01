@@ -119,6 +119,7 @@ is better without it.
 | --- | --- | ---: | ---: | --- |
 | score | `progress_reward` | -100.0% | 0.000 | bottleneck (-100.0%) |
 | recovery | `require_deadlock_corroboration` | -54.1% | 0.000 | corridors (-90.2%) |
+| priority | `priority_class_spread` | -38.7% | 0.000 | bottleneck (-71.9%) |
 | score | `reverse_multiplier` | -17.2% | 0.000 | narrow (-24.5%) |
 | score | `turn_penalty` | -15.1% | 0.004 | corridors (-28.9%) |
 | priority | `waiting_weight` | -10.0% | 0.034 | corridors (-23.8%) |
@@ -133,17 +134,15 @@ is better without it.
 | assignment | `cost_congestion` | -2.4% | 0.503 | corridors (-9.1%) |
 | score | `crowding_penalty` | -0.3% | 0.913 | corridors (-16.2%) |
 | recovery | `recovery_max_level=4` | +0.0% | 1.000 | — |
-| recovery | `recovery_max_level=4` | +0.0% | 1.000 | — |
 | assignment | `cost_blocking` | +0.0% | 0.744 | — |
 | assignment | `cost_waiting` | +0.1% | 0.984 | corridors (-11.7%) |
 | recovery | `recovery_max_level=0` | +4.2% | 0.061 | — |
 | recovery | `recovery_max_level=1` | +4.2% | 0.061 | — |
 | recovery | `recovery_max_level=2` | +4.2% | 0.061 | — |
 | recovery | `recovery_max_level=3` | +4.2% | 0.061 | — |
-| recovery | `recovery_max_level=3` | +4.2% | 0.061 | — |
 | recovery | `recovery` | +4.2% | 0.061 | — |
 
-*25 variants, 10 seeds, 400 steps, 4 maps. Effect is the change in throughput from removing the knob, so a positive number means the planner is better without it. Paired sign-flip test; git `b00ff91`.*
+*24 variants, 10 seeds, 400 steps, 4 maps. Effect is the change in throughput from removing the knob, so a positive number means the planner is better without it. Paired sign-flip test; git `5f68d90`.*
 <!-- /generated:sensitivity -->
 
 ### Caveats worth stating
