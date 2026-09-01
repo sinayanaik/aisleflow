@@ -70,6 +70,12 @@ Every claim this project makes is comparative, so
 [`docs/gifs/`](docs/gifs/) puts both sides of each one on screen at once: same
 map, same seed, same task stream, differing only in the planner.
 
+One colour rule reads the whole animation: **a red dot is a robot that has not
+moved for 15 timesteps**, and nothing else on the frame is red. A side that
+fills with red has stopped delivering, and the chart under it flattens at the
+same moment. A band along the bottom says, one sentence at a time, what is
+happening and why.
+
 ![Token Passing gridlocks where priority inheritance does not](docs/gifs/01-token-passing-gridlock.gif)
 
 *Left: Token Passing on `warehouse_bottleneck`. All 16 robots queue nose-to-tail
