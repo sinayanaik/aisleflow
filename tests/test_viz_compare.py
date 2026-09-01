@@ -83,3 +83,67 @@ def test_writing_a_gif_respects_the_budget(panels, tmp_path):
             panels, tmp_path / "tiny.gif", "title", "caption",
             stride=5, hold_last=2, max_bytes=200,
         )
+
+
+def test_narration_shows_the_last_beat_that_has_come_due():
+    """A beat stays on screen until the next one, and none before the first."""
+    beats = [
+        viz_compare.Beat(0, "setup"),
+        viz_compare.Beat(40, "the corridor fills"),
+        viz_compare.Beat(90, "nothing moves"),
+    ]
+    assert viz_compare.beat_at(beats, 0).text == "setup"
+    assert viz_compare.beat_at(beats, 39).text == "setup"
+    assert viz_compare.beat_at(beats, 40).text == "the corridor fills"
+    assert viz_compare.beat_at(beats, 500).text == "nothing moves"
+    assert viz_compare.beat_at([], 10) is None
+    assert viz_compare.beat_at([viz_compare.Beat(5, "later")], 4) is None
+
+
+def test_the_chart_can_plot_either_series(panels):
+    """`max-green` argues about flips, not throughput, and plots that instead."""
+    for panel in panels:
+        delivered = viz_compare._series_values(panel, "delivered")
+        flips = viz_compare._series_values(panel, "flips")
+        assert len(delivered) == len(flips) == len(panel.history)
+        assert delivered == [s.completed_tasks for s in panel.history]
+        assert flips == panel.flips
+    # an unknown name must not blow up mid-render; it falls back to the default
+    assert viz_compare._series_values(panels[0], "nonsense") == [
+        s.completed_tasks for s in panels[0].history
+    ]
+
+
+def test_a_frame_renders_with_narration_and_either_series(panels):
+    layout = viz_compare._fit_layout(panels, max_width=1000)
+    statics = [viz_compare._draw_static(p.warehouse, layout) for p in panels]
+    frames = [
+        viz_compare.render_frame(
+            panels, 10, layout, "title", "caption", statics, best_completed=1,
+            beats=[viz_compare.Beat(0, "a sentence about what is happening")],
+            chart_series=series,
+        )
+        for series in ("delivered", "flips")
+    ]
+    assert frames[0].size == frames[1].size
+    assert frames[0].tobytes() != frames[1].tobytes(), (
+        "the two series drew the same picture, so the chart ignored `series`"
+    )
+
+
+def test_the_first_and_last_frames_are_held_longer(panels, tmp_path):
+    """A viewer needs time to read the setup, and longer to read the outcome."""
+    from PIL import Image
+
+    out = viz_compare.save_comparison(
+        panels, tmp_path / "held.gif", "title", "caption", stride=5, hold_last=0,
+        fps=10, hold_first_ms=2000, hold_last_ms=3500,
+    )
+    gif = Image.open(out)
+    durations = []
+    for index in range(gif.n_frames):
+        gif.seek(index)
+        durations.append(gif.info["duration"])
+    assert durations[0] >= 2000
+    assert durations[-1] >= 3500
+    assert max(durations[1:-1]) < 2000

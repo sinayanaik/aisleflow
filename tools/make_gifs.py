@@ -31,7 +31,7 @@ from typing import Dict, List, Sequence, Tuple
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from lda_pibt.viz_compare import run_panel, save_comparison  # noqa: E402
+from lda_pibt.viz_compare import Beat, run_panel, save_comparison  # noqa: E402
 
 OUT_DIR = ROOT / "docs" / "gifs"
 
@@ -59,6 +59,15 @@ class Scenario:
     panels: Tuple[PanelSpec, ...]
     #: one paragraph for docs/gifs/README.md -- what a reader should watch for
     watch_for: str
+    #: the on-screen narration, cued to the timestep it becomes true. These
+    #: are what make a GIF explain rather than merely show: at any moment a
+    #: first-time viewer can read one sentence saying what is happening and
+    #: why. Keep them short enough to fit one line and specific enough to be
+    #: checkable against the frame they appear on.
+    beats: Tuple[Beat, ...] = ()
+    #: which quantity the shared chart plots -- "delivered", or "flips" where
+    #: throughput is not what the scenario is arguing about
+    chart_series: str = "delivered"
     seed: int = 0
 
 
@@ -70,7 +79,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         robots=16,
         rate=0.8,
         timesteps=400,
-        stride=4,
+        stride=2,
         title="A queue that never resolves, and one that does",
         caption=(
             "warehouse_bottleneck, 16 robots, two halves joined by one corridor. "
@@ -94,12 +103,26 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "position when it cannot find one. In a one-corridor map every robot "
             "eventually queues nose-to-tail in that corridor, no robot can reserve "
             "a path through the robots ahead of it, and nothing ever moves again: "
-            "watch the left panel go entirely red-ringed and stay there while its "
+            "watch the left panel turn entirely red and stay there while its "
             "delivered count stops. The right panel is the same instant of the same "
             "scenario under priority inheritance, where a blocked robot pushes the "
             "robot ahead of it out of the way and the queue drains. This is the "
             "failure mode PIBT was invented to remove, and it is structural: no "
             "amount of tuning removes it from Token Passing."
+        ),
+        beats=(
+            Beat(0, "Same map, same 16 robots, same tasks. One corridor joins the "
+                    "two halves."),
+            Beat(40, "Robots reach the corridor. Token Passing must reserve a whole "
+                     "free path before it moves one."),
+            Beat(90, "Left: the corridor is full, so no free path exists to reserve "
+                     "— and a robot with no reservation waits."),
+            Beat(150, "Left: each robot now waits on a robot that is waiting on it. "
+                      "Red = stuck. The delivered count has stopped."),
+            Beat(230, "Right: PIBT lets a blocked robot PUSH the one ahead of it, so "
+                      "the same queue keeps draining."),
+            Beat(320, "Nothing on the left will move again — the count is frozen "
+                      "at zero. The failure is structural, not a tuning problem."),
         ),
     ),
     Scenario(
@@ -109,7 +132,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         robots=35,
         rate=1.0,
         timesteps=400,
-        stride=4,
+        stride=2,
         title="One-way as a constraint, one-way as a price",
         caption=(
             "warehouse_corridors, 35 robots, five parallel single-file corridors. "
@@ -140,6 +163,20 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "over five seeds this is worth between 1.9x and 3.1x throughput - the "
             "largest single effect in the repository."
         ),
+        beats=(
+            Beat(0, "Both sides commit the SAME one-way directions. They differ only "
+                    "in what that does to a move going the wrong way."),
+            Beat(50, "Left: a counterflow move is deleted outright. Right: it "
+                     "survives, priced at 8 against the 10 a step of progress earns."),
+            Beat(120, "Priority inheritance needs somewhere to push a blocked robot. "
+                      "Delete counterflow and whole corridors have nowhere."),
+            Beat(200, "Left: corridors strand, and the red spreads. Right: robots "
+                      "drive the wrong way only when nothing else gets through."),
+            Beat(290, "Right pays for each of those wrong-way steps and still "
+                      "delivers far more."),
+            Beat(350, "One rule, two enforcements. Across five seeds at 1000 "
+                      "steps, pricing it beats deleting it by 1.9x-3.1x."),
+        ),
     ),
     Scenario(
         key="max-green",
@@ -148,7 +185,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         robots=30,
         rate=1.2,
         timesteps=400,
-        stride=4,
+        stride=2,
         title="An aisle that never flips, and one that must",
         caption=(
             "warehouse_narrow, 30 robots, four 5-cell single-file aisles per bank. "
@@ -180,6 +217,22 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "meet head-on inside it. This is what makes the aisle layer "
             "starvation-free rather than merely non-flapping."
         ),
+        beats=(
+            Beat(0, "Aisle tint is the committed one-way direction; the arrows show "
+                    "which way it flows."),
+            Beat(60, "Left has hysteresis only: an aisle keeps its direction until "
+                     "demand imbalance breaks the dead band."),
+            Beat(130, "Pickups down one side, deliveries down the other, so demand "
+                      "stays near-balanced — the band never breaks."),
+            Beat(190, "Right adds a maximum green: past T_max the aisle turns purple, "
+                      "DRAINS empty, then commits the other way."),
+            Beat(260, "Draining before reversing is why no two robots ever meet "
+                      "head-on inside an aisle."),
+            Beat(330, "Both sides deliver about the same here. The chart is the "
+                      "claim: left's aisles barely flip, so waiting robots keep "
+                      "waiting."),
+        ),
+        chart_series="flips",
     ),
     Scenario(
         key="recovery",
@@ -188,7 +241,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         robots=35,
         rate=1.0,
         timesteps=400,
-        stride=4,
+        stride=2,
         title="Rescuing a deadlock, and rescuing a queue",
         caption=(
             "warehouse_corridors, 35 robots. Both panels run the same seven-level "
@@ -218,6 +271,20 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "difference produced entirely by refusing to act on the weakest of the "
             "three stall signals."
         ),
+        beats=(
+            Beat(0, "Both sides run the SAME seven-level recovery. They differ only "
+                    "in what is allowed to trigger it."),
+            Beat(50, "Left fires on one signal alone: no progress for t_blocked "
+                     "steps."),
+            Beat(120, "But in dense lifelong traffic that signal describes an "
+                      "ordinary queue, not a deadlock."),
+            Beat(200, "Left: healthy queues are reversed, sent to escape vertices and "
+                      "rebuilt — continuously. The delivered count barely moves."),
+            Beat(280, "Right also needs a wait-for cycle or a repeated configuration "
+                      "before it acts, so queues are left to drain."),
+            Beat(350, "Across five seeds: 0.134 tasks per step against 0.022, from "
+                      "refusing to act on the weakest of three stall signals."),
+        ),
     ),
     Scenario(
         key="open-map",
@@ -226,7 +293,7 @@ SCENARIOS: Tuple[Scenario, ...] = (
         robots=40,
         rate=1.5,
         timesteps=400,
-        stride=4,
+        stride=2,
         title="Where the aisle layer costs more than it earns",
         caption=(
             "warehouse_medium, 40 robots, an open grid warehouse. "
@@ -257,6 +324,20 @@ SCENARIOS: Tuple[Scenario, ...] = (
             "this project is that its aisle layer wins on aisle-constrained maps and "
             "loses on open ones, and this GIF is the losing half."
         ),
+        beats=(
+            Beat(0, "The case this project LOSES, shown as plainly as the ones it "
+                    "wins."),
+            Beat(50, "An open grid: many parallel routes, and no scarce single-file "
+                     "aisle to fight over."),
+            Beat(130, "Left still commits aisle directions, so some robots detour or "
+                      "pay counterflow — with no congestion to justify either."),
+            Beat(220, "Right has no aisle layer at all, and simply keeps delivering "
+                      "more, throughout."),
+            Beat(300, "Nothing here is stuck on either side. The cost is pure "
+                      "overhead, not gridlock."),
+            Beat(350, "Aisle management wins on aisle-constrained maps and loses on "
+                      "open ones. Five seeds: 313 against 502 per 1000 steps."),
+        ),
     ),
 )
 
@@ -265,7 +346,7 @@ BY_KEY: Dict[str, Scenario] = {s.key: s for s in SCENARIOS}
 
 def render(scenario: Scenario, quick: bool = False) -> Path:
     timesteps = 120 if quick else scenario.timesteps
-    stride = 3 if quick else scenario.stride
+    stride = 2 if quick else scenario.stride
     map_path = ROOT / "maps" / f"{scenario.map_name}.map"
 
     panels = []
@@ -292,6 +373,8 @@ def render(scenario: Scenario, quick: bool = False) -> Path:
         title=scenario.title,
         caption=scenario.caption,
         stride=stride,
+        beats=scenario.beats,
+        chart_series=scenario.chart_series,
     )
     print(f"    -> {path.relative_to(ROOT)}  ({path.stat().st_size / 1e6:.2f} MB)")
     return path
@@ -317,11 +400,29 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
         "python3 tools/make_gifs.py            # needs pillow: pip install -e \".[viz]\"",
         "```",
         "",
-        "In every frame: a filled dot is a robot, coloured by what it is doing; a red",
-        "ring means that robot has not moved for 15 timesteps; a tinted aisle has",
-        "committed a direction, and its arrow points the way it flows. The number",
-        "under each panel is tasks delivered so far, and the bar under that compares",
-        "it with the leading panel.",
+        "## How to read one",
+        "",
+        "They are built to be followed on a first watch, at two timesteps per frame,",
+        "with a pause on the opening frame to read the setup and a longer one on the",
+        "last to read the outcome.",
+        "",
+        "| On the frame | Means |",
+        "| --- | --- |",
+        "| Blue dot | a robot on its way to a pickup |",
+        "| Teal dot | a robot carrying a task to a delivery |",
+        "| Grey dot | a robot with no task yet |",
+        "| **Red dot** | that robot has not moved for 15 timesteps |",
+        "| **Red frame + GRIDLOCKED** | most of that panel's robots are stuck |",
+        "| Blue / orange aisle tint | the aisle has committed a one-way direction; the arrows show which way |",
+        "| Purple aisle tint | the aisle is DRAINING: emptying before it reverses |",
+        "| Big number | tasks delivered so far, green on whichever side is ahead |",
+        "| Chart | the quantity named at its left -- tasks delivered, or aisle "
+        "direction flips -- over the whole run, drawn as it plays |",
+        "| Band along the bottom | what is happening in this part of the run, and why |",
+        "",
+        "One colour rule carries most of the argument: **red means stuck**, and",
+        "nothing else on the frame is red. A side that fills with red has stopped",
+        "delivering, and the chart under it flattens at the same moment.",
         "",
     ]
     for scenario in rendered:
@@ -337,6 +438,13 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
             "",
             scenario.watch_for,
             "",
+        ]
+        if scenario.beats:
+            lines += ["<details><summary>The narration, beat by beat</summary>", ""]
+            lines += [f"- **t = {beat.timestep}** -- {beat.text}"
+                      for beat in scenario.beats]
+            lines += ["", "</details>", ""]
+        lines += [
             "```bash",
             f"python3 tools/make_gifs.py --only {scenario.key}",
             "```",
