@@ -1,0 +1,2053 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aisleflow &mdash; how the planner decides</title>
+<!--
+  The slide deck for aisleflow. One <section class="slide"> is one 16:9 page.
+  There is no build step: open this file in a browser, or print it to PDF from
+  there. Every slide is 1280x720 and the page CSS sizes them, so what you see
+  on screen is what prints.
+
+  Rules of the house, so that the deck stays a deck:
+    * one idea per slide -- if a slide needs a second paragraph of argument,
+      it needs a second slide, or the argument belongs in <aside class="notes">;
+    * every measured number stays exactly as measured, and says what it is
+      measured on;
+    * no external fonts, scripts or images: this file opens correctly by
+      double-click, offline, forever;
+    * no mechanism appears on a slide that is not in the code. The blocks
+      between <!-- generated:NAME --> markers are written by
+      `tools/make_deck_figures.py`, which calls the real scorer, the real
+      assigner and the real priority function -- edit the generator, never
+      the block. `tests/test_deck.py` fails if they drift.
+-->
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+
+  /* A light deck, on purpose. The diagrams are grids with a lot of thin
+     structure in them -- shelf blocks, cell borders, route arrows -- and thin
+     dark lines on a pale ground survive a projector and a printer, where pale
+     lines on a dark ground do not. */
+  :root {
+    --bg:      #ffffff;
+    --bg-2:    #f4f7fa;
+    --ink:     #10161d;
+    --ink-dim: #4a5768;
+    --ink-fade:#7b8899;
+    --rule:    #d7dee7;
+    --rule-2:  #e8edf2;
+    --accent:  #1a56c4;
+    --warm:    #9a5b00;
+    --good:    #0f7350;
+    --bad:     #b32218;
+
+    /* the grid diagrams, shared with the animation's legend so a reader who
+       has watched the GIF recognises the colours */
+    --floor:   #ffffff;
+    --shelf:   #d3dae2;
+    --pickup:  #dbeaff;
+    --deliver: #d8f0e3;
+    --park:    #fdeecb;
+
+    --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: "SFMono-Regular", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: #e7ebf0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  body { font-family: var(--sans); }
+
+  .slide {
+    position: relative;
+    width: 1280px; height: 720px;
+    background: var(--bg); color: var(--ink);
+    padding: 58px 76px 56px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .slide + .slide { page-break-before: always; break-before: page; }
+  @media screen { .slide { margin: 0 auto 28px; box-shadow: 0 2px 16px #0f172a1f; } }
+
+  /* ---------------------------------------------------------- headings */
+  .eyebrow {
+    font-size: 13px; letter-spacing: .19em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 14px;
+  }
+  h1 { font-size: 62px; line-height: 1.06; margin: 0; letter-spacing: -.02em; }
+  h2 {
+    font-size: 38px; line-height: 1.15; margin: 0 0 30px;
+    font-weight: 600; letter-spacing: -.015em; max-width: 20ch;
+  }
+  h2.wide { max-width: none; }
+  /* Content sits in the optical centre of the space between the title and
+     the footer rule, so a short slide does not float against the title. */
+  .slide > .body {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .foot {
+    margin-top: auto; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-size: 15px; line-height: 1.5; color: var(--ink-dim); max-width: 108ch;
+  }
+  .foot b { color: var(--ink); font-weight: 600; }
+  .slide::after {
+    content: attr(data-num);
+    position: absolute; right: 34px; bottom: 22px;
+    font-size: 12px; color: var(--ink-fade); font-variant-numeric: tabular-nums;
+  }
+
+  /* ------------------------------------------------------------ layout */
+  .cols  { display: grid; grid-template-columns: 1fr 1fr; gap: 46px; }
+  .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+  .cols4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+  .split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 52px; align-items: start; }
+  .split.wide-left { grid-template-columns: 1.35fr 1fr; }
+  .split.pic  { grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
+  .split.calc { grid-template-columns: 0.82fr 1fr; gap: 40px; align-items: center; }
+
+  p { font-size: 21px; line-height: 1.5; margin: 0 0 16px; color: var(--ink); }
+  p.dim { color: var(--ink-dim); }
+  .lead { font-size: 25px; line-height: 1.42; }
+
+  /* ------------------------------------------------------------- cards */
+  .card {
+    background: var(--bg-2); border: 1px solid var(--rule);
+    border-radius: 9px; padding: 22px 24px;
+  }
+  .card h3 {
+    font-size: 20px; margin: 0 0 9px; font-weight: 600; letter-spacing: -.01em;
+  }
+  .card p { font-size: 17px; line-height: 1.48; color: var(--ink-dim); margin: 0; }
+  .card.accent { border-left: 3px solid var(--accent); }
+  .card.warm   { border-left: 3px solid var(--warm); }
+  .card.good   { border-left: 3px solid var(--good); }
+  .card.bad    { border-left: 3px solid var(--bad); }
+  .card.tight  { padding: 16px 18px; }
+  .card.tight h3 { font-size: 17px; margin: 0 0 6px; }
+  .card.tight p  { font-size: 15px; line-height: 1.45; }
+
+  /* --------------------------------------------------------- numbering */
+  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative;
+    padding-left: 60px; margin-bottom: 24px;
+  }
+  ol.steps > li::before {
+    content: counter(s);
+    position: absolute; left: 0; top: -4px;
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--rule); background: var(--bg-2);
+    color: var(--accent); font-size: 18px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ol.steps h3 { font-size: 21px; margin: 0 0 6px; font-weight: 600; }
+  ol.steps p  { font-size: 17px; line-height: 1.45; color: var(--ink-dim); margin: 0; }
+  ol.steps.tight > li { margin-bottom: 15px; padding-left: 48px; }
+  ol.steps.tight h3 { font-size: 19px; margin: 0; }
+  ol.steps.tight > li::before {
+    width: 32px; height: 32px; font-size: 15px; top: -3px;
+  }
+  ol.steps.tight p { font-size: 15px; margin-top: 3px; }
+
+  /* --------------------------------------------------------- big stats */
+  .stat { text-align: left; }
+  .stat .n {
+    font-size: 82px; line-height: 1; font-weight: 700;
+    letter-spacing: -.035em; color: var(--warm);
+  }
+  .stat .n.small { font-size: 56px; }
+  .stat .l {
+    font-size: 14px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-fade); margin-top: 12px; font-weight: 600;
+  }
+  .statrow { display: flex; gap: 64px; }
+
+  /* ------------------------------------------------------------ tables */
+  table { border-collapse: collapse; width: 100%; font-size: 17px; }
+  th {
+    text-align: left; font-size: 12px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-fade); font-weight: 600;
+    padding: 0 16px 12px 0; border-bottom: 1px solid var(--rule);
+  }
+  td {
+    padding: 13px 16px 13px 0; border-bottom: 1px solid var(--rule-2);
+    color: var(--ink-dim); vertical-align: top; line-height: 1.4;
+  }
+  td.k { color: var(--ink); font-weight: 600; }
+  tr.hi td { color: var(--ink); background: #f2f6fd; }
+  tr.hi td.k { color: var(--accent); }
+  tr.out td { color: var(--ink-fade); text-decoration: line-through; }
+  td .verdict { font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+  .yes { color: var(--good); }
+  .no  { color: var(--bad); }
+  .mid { color: var(--warm); }
+
+  /* the generated arithmetic tables: dense, monospaced numbers, right-aligned */
+  table.calc { font-size: 16px; }
+  table.calc th, table.calc td { padding: 7px 13px 7px 0; }
+  table.calc td.n, table.calc th.n {
+    text-align: right; font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  table.calc td.tot { color: var(--ink); font-weight: 700; }
+  table.calc tr.win td { background: #eef6f1; color: var(--ink); }
+  table.calc tr.win td.tot { color: var(--good); }
+  table.calc caption {
+    caption-side: top; text-align: left; font-size: 14px;
+    color: var(--ink-fade); padding-bottom: 10px; letter-spacing: .03em;
+  }
+
+  /* -------------------------------------------------------- code, math */
+  code, .mono { font-family: var(--mono); font-size: .92em; }
+  .formula {
+    font-family: var(--mono); background: var(--bg-2);
+    border: 1px solid var(--rule); border-left: 3px solid var(--warm);
+    border-radius: 8px; padding: 24px 28px; font-size: 22px; line-height: 1.75;
+    color: var(--ink);
+  }
+  .formula.small { font-size: 19px; padding: 18px 22px; line-height: 1.7; }
+  .formula .pos { color: var(--good); }
+  .formula .neg { color: var(--bad); }
+  .formula .cm  { color: var(--ink-fade); font-size: .8em; }
+  .pull {
+    font-size: 27px; line-height: 1.38; color: var(--ink);
+    border-left: 3px solid var(--accent); padding-left: 24px; margin: 0;
+  }
+  .pull .src {
+    display: block; font-size: 15px; color: var(--ink-fade);
+    margin-top: 14px; letter-spacing: .04em;
+  }
+
+  /* --------------------------------------------------------- diagrams */
+  .fig { display: block; margin: 0 auto; }
+  .figcap {
+    font-size: 15px; color: var(--ink-fade); text-align: center;
+    margin: 10px 0 0; line-height: 1.45;
+  }
+  .key { display: flex; flex-wrap: wrap; gap: 8px 26px; margin-top: 14px; }
+  .key span {
+    font-size: 14px; color: var(--ink-dim);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .key i {
+    width: 13px; height: 13px; border-radius: 50%; display: inline-block;
+    flex: 0 0 auto;
+  }
+  .key i.sq { border-radius: 3px; border: 1px solid var(--rule); }
+
+  /* ----------------------------------------------------------- timeline */
+  .era-name { font-size: 15px; letter-spacing: .12em; text-transform: uppercase;
+              color: var(--ink-fade); font-weight: 600; }
+
+  /* -------------------------------------------------------- title slide */
+  .title-slide { justify-content: center; }
+  .title-slide .rule {
+    width: 96px; height: 4px; background: var(--warm); margin: 30px 0 28px;
+  }
+  .title-slide p.sub {
+    font-size: 24px; line-height: 1.45; color: var(--ink-dim); max-width: 62ch;
+  }
+
+  /* ------------------------------------------------------------- notes */
+  aside.notes { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ==================================================================== 1 -->
+<section class="slide title-slide" data-slug="title" data-num="1">
+  <p class="eyebrow">Multi-agent path finding &middot; project review</p>
+  <h1>Aisleflow</h1>
+  <div class="rule"></div>
+  <p class="sub">Forty years of multi-agent path finding, the warehouse problem
+     it grew into, and what is left of our planner after every mechanism in it
+     was measured one at a time.</p>
+  <!-- generated:title-stats -->
+<div class="statrow" style="margin-top:52px"><div class="stat"><div class="n small">147</div><div class="l">tasks / 1000 steps</div><div style="font-size:14px;color:var(--ink-fade);margin-top:8px">against 100 for the best baseline</div></div><div class="stat"><div class="n small">4</div><div class="l">terms in the movement score</div><div style="font-size:14px;color:var(--ink-fade);margin-top:8px">down from nine</div></div><div class="stat"><div class="n small">37</div><div class="l">parameters</div><div style="font-size:14px;color:var(--ink-fade);margin-top:8px">down from sixty</div></div></div>
+<!-- /generated:title-stats -->
+  <div class="foot">
+    <b>Aisleflow</b> &mdash; lifelong priority inheritance with backtracking, on
+    a warehouse grid. Four score terms, thirty-seven parameters, and a movement
+    layer that never removes a legal move.
+  </div>
+  <aside class="notes">
+    <p>Set the frame before any detail: this is a review of a research
+    implementation, and the honest headline has two halves. On the map where
+    corridors are the constraint it beats every published planner we could run.
+    On open floors, plain lifelong PIBT with a turning cost beats it &mdash;
+    and the deck shows that measurement rather than burying it.</p>
+    <p>The numbers on this slide are generated from the code and the dataset at
+    build time, like every other number in the deck. Nothing here is typed by
+    hand.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 2 -->
+<section class="slide" data-slug="what-this-covers" data-num="2">
+  <p class="eyebrow">What this deck covers</p>
+  <h2 class="wide">Three questions</h2>
+  <div class="body">
+    <ol class="steps">
+      <li>
+        <h3>Where did MAPF come from?</h3>
+        <p>From decoupled prioritised planning in 1987, through optimal solvers,
+           to the greedy planners that made thousands of robots tractable.</p>
+      </li>
+      <li>
+        <h3>How does this planner actually decide?</h3>
+        <p>Three computations, one per slide block, each worked through on a
+           real floor with the real numbers: which robot takes which task, which
+           cell a robot moves into, and who gets to move first.</p>
+      </li>
+      <li>
+        <h3>What survived being measured?</h3>
+        <p>Nine score terms became four; sixty parameters became thirty-seven;
+           a whole aisle-direction layer was deleted. Every deletion has a
+           measurement behind it, and they are all in here.</p>
+      </li>
+    </ol>
+  </div>
+  <div class="foot">
+    The design principle that runs through all three: congestion, lane
+    preference and turning cost decide <b>which legal move PIBT tries
+    first</b> &mdash; they never replace its collision checks, and they never
+    remove a candidate.
+  </div>
+  <aside class="notes">
+    <p>Flag the third bullet now rather than at the end. An audience told at the
+    start that most of the project was deleted listens to the evidence; an
+    audience told at slide 30 listens for what else was hidden.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 3 -->
+<section class="slide" data-slug="mapf-definition" data-num="3">
+  <p class="eyebrow">The problem</p>
+  <h2>Multi-agent path finding</h2>
+  <div class="body">
+    <p class="lead" style="max-width:46ch">
+      Given a graph and <span class="mono">k</span> agents, each with a start
+      and a goal, find <span class="mono">k</span> paths such that every agent
+      arrives and no two agents ever collide.
+    </p>
+    <p class="dim" style="max-width:52ch; margin-top:26px">
+      Time is discrete. At each timestep an agent moves along one edge or waits.
+      Everything else in MAPF &mdash; makespan, sum-of-costs, or the throughput
+      objective this project uses &mdash; is an optimisation layered on top of
+      that one rule.
+    </p>
+  </div>
+  <div class="foot">
+    Two kinds of collision define the problem. They are the next slide, and they
+    are the <b>only</b> two things this planner checks before it lets a robot
+    move.
+  </div>
+  <aside class="notes">
+    <p>Keep this slide short on purpose. The definition is not the interesting
+    part; the two collision types on the next slide are, because the entire
+    architectural argument later ("scoring never decides safety") is an
+    argument about who is allowed to enforce exactly those two rules.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 4 -->
+<section class="slide" data-slug="two-collisions" data-num="4">
+  <p class="eyebrow">The problem</p>
+  <h2 class="wide">Two collisions, and nothing else</h2>
+  <div class="body">
+    <div class="cols3">
+      <div>
+        <svg viewBox="0 0 400 220" width="100%" height="200" role="img"
+             aria-label="Vertex conflict: two agents both move into the same cell">
+          <defs>
+            <marker id="aB" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#1a56c4"/>
+            </marker>
+            <marker id="aW" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#9a5b00"/>
+            </marker>
+            <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#0f7350"/>
+            </marker>
+          </defs>
+          <rect x="150" y="70" width="90" height="90" fill="#fbe6e3"/>
+          <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+            <rect x="60"  y="70" width="90" height="90"/>
+            <rect x="150" y="70" width="90" height="90"/>
+            <rect x="240" y="70" width="90" height="90"/>
+          </g>
+          <circle cx="105" cy="115" r="22" fill="#1a56c4"/>
+          <text x="105" y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">A</text>
+          <circle cx="285" cy="115" r="22" fill="#9a5b00"/>
+          <text x="285" y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">B</text>
+          <path d="M132 100 H176" stroke="#1a56c4" stroke-width="3" fill="none"
+                marker-end="url(#aB)"/>
+          <path d="M258 130 H214" stroke="#9a5b00" stroke-width="3" fill="none"
+                marker-end="url(#aW)"/>
+          <text x="195" y="52" text-anchor="middle" font-size="14"
+                font-family="Helvetica, Arial" fill="#b32218" font-weight="700">
+            both claim this cell at t+1</text>
+          <text x="195" y="192" text-anchor="middle" font-size="14"
+                font-family="Helvetica, Arial" fill="#7b8899">
+            x&#8336;(t+1) = x&#8337;(t+1)</text>
+        </svg>
+        <h3 style="font-size:21px;margin:10px 0 6px">Vertex conflict</h3>
+        <p class="dim" style="font-size:17px">Two robots in the same cell at the
+          same timestep. Checked in O(1) against the set of cells already
+          claimed this step.</p>
+      </div>
+      <div>
+        <svg viewBox="0 0 400 220" width="100%" height="200" role="img"
+             aria-label="Swap conflict: two adjacent agents exchange cells">
+          <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+            <rect x="105" y="70" width="90" height="90"/>
+            <rect x="195" y="70" width="90" height="90"/>
+          </g>
+          <circle cx="150" cy="115" r="22" fill="#1a56c4"/>
+          <text x="150" y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">A</text>
+          <circle cx="240" cy="115" r="22" fill="#9a5b00"/>
+          <text x="240" y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">B</text>
+          <path d="M170 96 Q195 62 220 96" stroke="#1a56c4" stroke-width="3"
+                fill="none" marker-end="url(#aB)"/>
+          <path d="M220 134 Q195 168 170 134" stroke="#9a5b00" stroke-width="3"
+                fill="none" marker-end="url(#aW)"/>
+          <text x="195" y="52" text-anchor="middle" font-size="14"
+                font-family="Helvetica, Arial" fill="#b32218" font-weight="700">
+            they pass through each other</text>
+          <text x="195" y="192" text-anchor="middle" font-size="14"
+                font-family="Helvetica, Arial" fill="#7b8899">
+            legal for each alone, illegal for the pair</text>
+        </svg>
+        <h3 style="font-size:21px;margin:10px 0 6px">Swap conflict</h3>
+        <p class="dim" style="font-size:17px">Two robots exchange cells across
+          one edge in one timestep. The one people forget, because each move is
+          individually legal.</p>
+      </div>
+      <div>
+        <svg viewBox="0 0 400 220" width="100%" height="200" role="img"
+             aria-label="Following: three agents move as a train, which is legal">
+          <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+            <rect x="35"  y="70" width="90" height="90"/>
+            <rect x="125" y="70" width="90" height="90"/>
+            <rect x="215" y="70" width="90" height="90"/>
+            <rect x="305" y="70" width="90" height="90"/>
+          </g>
+          <circle cx="80"  cy="115" r="22" fill="#0f7350"/>
+          <text x="80"  y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">A</text>
+          <circle cx="170" cy="115" r="22" fill="#0f7350"/>
+          <text x="170" y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">B</text>
+          <circle cx="260" cy="115" r="22" fill="#0f7350"/>
+          <text x="260" y="122" text-anchor="middle" font-size="16"
+                font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">C</text>
+          <g stroke="#0f7350" stroke-width="3" fill="none" marker-end="url(#aG)">
+            <path d="M104 96 H146"/>
+            <path d="M194 96 H236"/>
+            <path d="M284 96 H326"/>
+          </g>
+          <text x="215" y="52" text-anchor="middle" font-size="14"
+                font-family="Helvetica, Arial" fill="#0f7350" font-weight="700">
+            all three move, one timestep</text>
+          <text x="215" y="192" text-anchor="middle" font-size="14"
+                font-family="Helvetica, Arial" fill="#7b8899">
+            a cell being vacated may be claimed</text>
+        </svg>
+        <h3 style="font-size:21px;margin:10px 0 6px">Following is <em>not</em> a conflict</h3>
+        <p class="dim" style="font-size:17px">A robot may take the cell another
+          is leaving. Forbidding this &mdash; some planners do &mdash; turns
+          every queue into a stall.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    These two checks are the only hard rules in the movement layer. Every
+    preference in the rest of this deck is a <b>score</b>, and a score can never
+    reject a move.
+  </div>
+  <aside class="notes">
+    <p>The swap conflict is the one people forget. Each robot's move is
+    individually legal &mdash; each is moving into a cell the other is vacating
+    &mdash; and only the pair is illegal. It is also the one that makes a naive
+    "check the destination is empty" implementation wrong.</p>
+    <p>The third panel is worth a beat because it is the difference between a
+    corridor that drains and one that gridlocks. Token Passing completes zero
+    tasks on one of our maps, and the queue it cannot resolve is exactly this
+    picture.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 5 -->
+<section class="slide" data-slug="hard-branching" data-num="5">
+  <p class="eyebrow">Why it resisted forty years of attack &middot; 1 of 3</p>
+  <h2>The joint action space is exponential in the agents</h2>
+  <div class="body">
+    <div class="split">
+      <div>
+        <p>Each agent may move in four directions or wait. For
+           <span class="mono">k</span> agents planned together, the joint
+           branching factor is <span class="mono">5<sup>k</sup></span>.</p>
+        <p class="dim">Coupled search is therefore exponential in the number of
+           agents, not in the size of the map. Doubling the floor space is
+           cheap; adding ten robots is not.</p>
+      </div>
+      <div class="stat" style="padding-top:8px">
+        <div class="n">&asymp;5<sup style="font-size:.5em">k</sup></div>
+        <div class="l">joint branching factor</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>Concretely: ten agents is about ten million joint actions per timestep.
+    This is the number that pushed the field towards decoupling, and it is the
+    number PIBT sidesteps by never planning more than one timestep ahead.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 6 -->
+<section class="slide" data-slug="hard-nphard" data-num="6">
+  <p class="eyebrow">Why it resisted forty years of attack &middot; 2 of 3</p>
+  <h2>Optimal MAPF is NP-hard</h2>
+  <div class="body">
+    <div class="split">
+      <div>
+        <p>NP-hard for both makespan and sum-of-costs
+           (Yu &amp; LaValle, 2013), anticipated by Ratner &amp; Warmuth on the
+           generalised 15-puzzle in 1986.</p>
+        <p class="dim">So optimality is not a matter of finding a cleverer
+           algorithm. Any planner that scales is giving something up, and the
+           interesting question is which thing.</p>
+      </div>
+      <div class="stat" style="padding-top:8px">
+        <div class="n">NP-hard</div>
+        <div class="l">to solve optimally</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>Do not linger. The point is only to establish that the tradeoff table two
+    slides on is forced, not chosen.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 7 -->
+<section class="slide" data-slug="hard-endless" data-num="7">
+  <p class="eyebrow">Why it resisted forty years of attack &middot; 3 of 3</p>
+  <h2>In a warehouse, the horizon never ends</h2>
+  <div class="body">
+    <div class="split">
+      <div>
+        <p>A delivered task is immediately replaced by a new one. There is no
+           final goal configuration to plan to.</p>
+        <p class="dim">The classical formulation does not get harder here. It
+           stops applying. This is the turn that made lifelong MAPD a separate
+           field, and it is the setting this project lives in.</p>
+      </div>
+      <div class="stat" style="padding-top:8px">
+        <div class="n">Endless</div>
+        <div class="l">no terminal state</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    So the field split. One branch chased optimality and paid in scale. One gave
+    up optimality for completeness. A third gave up both for speed &mdash; and
+    that turned out to be the branch warehouses needed.
+  </div>
+  <aside class="notes">
+    <p>This slide is the hinge of Act 1. Everything before it is classical MAPF;
+    everything after it is about what you do when there is no plan to finish.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 8 -->
+<section class="slide" data-slug="era-decoupled" data-num="8">
+  <p class="eyebrow">History &middot; era 1 of 5</p>
+  <h2>Decoupled: plan one agent at a time</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 74" width="100%" height="74" role="img"
+         aria-label="Timeline of five MAPF eras, first highlighted">
+      <line x1="10" y1="40" x2="1110" y2="40" stroke="#ccd5df" stroke-width="2"/>
+      <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899">
+        <circle cx="110" cy="40" r="9" fill="#9a5b00"/>
+        <text x="110" y="22" text-anchor="middle" fill="#9a5b00" font-weight="700">Decoupled</text>
+        <text x="110" y="64" text-anchor="middle" fill="#9a5b00">1987&ndash;2005</text>
+        <circle cx="360" cy="40" r="6" fill="#ccd5df"/>
+        <text x="360" y="22" text-anchor="middle">Optimal</text>
+        <text x="360" y="64" text-anchor="middle">2010&ndash;2015</text>
+        <circle cx="610" cy="40" r="6" fill="#ccd5df"/>
+        <text x="610" y="22" text-anchor="middle">Rule-based</text>
+        <text x="610" y="64" text-anchor="middle">2011&ndash;2016</text>
+        <circle cx="860" cy="40" r="6" fill="#ccd5df"/>
+        <text x="860" y="22" text-anchor="middle">Lifelong</text>
+        <text x="860" y="64" text-anchor="middle">2017&ndash;2021</text>
+        <circle cx="1075" cy="40" r="6" fill="#ccd5df"/>
+        <text x="1075" y="22" text-anchor="middle">Scalable</text>
+        <text x="1075" y="64" text-anchor="middle">2019&ndash;</text>
+      </g>
+    </svg>
+    <div class="cols" style="margin-top:40px">
+      <div class="card accent">
+        <h3>Erdmann &amp; Lozano-P&eacute;rez, 1987</h3>
+        <p>Plan each agent in turn, treating the already-planned ones as moving
+           obstacles.</p>
+      </div>
+      <div class="card accent">
+        <h3>Silver's Cooperative A* / WHCA*, 2005</h3>
+        <p>Adds a shared reservation table over space-time, so later agents can
+           see where earlier ones will be.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    Fast, <b>incomplete</b>, and sensitive to the planning order &mdash; the
+    ordering problem that priority inheritance later attacks directly.
+  </div>
+  <aside class="notes">
+    <p>The through-line to flag: this era's weakness is that the priority order
+    is fixed in advance. PIBT's contribution, twenty years later, is letting the
+    order change during the timestep.</p>
+  </aside>
+</section>
+
+<!-- ==================================================================== 9 -->
+<section class="slide" data-slug="era-optimal" data-num="9">
+  <p class="eyebrow">History &middot; era 2 of 5</p>
+  <h2>Optimal: search the conflicts, not the joint space</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 74" width="100%" height="74" role="img"
+         aria-label="Timeline of five MAPF eras, second highlighted">
+      <line x1="10" y1="40" x2="1110" y2="40" stroke="#ccd5df" stroke-width="2"/>
+      <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899">
+        <circle cx="110" cy="40" r="6" fill="#ccd5df"/>
+        <text x="110" y="22" text-anchor="middle">Decoupled</text>
+        <text x="110" y="64" text-anchor="middle">1987&ndash;2005</text>
+        <circle cx="360" cy="40" r="9" fill="#9a5b00"/>
+        <text x="360" y="22" text-anchor="middle" fill="#9a5b00" font-weight="700">Optimal</text>
+        <text x="360" y="64" text-anchor="middle" fill="#9a5b00">2010&ndash;2015</text>
+        <circle cx="610" cy="40" r="6" fill="#ccd5df"/>
+        <text x="610" y="22" text-anchor="middle">Rule-based</text>
+        <text x="610" y="64" text-anchor="middle">2011&ndash;2016</text>
+        <circle cx="860" cy="40" r="6" fill="#ccd5df"/>
+        <text x="860" y="22" text-anchor="middle">Lifelong</text>
+        <text x="860" y="64" text-anchor="middle">2017&ndash;2021</text>
+        <circle cx="1075" cy="40" r="6" fill="#ccd5df"/>
+        <text x="1075" y="22" text-anchor="middle">Scalable</text>
+        <text x="1075" y="64" text-anchor="middle">2019&ndash;</text>
+      </g>
+    </svg>
+    <div class="cols" style="margin-top:40px">
+      <div class="card accent">
+        <h3>CBS &mdash; Sharon et al.</h3>
+        <p>Find a conflict, split on it, and re-plan the two single agents under
+           the resulting constraints. Optimal and genuinely elegant.</p>
+      </div>
+      <div class="card accent">
+        <h3>ICTS, M*, branch-and-cut-and-price</h3>
+        <p>Different decompositions of the same idea, all following within a few
+           years.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    And it falls over past tens of agents in dense maps: the conflict tree grows
+    with the conflicts, and a dense warehouse is nothing but conflicts.
+  </div>
+  <aside class="notes">
+    <p>If asked why we did not benchmark against CBS: at the densities in this
+    project it does not finish. The three baselines we do run &mdash; Token
+    Passing, TPTS and RHCR &mdash; are the lifelong ones, which is the honest
+    comparison class.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 10 -->
+<section class="slide" data-slug="era-rule-based" data-num="10">
+  <p class="eyebrow">History &middot; era 3 of 5</p>
+  <h2>Rule-based: complete by construction</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 74" width="100%" height="74" role="img"
+         aria-label="Timeline of five MAPF eras, third highlighted">
+      <line x1="10" y1="40" x2="1110" y2="40" stroke="#ccd5df" stroke-width="2"/>
+      <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899">
+        <circle cx="110" cy="40" r="6" fill="#ccd5df"/>
+        <text x="110" y="22" text-anchor="middle">Decoupled</text>
+        <text x="110" y="64" text-anchor="middle">1987&ndash;2005</text>
+        <circle cx="360" cy="40" r="6" fill="#ccd5df"/>
+        <text x="360" y="22" text-anchor="middle">Optimal</text>
+        <text x="360" y="64" text-anchor="middle">2010&ndash;2015</text>
+        <circle cx="610" cy="40" r="9" fill="#9a5b00"/>
+        <text x="610" y="22" text-anchor="middle" fill="#9a5b00" font-weight="700">Rule-based</text>
+        <text x="610" y="64" text-anchor="middle" fill="#9a5b00">2011&ndash;2016</text>
+        <circle cx="860" cy="40" r="6" fill="#ccd5df"/>
+        <text x="860" y="22" text-anchor="middle">Lifelong</text>
+        <text x="860" y="64" text-anchor="middle">2017&ndash;2021</text>
+        <circle cx="1075" cy="40" r="6" fill="#ccd5df"/>
+        <text x="1075" y="22" text-anchor="middle">Scalable</text>
+        <text x="1075" y="64" text-anchor="middle">2019&ndash;</text>
+      </g>
+    </svg>
+    <div class="cols" style="margin-top:40px">
+      <div class="card accent">
+        <h3>Push and Swap, Push and Rotate, TASS</h3>
+        <p>A fixed repertoire of local manoeuvres that provably terminates in
+           polynomial time.</p>
+      </div>
+      <div class="card accent">
+        <h3>The trade</h3>
+        <p>Solution quality is poor &mdash; but they never fail to terminate,
+           which no decoupled planner can promise.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    This era is where the four-rung recovery ladder later in this deck comes
+    from: when a general planner is stuck, fall back on rules that always
+    finish.
+  </div>
+  <aside class="notes">
+    <p>Explicit link forward. Our recovery ladder is unashamedly rule-based, and
+    it is in the system for exactly the reason this era existed. It used to have
+    seven rungs; truncating it to four measured 6% better, which is slide 32.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 11 -->
+<section class="slide" data-slug="era-lifelong" data-num="11">
+  <p class="eyebrow">History &middot; era 4 of 5</p>
+  <h2>Lifelong: the warehouse changes the question</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 74" width="100%" height="74" role="img"
+         aria-label="Timeline of five MAPF eras, fourth highlighted">
+      <line x1="10" y1="40" x2="1110" y2="40" stroke="#ccd5df" stroke-width="2"/>
+      <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899">
+        <circle cx="110" cy="40" r="6" fill="#ccd5df"/>
+        <text x="110" y="22" text-anchor="middle">Decoupled</text>
+        <text x="110" y="64" text-anchor="middle">1987&ndash;2005</text>
+        <circle cx="360" cy="40" r="6" fill="#ccd5df"/>
+        <text x="360" y="22" text-anchor="middle">Optimal</text>
+        <text x="360" y="64" text-anchor="middle">2010&ndash;2015</text>
+        <circle cx="610" cy="40" r="6" fill="#ccd5df"/>
+        <text x="610" y="22" text-anchor="middle">Rule-based</text>
+        <text x="610" y="64" text-anchor="middle">2011&ndash;2016</text>
+        <circle cx="860" cy="40" r="9" fill="#9a5b00"/>
+        <text x="860" y="22" text-anchor="middle" fill="#9a5b00" font-weight="700">Lifelong</text>
+        <text x="860" y="64" text-anchor="middle" fill="#9a5b00">2017&ndash;2021</text>
+        <circle cx="1075" cy="40" r="6" fill="#ccd5df"/>
+        <text x="1075" y="22" text-anchor="middle">Scalable</text>
+        <text x="1075" y="64" text-anchor="middle">2019&ndash;</text>
+      </g>
+    </svg>
+    <div class="cols3" style="margin-top:40px">
+      <div class="card accent">
+        <h3>Kiva / Amazon Robotics, 2008</h3>
+        <p>Hundreds of robots, narrow aisles, tasks that never stop arriving.
+           Wurman, D'Andrea &amp; Mountz.</p>
+      </div>
+      <div class="card accent">
+        <h3>MAPD and Token Passing, 2017</h3>
+        <p>Ma, Li, Kumar &amp; Koenig formalise pickup-and-delivery as a
+           continuous stream.</p>
+      </div>
+      <div class="card accent">
+        <h3>RHCR, 2021</h3>
+        <p>Li et al. replan a rolling window, resolving collisions only within
+           the horizon.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    Token Passing, its task-swapping variant TPTS, and RHCR are the three
+    baselines this project measures itself against &mdash; each reimplemented
+    from its own paper.
+  </div>
+  <aside class="notes">
+    <p>Commercial pressure, not theory, produced this era. Worth saying: the
+    reframing was forced by a real floor, and that is also why the objective
+    changed from makespan to throughput.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 12 -->
+<section class="slide" data-slug="era-scalable" data-num="12">
+  <p class="eyebrow">History &middot; era 5 of 5</p>
+  <h2>Scalable: one timestep at a time</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 74" width="100%" height="74" role="img"
+         aria-label="Timeline of five MAPF eras, fifth highlighted">
+      <line x1="10" y1="40" x2="1110" y2="40" stroke="#ccd5df" stroke-width="2"/>
+      <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899">
+        <circle cx="110" cy="40" r="6" fill="#ccd5df"/>
+        <text x="110" y="22" text-anchor="middle">Decoupled</text>
+        <text x="110" y="64" text-anchor="middle">1987&ndash;2005</text>
+        <circle cx="360" cy="40" r="6" fill="#ccd5df"/>
+        <text x="360" y="22" text-anchor="middle">Optimal</text>
+        <text x="360" y="64" text-anchor="middle">2010&ndash;2015</text>
+        <circle cx="610" cy="40" r="6" fill="#ccd5df"/>
+        <text x="610" y="22" text-anchor="middle">Rule-based</text>
+        <text x="610" y="64" text-anchor="middle">2011&ndash;2016</text>
+        <circle cx="860" cy="40" r="6" fill="#ccd5df"/>
+        <text x="860" y="22" text-anchor="middle">Lifelong</text>
+        <text x="860" y="64" text-anchor="middle">2017&ndash;2021</text>
+        <circle cx="1075" cy="40" r="9" fill="#9a5b00"/>
+        <text x="1075" y="22" text-anchor="middle" fill="#9a5b00" font-weight="700">Scalable</text>
+        <text x="1075" y="64" text-anchor="middle" fill="#9a5b00">2019&ndash;</text>
+      </g>
+    </svg>
+    <div class="cols" style="margin-top:40px">
+      <div class="card warm">
+        <h3>PIBT &mdash; Okumura, Machida, D&eacute;fago &amp; Tamura</h3>
+        <p>IJCAI 2019; <em>Artificial Intelligence</em>, 2022. Priority
+           inheritance and backtracking, resolved within a single timestep.
+           This is the algorithm this repository extends.</p>
+      </div>
+      <div class="card accent">
+        <h3>LaCAM, 2023</h3>
+        <p>Builds a complete search on top of PIBT, recovering guarantees
+           without giving up its speed.</p>
+      </div>
+    </div>
+    <p style="margin-top:26px; font-size:23px">
+      Thousands of agents, in real time.</p>
+  </div>
+  <aside class="notes">
+    <p>PIBT is the whole basis of this project, so give it a beat. The key
+    insight to plant here: it never plans more than one timestep, which is why
+    the <span class="mono">5^k</span> problem never arises.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 13 -->
+<section class="slide" data-slug="family-tradeoff" data-num="13">
+  <p class="eyebrow">How the families trade off</p>
+  <h2 class="wide">You choose two of three: optimal, complete, fast</h2>
+  <div class="body">
+    <table>
+      <thead>
+        <tr><th>Family</th><th>Representatives</th><th>Guarantee</th>
+            <th>Scale</th><th>The price</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="k">Optimal search</td><td>CBS, ICTS, M*, BCP</td>
+            <td>Optimal + complete</td><td>Tens of agents</td>
+            <td>Exponential in conflicts</td></tr>
+        <tr><td class="k">Bounded suboptimal</td><td>ECBS, EECBS</td>
+            <td>Within a factor of optimal</td><td>Low hundreds</td>
+            <td>Focal search overhead</td></tr>
+        <tr><td class="k">Rule-based</td><td>Push and Swap, Push and Rotate</td>
+            <td>Complete, polynomial</td><td>Hundreds</td>
+            <td>Poor solution quality</td></tr>
+        <tr class="hi"><td class="k">Greedy / reactive</td>
+            <td>PIBT, LaCAM, this repo</td>
+            <td>Conditional progress only</td><td>Thousands, real time</td>
+            <td>No global optimality</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="foot">
+    Aisleflow lives on the bottom row. The question the project asks: can a
+    warehouse-aware layer on top of a greedy planner <b>buy back</b> some of the
+    quality the greedy choice gave away?
+  </div>
+  <aside class="notes">
+    <p>That closing question is the thesis of the whole project, so state it as
+    a question and let the results answer it. The short version of the answer,
+    for anyone who asks now: on corridor maps yes, on open grids no &mdash; and
+    slide 34 is where that gets said with numbers.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 14 -->
+<section class="slide" data-slug="oneshot-vs-lifelong" data-num="14">
+  <p class="eyebrow">The turn that made this project necessary</p>
+  <h2 class="wide">From one-shot MAPF to lifelong MAPD</h2>
+  <div class="body">
+    <div class="cols">
+      <div class="card">
+        <h3 style="color:var(--ink-dim)">Classical MAPF</h3>
+        <p style="margin-top:14px; line-height:2">
+          <span class="mono">k</span> agents, <span class="mono">k</span> goals,
+          fixed in advance.<br>
+          Plan once, offline, then execute.<br>
+          Success is every agent parked on its goal.<br>
+          Objective: makespan or sum-of-costs.<br>
+          The plan is valid until it finishes.
+        </p>
+      </div>
+      <div class="card warm">
+        <h3>Lifelong MAPD</h3>
+        <p style="margin-top:14px; line-height:2">
+          Tasks arrive as a stream &mdash; Poisson, bursty or scheduled.<br>
+          A robot that delivers is immediately re-assigned.<br>
+          There is no terminal configuration to plan to.<br>
+          Objective: throughput, service time, and its tail.<br>
+          Every plan is provisional; you replan forever.
+        </p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>The line that matters most is the last one on the right. Because every
+    plan is provisional, a mechanism that is expensive to compute has to justify
+    itself every single timestep. That is the cost argument that eventually
+    deleted five of the nine score terms.</p>
+  </aside>
+</section>
+
+
+<!-- =================================================================== 15 -->
+<section class="slide" data-slug="pibt-core" data-num="15">
+  <p class="eyebrow">The core we build on</p>
+  <h2>PIBT, in four steps</h2>
+  <div class="body">
+    <ol class="steps">
+      <li>
+        <h3>Candidates</h3>
+        <p>The four neighbours of the current cell, plus staying put. At most
+           five. Nothing longer than one step is ever planned, which is why the
+           <span class="mono">5<sup>k</sup></span> problem never arises.</p>
+      </li>
+      <li>
+        <h3>Hard rejection</h3>
+        <p>Off the graph, vertex conflict, swap with the robot that pushed me.
+           Nothing else &mdash; a rule that deletes a legal move breaks the
+           argument that a legal joint move always exists.</p>
+      </li>
+      <li>
+        <h3>Score and sort</h3>
+        <p>Survivors are ranked by <span class="mono">S(v)</span>: progress,
+           lane, turning, crowding. Every preference in this system acts here,
+           and only here.</p>
+      </li>
+      <li>
+        <h3>Push, then backtrack</h3>
+        <p>If the best cell holds a robot that has not planned yet, that robot
+           plans next, inside this call. If it cannot move, undo the claim and
+           try the next candidate.</p>
+      </li>
+    </ol>
+  </div>
+  <div class="foot">
+    Cost per timestep <span class="mono">O(|A|(&Delta;(G) + F + log|A|))</span>.
+    <!-- generated:runtime -->
+Measured at <b>1.19 ms/step</b> for <span class="mono">warehouse_bottleneck</span>, single-threaded pure Python.
+<!-- /generated:runtime -->
+  </div>
+  <aside class="notes">
+    <p>Step 2 is the one to emphasise. Everything this project added lives in
+    step 3, as a number; the review that produced this deck was largely the
+    story of finding mechanisms that had quietly moved themselves into step 2,
+    where they could delete a robot's only way out.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 16 -->
+<section class="slide" data-slug="priority-inheritance" data-num="16">
+  <p class="eyebrow">The core we build on</p>
+  <h2>Pushing, in one picture</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 260" width="100%" height="250" role="img"
+         aria-label="R7 asks R3 to move, which asks R1 to move aside">
+      <defs>
+        <marker id="aP" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#1a56c4"/>
+        </marker>
+      </defs>
+      <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+        <rect x="120" y="55" width="110" height="110"/>
+        <rect x="450" y="55" width="110" height="110"/>
+        <rect x="780" y="55" width="110" height="110"/>
+      </g>
+      <circle cx="175" cy="110" r="34" fill="#0f7350"/>
+      <text x="175" y="118" text-anchor="middle" font-size="22"
+            font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">R7</text>
+      <circle cx="505" cy="110" r="34" fill="#1a56c4"/>
+      <text x="505" y="118" text-anchor="middle" font-size="22"
+            font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">R3</text>
+      <circle cx="835" cy="110" r="34" fill="#8593a4"/>
+      <text x="835" y="118" text-anchor="middle" font-size="22"
+            font-family="Helvetica, Arial" fill="#ffffff" font-weight="700">R1</text>
+      <path d="M215 110 H440" stroke="#1a56c4" stroke-width="3" fill="none"
+            marker-end="url(#aP)" stroke-dasharray="7 6"/>
+      <path d="M545 110 H770" stroke="#1a56c4" stroke-width="3" fill="none"
+            marker-end="url(#aP)" stroke-dasharray="7 6"/>
+      <g font-family="Helvetica, Arial" font-size="15" fill="#4a5768"
+         text-anchor="middle">
+        <text x="175" y="206">ranked first this step,</text>
+        <text x="175" y="226">wants the cell ahead</text>
+        <text x="505" y="206">sitting in it,</text>
+        <text x="505" y="226">has not planned yet</text>
+        <text x="835" y="206">idle, blocking R3</text>
+        <text x="835" y="226">in turn</text>
+        <text x="327" y="92" fill="#1a56c4">plans out of turn</text>
+        <text x="657" y="92" fill="#1a56c4">and so does this one</text>
+      </g>
+    </svg>
+    <p style="font-size:22px; margin-top:16px">
+      R1 moves aside, so R3 moves, so R7 moves &mdash; all in the same timestep.
+      If nobody can, the chain unwinds and R7 tries its second-best cell.</p>
+  </div>
+  <div class="foot">
+    Nothing copies a priority <em>number</em> here. Inheritance is structural:
+    the pushed robot is made to plan <b>inside the caller's call frame</b>, and
+    is forbidden from swapping back into the cell the caller is leaving. The
+    priority numbers only decide the order of the outer loop.
+  </div>
+  <aside class="notes">
+    <p>This is the mechanism the whole deck turns on, and the footer corrects a
+    thing the name gets wrong. "Priority inheritance" sounds like an assignment;
+    in the code it is a recursive call with the caller passed as
+    <span class="mono">parent</span>, and the only thing the parent confers is
+    the swap prohibition.</p>
+    <p>The chain only works because R1 has <em>somewhere to go</em>. Delete one
+    of R1's legal moves &mdash; which is exactly what a hard one-way rule does
+    &mdash; and the chain dead-ends, R7 never moves, and the layer that deleted
+    the move gets blamed for the congestion it caused. That is not a
+    hypothetical: it is what this project spent a year doing.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 17 -->
+<section class="slide" data-slug="backtrack" data-num="17">
+  <p class="eyebrow">The core we build on</p>
+  <h2 class="wide">And when the push fails: unwind, and stay put</h2>
+  <div class="body">
+    <svg viewBox="0 0 1120 372" width="100%" height="352" role="img"
+         aria-label="Three stages: the push, the dead end, and the fallback">
+      <defs>
+        <marker id="aP2" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#1a56c4"/>
+        </marker>
+        <marker id="aR2" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#b32218"/>
+        </marker>
+        <marker id="aG2" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#0f7350"/>
+        </marker>
+      </defs>
+
+      <!-- stage 1 -->
+      <text x="0" y="16" font-family="Helvetica, Arial" font-size="13"
+            fill="#7b8899" font-weight="700" letter-spacing="1.6">1 &mdash; R7 CLAIMS ITS BEST CELL AND PUSHES</text>
+      <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+        <rect x="0"   y="30" width="66" height="66"/>
+        <rect x="66"  y="30" width="66" height="66"/>
+        <rect x="132" y="30" width="66" height="66"/>
+      </g>
+      <rect x="198" y="30" width="66" height="66" fill="#d3dae2" stroke="#ccd5df" stroke-width="1.5"/>
+      <circle cx="33" cy="63" r="21" fill="#0f7350"/>
+      <text x="33" y="69" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R7</text>
+      <circle cx="99" cy="63" r="21" fill="#8593a4"/>
+      <text x="99" y="69" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R1</text>
+      <path d="M56 42 H88" stroke="#1a56c4" stroke-width="2.5" marker-end="url(#aP2)"/>
+      <g font-family="Helvetica, Arial">
+        <text x="310" y="52" font-size="17" fill="#10161d">R7 tentatively claims R1&rsquo;s cell, reserves it, and calls R1 to plan.</text>
+        <text x="310" y="80" font-size="17" fill="#4a5768">R1 may not swap back into R7&rsquo;s cell. That is the only thing being pushed costs it.</text>
+      </g>
+
+      <!-- stage 2 -->
+      <text x="0" y="132" font-family="Helvetica, Arial" font-size="13"
+            fill="#7b8899" font-weight="700" letter-spacing="1.6">2 &mdash; R1 HAS NOWHERE TO GO</text>
+      <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+        <rect x="0"   y="146" width="66" height="66"/>
+        <rect x="66"  y="146" width="66" height="66"/>
+        <rect x="132" y="146" width="66" height="66"/>
+      </g>
+      <rect x="198" y="146" width="66" height="66" fill="#d3dae2" stroke="#ccd5df" stroke-width="1.5"/>
+      <circle cx="33" cy="179" r="21" fill="#0f7350"/>
+      <text x="33" y="185" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R7</text>
+      <circle cx="99" cy="179" r="21" fill="#8593a4"/>
+      <text x="99" y="185" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R1</text>
+      <circle cx="165" cy="179" r="21" fill="#b32218"/>
+      <text x="165" y="185" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R4</text>
+      <path d="M122 158 H154" stroke="#b32218" stroke-width="2.5" marker-end="url(#aR2)"/>
+      <path d="M110 200 H78" stroke="#b32218" stroke-width="2.5"
+            stroke-dasharray="5 4" fill="none"/>
+      <path d="M86 194 L78 200 L86 206" stroke="#b32218" stroke-width="2.5" fill="none"/>
+      <path d="M87 190 L101 210 M101 190 L87 210" stroke="#b32218" stroke-width="2.5"/>
+      <g font-family="Helvetica, Arial">
+        <text x="310" y="168" font-size="17" fill="#10161d">Forward is R4, which has already claimed a cell of its own and cannot yield.</text>
+        <text x="310" y="196" font-size="17" fill="#4a5768">Right is a shelf. Back is the swap R7 forbade. R1 returns INVALID and stays put.</text>
+      </g>
+
+      <!-- stage 3 -->
+      <text x="0" y="248" font-family="Helvetica, Arial" font-size="13"
+            fill="#7b8899" font-weight="700" letter-spacing="1.6">3 &mdash; R7 RELEASES THE CLAIM AND TRIES ITS SECOND CHOICE</text>
+      <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+        <rect x="0"   y="262" width="66" height="66"/>
+        <rect x="66"  y="262" width="66" height="66"/>
+        <rect x="132" y="262" width="66" height="66"/>
+        <rect x="0"   y="328" width="66" height="42"/>
+      </g>
+      <rect x="198" y="262" width="66" height="66" fill="#d3dae2" stroke="#ccd5df" stroke-width="1.5"/>
+      <rect x="66"  y="328" width="132" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1.5"/>
+      <circle cx="33" cy="295" r="21" fill="#0f7350"/>
+      <text x="33" y="301" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R7</text>
+      <circle cx="99" cy="295" r="21" fill="#8593a4"/>
+      <text x="99" y="301" text-anchor="middle" font-size="14" font-family="Helvetica, Arial"
+            fill="#ffffff" font-weight="700">R1</text>
+      <path d="M56 274 H88" stroke="#b32218" stroke-width="2.5" stroke-dasharray="5 4"/>
+      <path d="M64 268 L88 280 M88 268 L64 280" stroke="#b32218" stroke-width="2.5"/>
+      <path d="M33 318 V346" stroke="#0f7350" stroke-width="3" marker-end="url(#aG2)"/>
+      <g font-family="Helvetica, Arial">
+        <text x="310" y="284" font-size="17" fill="#10161d">The reservation is dropped, the backtrack counter ticks, and R7 takes its next-best cell.</text>
+        <text x="310" y="312" font-size="17" fill="#4a5768">If every candidate fails it takes the one that never can: it stays where it is.</text>
+      </g>
+    </svg>
+  </div>
+  <div class="foot">
+    Staying put is always available, so the recursion always terminates and
+    <b>a legal joint move always exists</b>. That is the whole safety argument
+    &mdash; and it is why no preference in this system is ever allowed to delete
+    a candidate.
+  </div>
+  <aside class="notes">
+    <p>Say the last line slowly. Every design decision in the rest of the deck
+    follows from it: a score may make a move expensive, never impossible,
+    because the termination argument is "there is always somewhere to go, even
+    if it is here".</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 18 -->
+<section class="slide" data-slug="the-floor" data-num="18">
+  <p class="eyebrow">The floor everything else happens on</p>
+  <h2 class="wide">One corridor, and every task has to cross it</h2>
+  <div class="body">
+    <!-- generated:map-bottleneck -->
+<div class="split pic"><div><svg class="fig" viewBox="0 0 924 284" width="100%" height="284" role="img" aria-label="warehouse_bottleneck drawn to scale, articulation points tinted"><rect x="2" y="2" width="40" height="40" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="2" width="40" height="40" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="2" width="40" height="40" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="2" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="2" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="2" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="2" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="2" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="2" width="40" height="40" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="2" width="40" height="40" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="2" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="2" width="40" height="40" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="42" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="42" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="42" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="42" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="42" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="42" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="42" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="82" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="82" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="82" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="82" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="82" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="82" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="82" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="122" width="40" height="40" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="122" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="122" width="40" height="40" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="162" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="162" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="162" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="162" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="162" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="162" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="162" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="202" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="202" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="202" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="202" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="202" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="202" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="202" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="242" width="40" height="40" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="42" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="82" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="122" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="162" y="242" width="40" height="40" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="202" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="242" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="282" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="242" width="40" height="40" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="362" y="242" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="402" y="242" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="442" y="242" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="482" y="242" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="522" y="242" width="40" height="40" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="562" y="242" width="40" height="40" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="602" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="642" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="722" y="242" width="40" height="40" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="762" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="802" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="842" y="242" width="40" height="40" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="882" y="242" width="40" height="40" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="322" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="324" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><rect x="362" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="364" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><rect x="402" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="404" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><rect x="442" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="444" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><rect x="482" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="484" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><rect x="522" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="524" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><rect x="562" y="122" width="40" height="40" fill="#fbe6e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="564" y="124" width="37" height="37" fill="none" stroke="#b32218" stroke-width="1.5"/><text x="342" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text><text x="382" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text><text x="422" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text><text x="462" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text><text x="502" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text><text x="542" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text><text x="582" y="146" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">b</text></svg><p class="figcap"><span class="mono">warehouse_bottleneck</span>, drawn to scale. The tinted cells are the ones whose removal would cut the floor in two.</p></div><div><div style="display:grid;grid-template-columns:1fr 1fr;gap:26px 30px"><div><div style="font-size:30px;font-weight:700;color:#10161d;font-family:Helvetica,Arial;letter-spacing:-.02em">7 &times; 23</div><div style="font-size:13px;color:#7b8899;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-top:6px">grid</div></div><div><div style="font-size:30px;font-weight:700;color:#10161d;font-family:Helvetica,Arial;letter-spacing:-.02em">83</div><div style="font-size:13px;color:#7b8899;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-top:6px">drivable cells</div></div><div><div style="font-size:30px;font-weight:700;color:#10161d;font-family:Helvetica,Arial;letter-spacing:-.02em">6 / 6</div><div style="font-size:13px;color:#7b8899;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-top:6px">pickups / deliveries</div></div><div><div style="font-size:30px;font-weight:700;color:#10161d;font-family:Helvetica,Arial;letter-spacing:-.02em">25</div><div style="font-size:13px;color:#7b8899;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-top:6px">aisles, every one 1 wide</div></div><div><div style="font-size:30px;font-weight:700;color:#10161d;font-family:Helvetica,Arial;letter-spacing:-.02em">7</div><div style="font-size:13px;color:#7b8899;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-top:6px">cells that split the floor</div></div></div><div class="card tight bad" style="margin-top:26px"><h3>Two halves, one way across</h3><p>Pickups on the left, deliveries on the right, and a single row of cells joining them. Every task crosses it one way and crosses back the other, forever &mdash; so the corridor carries the entire throughput of the floor in both directions at once.</p></div></div></div>
+<!-- /generated:map-bottleneck -->
+  </div>
+  <div class="foot">
+    Every aisle on every map in this project is <b>one cell wide</b>. There is no
+    passing: two robots meeting head-on in an aisle is not a slowdown, it is a
+    stop, and one of them has to be pushed all the way back out.
+  </div>
+  <aside class="notes">
+    <p>Spend a moment here, because every scenario picture after this one is
+    drawn on a floor of this shape. The articulation-point count is the number
+    worth pointing at: those are the cells whose removal disconnects the floor,
+    and on this map there are several, all in the one corridor.</p>
+    <p>This is also the map the committed animation runs on, and the map on
+    which aisleflow beats every published planner we could run. Both facts are
+    the same fact.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 19 -->
+<section class="slide" data-slug="one-timestep" data-num="19">
+  <p class="eyebrow">The whole planner</p>
+  <h2 class="wide">One timestep, end to end</h2>
+  <div class="body">
+    <svg viewBox="0 0 1128 210" width="100%" height="200" role="img"
+         aria-label="Pipeline: assign, route, rank, score, push, move">
+      <defs>
+        <marker id="aS" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#7b8899"/>
+        </marker>
+      </defs>
+      <g>
+        <rect x="0"   y="46" width="166" height="86" rx="8" fill="#f4f7fa" stroke="#1a56c4" stroke-width="1.5"/>
+        <rect x="192" y="46" width="166" height="86" rx="8" fill="#f4f7fa" stroke="#d7dee7" stroke-width="1.5"/>
+        <rect x="384" y="46" width="166" height="86" rx="8" fill="#f4f7fa" stroke="#1a56c4" stroke-width="1.5"/>
+        <rect x="576" y="46" width="166" height="86" rx="8" fill="#f4f7fa" stroke="#1a56c4" stroke-width="1.5"/>
+        <rect x="768" y="46" width="166" height="86" rx="8" fill="#f4f7fa" stroke="#d7dee7" stroke-width="1.5"/>
+        <rect x="960" y="46" width="166" height="86" rx="8" fill="#f4f7fa" stroke="#d7dee7" stroke-width="1.5"/>
+      </g>
+      <g font-family="Helvetica, Arial" text-anchor="middle">
+        <text x="83"   y="80" font-size="18" font-weight="700" fill="#10161d">Assign</text>
+        <text x="83"   y="104" font-size="14" fill="#4a5768">free robots &rarr; tasks</text>
+        <text x="275"  y="80" font-size="18" font-weight="700" fill="#10161d">Route</text>
+        <text x="275"  y="104" font-size="14" fill="#4a5768">BFS to the waypoint</text>
+        <text x="467"  y="80" font-size="18" font-weight="700" fill="#10161d">Rank</text>
+        <text x="467"  y="104" font-size="14" fill="#4a5768">who plans first</text>
+        <text x="659"  y="80" font-size="18" font-weight="700" fill="#10161d">Score</text>
+        <text x="659"  y="104" font-size="14" fill="#4a5768">rank each candidate</text>
+        <text x="851"  y="80" font-size="18" font-weight="700" fill="#10161d">Push</text>
+        <text x="851"  y="104" font-size="14" fill="#4a5768">and backtrack</text>
+        <text x="1043" y="80" font-size="18" font-weight="700" fill="#10161d">Move</text>
+        <text x="1043" y="104" font-size="14" fill="#4a5768">all at once, validated</text>
+      </g>
+      <g stroke="#7b8899" stroke-width="1.6" fill="none" marker-end="url(#aS)">
+        <path d="M166 89 H184"/>
+        <path d="M358 89 H376"/>
+        <path d="M550 89 H568"/>
+        <path d="M742 89 H760"/>
+        <path d="M934 89 H952"/>
+      </g>
+      <path d="M1043 132 V166 H83 V140" stroke="#7b8899" stroke-width="1.6"
+            fill="none" stroke-dasharray="5 5" marker-end="url(#aS)"/>
+      <text x="563" y="186" text-anchor="middle" font-family="Helvetica, Arial"
+            font-size="14" fill="#7b8899">every timestep, forever &mdash; nothing is planned further ahead than this</text>
+      <g font-family="Helvetica, Arial" font-size="12" fill="#1a56c4" text-anchor="middle" font-weight="700">
+        <text x="83"  y="34">SLIDES 20&ndash;22</text>
+        <text x="467" y="34">SLIDES 26&ndash;28</text>
+        <text x="659" y="34">SLIDES 23&ndash;25</text>
+      </g>
+    </svg>
+  </div>
+  <div class="foot">
+    Three of these six boxes are arithmetic, and each gets its own block in this
+    deck: <b>which robot takes which task</b>, <b>which cell a robot prefers</b>,
+    and <b>who gets to choose first</b>. Every number on those slides is computed
+    by the real code at build time.
+  </div>
+  <aside class="notes">
+    <p>Use this as the map for the next nine slides. The order the deck takes
+    them in is not the order the pipeline runs them, deliberately: score before
+    rank, because the score is the thing an audience finds concrete, and the
+    ranking only matters once you know what the robots are competing for.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 20 -->
+<section class="slide" data-slug="assign-pool" data-num="20">
+  <p class="eyebrow">Computation 1 of 3 &middot; task assignment</p>
+  <h2 class="wide">Three idle robots, three tasks waiting</h2>
+  <div class="body">
+    <!-- generated:assign-pool -->
+<div class="split pic"><div><svg class="fig" viewBox="0 0 718 382" width="100%" height="382" role="img" aria-label="Three idle robots and three released tasks on warehouse_small"><rect x="2" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="170" width="42" height="42" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="170" width="42" height="42" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="2" width="42" height="42" fill="#dbeaff" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="338" width="42" height="42" fill="#d8f0e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="10" y="10" width="26" height="26" rx="3" fill="#9a5b00"/><text x="23" y="27" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">P1</text><rect x="346" y="346" width="26" height="26" rx="3" fill="#7b8899"/><text x="359" y="363" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">D1</text><rect x="338" y="2" width="42" height="42" fill="#dbeaff" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="338" width="42" height="42" fill="#d8f0e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="346" y="10" width="26" height="26" rx="3" fill="#9a5b00"/><text x="359" y="27" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">P2</text><rect x="514" y="346" width="26" height="26" rx="3" fill="#7b8899"/><text x="527" y="363" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">D2</text><rect x="674" y="2" width="42" height="42" fill="#dbeaff" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="338" width="42" height="42" fill="#d8f0e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="10" width="26" height="26" rx="3" fill="#9a5b00"/><text x="695" y="27" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">P3</text><rect x="10" y="346" width="26" height="26" rx="3" fill="#7b8899"/><text x="23" y="363" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">D3</text><circle cx="107" cy="191" r="15" fill="#8593a4"/><text x="107" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R1</text><circle cx="443" cy="191" r="15" fill="#8593a4"/><text x="443" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R2</text><circle cx="695" cy="275" r="15" fill="#8593a4"/><text x="695" y="279" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R3</text></svg><p class="figcap"><span class="mono">warehouse_small</span>, 9&times;17. Pickups along the top, deliveries along the bottom, one through-corridor across the middle. Every aisle is one cell wide.</p></div><div><table class="calc"><caption>THE QUEUE AT t = 20</caption><thead><tr><th>Task</th><th>From, to</th><th class="n">Released</th><th class="n">Waited</th></tr></thead><tbody><tr><td class="k">T1</td><td>pickup (0, 0), delivery (8, 8)</td><td class="n">8</td><td class="n">12</td></tr><tr><td class="k">T2</td><td>pickup (0, 8), delivery (8, 12)</td><td class="n">14</td><td class="n">6</td></tr><tr><td class="k">T3</td><td>pickup (0, 16), delivery (8, 0)</td><td class="n">17</td><td class="n">3</td></tr></tbody></table><div class="key"><span><i style="background:#8593a4"></i>idle robot</span><span><i class="sq" style="background:#9a5b00;border-radius:3px"></i>pickup</span><span><i class="sq" style="background:#7b8899;border-radius:3px"></i>delivery</span><span><i class="sq" style="background:#d3dae2"></i>shelf</span></div></div></div>
+<!-- /generated:assign-pool -->
+  </div>
+  <div class="foot">
+    Only robots that are <b>FREE or PARKED</b> are eligible, and only tasks that
+    have been released and are still unassigned. A robot already carrying
+    something is never re-matched &mdash; dropping a carried task would waste the
+    trip already made.
+  </div>
+  <aside class="notes">
+    <p>This is a real floor and real released tasks, and the next two slides
+    compute the match on exactly this state. Nothing on any of the three slides
+    is illustrative: the numbers come out of
+    <span class="mono">TaskAssigner.assignment_cost</span> when this deck is
+    built.</p>
+    <p>The task pool is pre-filtered before any of this: the oldest few by
+    release time, so the cost matrix stays small no matter how far the queue has
+    backed up. In a saturated run that filter is doing real work.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 21 -->
+<section class="slide" data-slug="assign-cost" data-num="21">
+  <p class="eyebrow">Computation 1 of 3 &middot; task assignment</p>
+  <h2 class="wide">What one robot-and-task pair costs</h2>
+  <div class="body">
+    <div class="formula small">
+      J(i,&tau;) =
+      <span class="pos">1.0 &middot; d(robot &rarr; pickup)</span>
+      + <span class="pos">0.5 &middot; d(pickup &rarr; delivery)</span>
+      + <span class="pos">12.0 &middot; congestion</span><br>
+      <span style="padding-left:5.4em">
+        <span class="neg">&minus; 0.5 &middot; min(waited, 60)</span>
+        + <span class="pos">1.0 &middot; bottleneck fraction</span></span>
+    </div>
+    <div class="cols3" style="margin-top:26px">
+      <div class="card tight accent">
+        <h3>Distance, then the trip</h3>
+        <p>Getting to the pickup counts full; the delivery leg counts half,
+          because that distance is paid whoever takes the task &mdash; it
+          separates tasks, not robots.</p>
+      </div>
+      <div class="card tight warm">
+        <h3>Congestion, at weight 12</h3>
+        <p>The fraction of cells on the route that are occupied, plus the load
+          on the aisles it crosses. Twelve because it has to be able to
+          out-argue a few cells of distance.</p>
+      </div>
+      <div class="card tight good">
+        <h3>Waiting, at &minus;0.5, capped</h3>
+        <p>The one negative term: the longer a task has waited the cheaper it
+          gets, so nothing is left in the queue forever. Capped at 60, or in a
+          lifelong run it eventually dwarfs everything else.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    The cap is not a detail. Uncapped, waiting time grows without bound and the
+    match degenerates to <b>oldest task first</b> within about a hundred steps
+    &mdash; which is why congestion-aware assignment could never show an effect
+    before it was capped.
+  </div>
+  <aside class="notes">
+    <p>If someone asks why the delivery leg is discounted rather than dropped:
+    it still separates a short task from a long one, which matters when two
+    robots are equidistant from two pickups. Halving it says "this matters, but
+    less than getting there".</p>
+    <p>A term estimating delay from one-way aisles used to sit in this
+    function. It went with the aisle-direction layer.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 22 -->
+<section class="slide" data-slug="assign-greedy" data-num="22">
+  <p class="eyebrow">Computation 1 of 3 &middot; task assignment</p>
+  <h2 class="wide">Take the cheapest pair. Cross out its row and column. Repeat.</h2>
+  <div class="body">
+    <!-- generated:assign-rounds -->
+<div class="cols3"><div><table class="calc"><caption>ROUND 1 &mdash; CHEAPEST IS R1 &rarr; T1</caption><thead><tr><th style="width:52px"></th><th class="n">T1</th><th class="n">T2</th><th class="n">T3</th></tr></thead><tbody><tr><td class="k">R1</td><td class="n" style="background:#fff3cd;color:#10161d;font-weight:700">11.05</td><td class="n">15.42</td><td class="n">29.93</td></tr><tr><td class="k">R2</td><td class="n">17.80</td><td class="n">12.71</td><td class="n">22.92</td></tr><tr><td class="k">R3</td><td class="n">25.02</td><td class="n">18.55</td><td class="n">19.21</td></tr></tbody></table></div><div><table class="calc"><caption>ROUND 2 &mdash; CHEAPEST IS R2 &rarr; T2</caption><thead><tr><th style="width:52px"></th><th class="n">T2</th><th class="n">T3</th></tr></thead><tbody><tr><td class="k">R2</td><td class="n" style="background:#fff3cd;color:#10161d;font-weight:700">12.71</td><td class="n">22.92</td></tr><tr><td class="k">R3</td><td class="n">18.55</td><td class="n">19.21</td></tr></tbody></table></div><div><table class="calc"><caption>ROUND 3 &mdash; CHEAPEST IS R3 &rarr; T3</caption><thead><tr><th style="width:52px"></th><th class="n">T3</th></tr></thead><tbody><tr><td class="k">R3</td><td class="n" style="background:#fff3cd;color:#10161d;font-weight:700">19.21</td></tr></tbody></table></div></div><p class="figcap" style="text-align:left;font-size:17px;margin-top:22px"><b style="color:#10161d">R1 &rarr; T1, R2 &rarr; T2, R3 &rarr; T3.</b> R3 would rather have had T2 at 18.55 than the T3 it ends up with at 19.21 &mdash; but T2 was committed in an earlier round to a robot that wanted it more.</p>
+<!-- /generated:assign-rounds -->
+  </div>
+  <div class="foot">
+    Repeated global minimum &mdash; <b>not</b> Hungarian, <b>not</b> an auction.
+    It is <span class="mono">O(n&middot;m)</span> a round and it does not
+    produce the optimal matching: watch what the last robot ends up with.
+  </div>
+  <aside class="notes">
+    <p>The point of the third round is the honest one. The last robot does not
+    get its own cheapest task &mdash; that one was taken in an earlier round by
+    a robot that wanted it more. A Hungarian matching would have found the
+    assignment that minimises the total; greedy finds a good one in a fraction
+    of the time, and in a lifelong run the matching is redone every timestep
+    anyway, so a mistake costs one step rather than a whole plan.</p>
+    <p>That argument is worth making explicitly if anyone asks why not
+    Hungarian: the optimal matching of a snapshot is not the optimal policy over
+    time, and the snapshot changes before the matching finishes mattering.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 23 -->
+<section class="slide" data-slug="score-candidates" data-num="23">
+  <p class="eyebrow">Computation 2 of 3 &middot; the movement score</p>
+  <h2 class="wide">At most five options, every timestep</h2>
+  <div class="body">
+    <!-- generated:score-grid -->
+<div class="split pic"><div><svg class="fig" viewBox="0 0 718 382" width="100%" height="382" role="img" aria-label="One robot at a junction with its five candidate cells ringed"><defs><marker id="aFade" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#7b8899"/></marker></defs><rect x="2" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="170" width="42" height="42" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="170" width="42" height="42" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="338" width="42" height="42" fill="#d8f0e3" opacity="1.0" stroke="#ccd5df" stroke-width="1"/><rect x="682" y="346" width="26" height="26" rx="3" fill="#0f7350"/><text x="695" y="363" text-anchor="middle" font-family="Helvetica, Arial" font-size="11" fill="#ffffff" font-weight="700">goal</text><rect x="382" y="172" width="39" height="39" fill="none" stroke="#1a56c4" stroke-width="2.5" stroke-dasharray="4 3"/><rect x="340" y="214" width="39" height="39" fill="none" stroke="#1a56c4" stroke-width="2.5" stroke-dasharray="4 3"/><rect x="340" y="172" width="39" height="39" fill="none" stroke="#1a56c4" stroke-width="2.5"/><rect x="340" y="130" width="39" height="39" fill="none" stroke="#1a56c4" stroke-width="2.5" stroke-dasharray="4 3"/><rect x="298" y="172" width="39" height="39" fill="none" stroke="#1a56c4" stroke-width="2.5" stroke-dasharray="4 3"/><circle cx="401" cy="191" r="15" fill="#8593a4"/><text x="401" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R2</text><circle cx="359" cy="149" r="15" fill="#8593a4"/><text x="359" y="153" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R3</text><circle cx="359" cy="191" r="15" fill="#0f7350"/><text x="359" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R1</text><path d="M330 191 L346 191" stroke="#7b8899" stroke-width="2.5" fill="none" marker-end="url(#aFade)"/></svg><p class="figcap">R1 is carrying a task to the delivery marked <i>goal</i>. It arrived travelling east. The five ringed cells are everything it may consider this timestep.</p></div><div><p style="font-size:19px">R1 is 12 cells from its goal by route distance &mdash; the <span class="mono">TRANSIT</span> band, which would be worth <b>2.00</b> of lane bonus. It will get none of it, for the reason in the first card.</p><div class="card tight warm" style="margin-top:16px"><h3>It is standing on a junction</h3><p>There is no aisle here to continue along, so the stay-in-lane term is switched off &mdash; otherwise it would reward an arbitrary one of the branches. Watch that column stay empty on the next slide.</p></div><div class="card tight" style="margin-top:16px"><h3>Two of the five are occupied</h3><p>Scored anyway. An occupied cell is never rejected: if the robot in it can be pushed, the move happens.</p></div><div class="key"><span><i style="background:#0f7350"></i>carrying a task</span><span><i style="background:#8593a4"></i>idle</span><span><i class="sq" style="background:#fff;border-color:#1a56c4"></i>candidate</span></div></div></div>
+<!-- /generated:score-grid -->
+  </div>
+  <div class="foot">
+    <span class="mono">C&#7522; = N(x&#7522;) &cup; {x&#7522;}</span> &mdash; the four
+    neighbours and staying put. Off-graph cells are dropped, then the two
+    collision checks, and <b>everything that survives is scored</b>.
+  </div>
+  <aside class="notes">
+    <p>Stress how small this is. The entire lookahead of this planner is one
+    step and five options. Everything clever in the system is about ordering
+    those five well, not about seeing further.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 24 -->
+<section class="slide" data-slug="score-terms" data-num="24">
+  <p class="eyebrow">Computation 2 of 3 &middot; the movement score</p>
+  <h2 class="wide">Four terms. One of them decides; three break ties.</h2>
+  <div class="body">
+    <div class="formula small">
+      S<sub>i</sub>(v) =
+      <span class="pos">10.0 &middot; progress</span>
+      + <span class="pos">b<sub>i</sub> &middot; [same aisle]</span>
+      &minus; <span class="neg">0.5 &middot; turn</span>
+      &minus; <span class="neg">1.0 &middot; crowding</span>
+    </div>
+    <table class="calc" style="margin-top:24px">
+      <thead>
+        <tr><th>Term</th><th>What it measures</th><th class="n">Range</th>
+            <th class="n">Weight</th><th class="n">Worst case</th></tr>
+      </thead>
+      <tbody>
+        <tr class="hi">
+          <td class="k">progress</td>
+          <td>route distance to the waypoint, before minus after</td>
+          <td class="n">&minus;1, 0, +1</td><td class="n">10.0</td>
+          <td class="n tot">&plusmn;10.0</td></tr>
+        <tr><td class="k">same aisle</td>
+          <td>does this cell continue the aisle I am already in</td>
+          <td class="n">0 or 1</td><td class="n">0.5 &ndash; 2.0</td>
+          <td class="n tot">+2.0</td></tr>
+        <tr><td class="k">turn</td>
+          <td>0 straight on, 1 a corner, 2 a reversal</td>
+          <td class="n">0, 1, 2</td><td class="n">0.5</td>
+          <td class="n tot">&minus;1.0</td></tr>
+        <tr><td class="k">crowding</td>
+          <td>robots near this cell, and the load on its aisle</td>
+          <td class="n">0 &ndash; 1</td><td class="n">1.0</td>
+          <td class="n tot">&minus;1.0</td></tr>
+      </tbody>
+    </table>
+    <p class="dim" style="font-size:17px;margin-top:18px">
+      The lane bonus <span class="mono">b<sub>i</sub></span> fades as the robot
+      approaches its target &mdash; <b>2.0</b> in transit, <b>1.25</b> on
+      approach, <b>0.5</b> on arrival &mdash; so a robot commits to a lane while
+      travelling and is free to turn off at the end. At an intersection there is
+      no aisle to continue, so the term is zero.</p>
+  </div>
+  <aside class="notes">
+    <p>Do not read the formula out. Point at the last column: the three
+    tie-break terms cannot total more than four, and one step of progress is
+    worth ten. That single inequality is the whole design, and it is the next
+    slide.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 25 -->
+<section class="slide" data-slug="score-worked" data-num="25">
+  <p class="eyebrow">Computation 2 of 3 &middot; the movement score</p>
+  <h2 class="wide">The same five options, scored</h2>
+  <div class="body">
+    <!-- generated:score-table -->
+<div class="split calc"><div><table class="calc"><caption>EVERY TERM, FOR EVERY CANDIDATE</caption><thead><tr><th>Move</th><th class="n">Progress</th><th class="n">Lane</th><th class="n">Turn</th><th class="n">Crowd</th><th class="n">S(v)</th></tr></thead><tbody><tr class="win"><td class="k">east <span style="color:#7b8899">&mdash; R2 is here</span></td><td class="n">+10.0</td><td class="n">&mdash;</td><td class="n">&mdash;</td><td class="n">&minus;0.258</td><td class="n tot">9.742</td></tr><tr class=""><td class="k">south</td><td class="n">+10.0</td><td class="n">&mdash;</td><td class="n">&minus;0.50</td><td class="n">&minus;0.091</td><td class="n tot">9.409</td></tr><tr class=""><td class="k">stay</td><td class="n">0.0</td><td class="n">&mdash;</td><td class="n">&mdash;</td><td class="n">&minus;0.077</td><td class="n tot">&minus;0.077</td></tr><tr class=""><td class="k">north <span style="color:#7b8899">&mdash; R3 is here</span></td><td class="n">&minus;10.0</td><td class="n">&mdash;</td><td class="n">&minus;0.50</td><td class="n">&minus;0.258</td><td class="n tot">&minus;10.758</td></tr><tr class=""><td class="k">west</td><td class="n">&minus;10.0</td><td class="n">&mdash;</td><td class="n">&minus;1.00</td><td class="n">&minus;0.091</td><td class="n tot">&minus;11.091</td></tr></tbody></table></div><div><div class="card tight"><h3>The tiers, ten points apart</h3><div style="margin-top:12px"><div style="display:flex;gap:14px;align-items:baseline"><span class="mono" style="width:5.5em;text-align:right;color:#10161d;font-weight:700">+10.0</span><span style="color:#4a5768;font-size:16px">east, south</span></div><div style="display:flex;gap:14px;align-items:baseline"><span class="mono" style="width:5.5em;text-align:right;color:#10161d;font-weight:700">0.0</span><span style="color:#4a5768;font-size:16px">stay</span></div><div style="display:flex;gap:14px;align-items:baseline"><span class="mono" style="width:5.5em;text-align:right;color:#10161d;font-weight:700">&minus;10.0</span><span style="color:#4a5768;font-size:16px">north, west</span></div></div></div><p style="font-size:18px;margin-top:20px">The top tier holds <b>2</b> candidates, separated by <b>0.333</b> &mdash; turning cost and crowding, and nothing else. Every tie-break in this planner is a contest for that margin.</p><p style="font-size:16px;color:var(--ink-dim);margin-top:14px">The lane column is empty for every candidate because R1 is standing on a junction, where there is no aisle to continue along. In an aisle it would be worth 2.00 to the cells that stay in one.</p></div></div>
+<!-- /generated:score-table -->
+  </div>
+  <div class="foot">
+    Progress sorts the candidates into tiers ten points apart; the other three
+    terms only ever reorder <b>within</b> a tier. A test asserts that inequality
+    directly, so a future weight that broke it would fail the build rather than
+    quietly change what the planner is.
+  </div>
+  <aside class="notes">
+    <p>This slide is the one to slow down on. Two candidates are in the top
+    tier, and which of them wins is decided entirely by turning cost and
+    crowding &mdash; terms worth about one point each. That is what a tie-break
+    looks like when it is doing its job.</p>
+    <p>And note what the planner does <em>not</em> do: it does not refuse the
+    occupied cell. It scores it, ranks it, and tries it &mdash; and if the robot
+    sitting there can be pushed, the move happens.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 26 -->
+<section class="slide" data-slug="priority-terms" data-num="26">
+  <p class="eyebrow">Computation 3 of 3 &middot; priority</p>
+  <h2 class="wide">Who chooses first: four terms, recomputed from scratch every step</h2>
+  <div class="body">
+    <div class="split calc">
+      <div>
+        <div class="formula small">
+          p<sub>i</sub>(t) =
+          <span class="pos">100 &middot; rank(class)</span><br>
+          <span style="padding-left:3.1em">+ <span class="pos">50 &middot; [in an aisle]</span></span><br>
+          <span style="padding-left:3.1em">+ <span class="pos">5 &middot; waiting time</span></span><br>
+          <span style="padding-left:3.1em">+ <span class="cm">&epsilon; &middot; robot id</span></span>
+        </div>
+        <p class="dim" style="font-size:16px;margin-top:18px">
+          The classes used to be five hand-set constants &mdash; 400, 300, 200,
+          100, 0. Only their <em>order</em> ever mattered, so they are one rank
+          times one spread now.</p>
+      </div>
+      <div>
+        <table class="calc">
+          <caption>THE CLASS LADDER, HIGHEST FIRST</caption>
+          <thead>
+            <tr><th>Class</th><th>The robot is&hellip;</th><th class="n">Rank</th><th class="n">Worth</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="k">recovery</td><td>being dug out of a jam</td>
+                <td class="n">4</td><td class="n tot">400</td></tr>
+            <tr class="hi"><td class="k">loaded</td><td>carrying a task to its delivery</td>
+                <td class="n">3</td><td class="n tot">300</td></tr>
+            <tr><td class="k">pickup</td><td>on its way to collect one</td>
+                <td class="n">2</td><td class="n tot">200</td></tr>
+            <tr><td class="k">repositioning</td><td>heading for a parking bay</td>
+                <td class="n">1</td><td class="n tot">100</td></tr>
+            <tr><td class="k">free</td><td>idle, no task</td>
+                <td class="n">0</td><td class="n tot">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    A loaded robot outranks one still on its way to a pickup, because dropping
+    a carried task wastes the trip already made. The <b>in-aisle</b> bonus of 50
+    is half a class: it clears the narrow parts of the floor first, on the
+    grounds that a robot stuck in a one-wide aisle blocks more than a robot
+    stuck at a junction.
+  </div>
+  <aside class="notes">
+    <p>Two terms were deleted from this function and it is worth naming them.
+    Urgency, because tasks in this simulator carry no deadline, so the term was
+    always exactly zero. Blocked time, because it is reset the moment a robot
+    moves and never grew enough to reorder anything &mdash; every run was
+    bit-identical without it.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 27 -->
+<section class="slide" data-slug="priority-pool" data-num="27">
+  <p class="eyebrow">Computation 3 of 3 &middot; priority</p>
+  <h2 class="wide">Six robots, one ordering</h2>
+  <div class="body">
+    <!-- generated:priority-pool -->
+<div class="split calc"><div><svg class="fig" viewBox="0 0 718 382" width="100%" height="382" role="img" aria-label="Six robots of four different classes on warehouse_small"><rect x="2" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="2" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="2" width="42" height="42" fill="#dbeaff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="44" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="44" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="86" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="86" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="128" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="128" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="170" width="42" height="42" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="170" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="170" width="42" height="42" fill="#fdeecb" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="212" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="212" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="254" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="254" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="296" width="42" height="42" fill="#d3dae2" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="296" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="2" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="44" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="86" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="128" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="170" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="212" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="254" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="296" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="338" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="380" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="422" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="464" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="506" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><rect x="548" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="590" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="632" y="338" width="42" height="42" fill="#ffffff" stroke="#ccd5df" stroke-width="1"/><rect x="674" y="338" width="42" height="42" fill="#d8f0e3" stroke="#ccd5df" stroke-width="1"/><circle cx="191" cy="107" r="15" fill="#0f7350"/><text x="191" y="111" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R1</text><circle cx="359" cy="191" r="15" fill="#0f7350"/><text x="359" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R2</text><circle cx="527" cy="275" r="15" fill="#1a56c4"/><text x="527" y="279" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R3</text><circle cx="275" cy="191" r="15" fill="#1a56c4"/><text x="275" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R4</text><circle cx="23" cy="191" r="15" fill="#9a5b00"/><text x="23" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R5</text><circle cx="611" cy="191" r="15" fill="#8593a4"/><text x="611" y="195" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#ffffff" font-weight="700">R6</text></svg><div class="key"><span><i style="background:#0f7350"></i>loaded</span><span><i style="background:#1a56c4"></i>pickup</span><span><i style="background:#9a5b00"></i>repositioning</span><span><i style="background:#8593a4"></i>free</span></div></div><div><table class="calc"><caption>THE ORDER THEY WILL PLAN IN</caption><thead><tr><th class="n">#</th><th></th><th>Class</th><th class="n">Class</th><th class="n">Aisle</th><th class="n">Waited</th><th class="n">Priority</th></tr></thead><tbody><tr class="win"><td class="n">1</td><td class="k">R1</td><td><span style="color:#0f7350;font-weight:600">loaded</span></td><td class="n">300</td><td class="n">+50</td><td class="n">&mdash;</td><td class="n tot">350.0001</td></tr><tr class=""><td class="n">2</td><td class="k">R2</td><td><span style="color:#0f7350;font-weight:600">loaded</span></td><td class="n">300</td><td class="n">&mdash;</td><td class="n">+5</td><td class="n tot">305.0002</td></tr><tr class=""><td class="n">3</td><td class="k">R3</td><td><span style="color:#1a56c4;font-weight:600">pickup</span></td><td class="n">200</td><td class="n">+50</td><td class="n">+15</td><td class="n tot">265.0003</td></tr><tr class=""><td class="n">4</td><td class="k">R4</td><td><span style="color:#1a56c4;font-weight:600">pickup</span></td><td class="n">200</td><td class="n">+50</td><td class="n">&mdash;</td><td class="n tot">250.0004</td></tr><tr class=""><td class="n">5</td><td class="k">R5</td><td><span style="color:#9a5b00;font-weight:600">repositioning</span></td><td class="n">100</td><td class="n">&mdash;</td><td class="n">+10</td><td class="n tot">110.0005</td></tr><tr class=""><td class="n">6</td><td class="k">R6</td><td><span style="color:#8593a4;font-weight:600">free</span></td><td class="n">0</td><td class="n">+50</td><td class="n">+45</td><td class="n tot">95.0006</td></tr></tbody></table><p class="figcap" style="text-align:left;margin-top:14px">The fourth term, the tie-breaker, is the robot id times a ten-thousandth &mdash; it is the digits after the decimal point, and it exists only so that two identical robots get a reproducible order.</p></div></div>
+<!-- /generated:priority-pool -->
+  </div>
+  <div class="foot">
+    Nothing carries over between timesteps. The order is rebuilt from the four
+    terms every step, so a robot that delivers drops from <b>300</b> to
+    <b>0</b> in one step, and a robot that has been waiting climbs whether
+    anybody noticed it or not.
+  </div>
+  <aside class="notes">
+    <p>Two comparisons on this table are worth pointing at. Two robots in the
+    same class are separated only by whether they are standing in an aisle; and
+    the idle robot at the bottom, despite having waited longest, is still below
+    a robot that is merely repositioning. That is the design working: class
+    dominates, and waiting time erodes it at a fixed rate.</p>
+    <p>The tie-breaker is the robot id times a ten-thousandth. It exists so that
+    two robots with identical state get a deterministic order rather than
+    whatever the sort happened to do, which matters when you are trying to
+    reproduce a run from a seed.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 28 -->
+<section class="slide" data-slug="priority-fairness" data-num="28">
+  <p class="eyebrow">Computation 3 of 3 &middot; priority</p>
+  <h2 class="wide">Waiting buys rank, so nothing starves</h2>
+  <div class="body">
+    <!-- generated:fairness -->
+<svg class="fig" viewBox="0 0 1020 168" width="100%" height="168" role="img" aria-label="Waiting time buys rank at a fixed rate"><rect x="60" y="91" width="900" height="26" rx="4" fill="#dbeaff"/><line x1="60" y1="104" x2="960" y2="104" stroke="#1a56c4" stroke-width="3"/><line x1="60" y1="97" x2="60" y2="111" stroke="#ccd5df" stroke-width="1.5"/><text x="60" y="132" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#7b8899">0</text><line x1="285" y1="97" x2="285" y2="111" stroke="#ccd5df" stroke-width="1.5"/><text x="285" y="132" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#7b8899">20</text><line x1="510" y1="97" x2="510" y2="111" stroke="#ccd5df" stroke-width="1.5"/><text x="510" y="132" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#7b8899">40</text><line x1="735" y1="97" x2="735" y2="111" stroke="#ccd5df" stroke-width="1.5"/><text x="735" y="132" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#7b8899">60</text><line x1="960" y1="97" x2="960" y2="111" stroke="#ccd5df" stroke-width="1.5"/><text x="960" y="132" text-anchor="middle" font-family="Helvetica, Arial" font-size="12" fill="#7b8899">80</text><line x1="94" y1="70" x2="94" y2="117" stroke="#9a5b00" stroke-width="2" stroke-dasharray="4 3"/><text x="94" y="62" text-anchor="middle" font-family="Helvetica, Arial" font-size="13" fill="#9a5b00" font-weight="700">R6 passes R5 at 3</text><text x="960" y="78" text-anchor="end" font-family="Helvetica, Arial" font-size="13" fill="#1a56c4" font-weight="700">at 80 steps it outranks anything, whatever class</text><text x="60" y="156" font-family="Helvetica, Arial" font-size="13" fill="#7b8899">timesteps a robot has been waiting</text></svg><div class="cols3" style="margin-top:26px"><div class="card tight accent"><h3>5 a step</h3><p>Every timestep a robot fails to move and is not already at its waypoint adds this much to its rank. Any move at all resets it to zero.</p></div><div class="card tight accent"><h3>400 to catch up</h3><p>The whole class ladder, bottom to top &mdash; the largest head start any robot can have over any other.</p></div><div class="card tight warm"><h3>80 steps</h3><p>400 &divide; 5. After this long, the lowest-ranked robot on the floor outranks a robot in recovery that just arrived.</p></div></div><p class="figcap" style="text-align:left;font-size:17px;margin-top:20px">In the pool on the last slide, R6 sits 15 below R5. It does not need the full horizon to pass it &mdash; <b>3 more steps of waiting</b> is enough. The measured maximum wait in a normal run is two or three steps, so neither number is ever reached; they are the bound, not the behaviour.</p>
+<!-- /generated:fairness -->
+  </div>
+  <div class="foot">
+    That is the guarantee. It is not that a low-priority robot is treated well;
+    it is that <b>no robot can be held below another forever</b>, because the
+    waiting term has no ceiling and the class term does.
+  </div>
+  <aside class="notes">
+    <p>The measured maximum wait in a normal run is two or three steps, so this
+    bound is never approached. That is the point: it is a proof obligation, not
+    an operating regime. A system whose fairness argument is "it does not happen
+    in practice" has no fairness argument.</p>
+    <p>This is also the term the deadlock ladder tries to exploit at rung 2 by
+    adding to it directly &mdash; and cannot, for a reason that is slide 31.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 29 -->
+<section class="slide" data-slug="no-progress" data-num="29">
+  <p class="eyebrow">When it goes wrong &middot; 1 of 3</p>
+  <h2 class="wide">What counts as being stuck</h2>
+  <div class="body">
+    <div class="split pic">
+      <div>
+        <svg viewBox="0 0 520 260" width="100%" height="250" role="img"
+             aria-label="Route distance over ten timesteps, flat for the last four">
+          <g stroke="#e8edf2" stroke-width="1">
+            <line x1="56" y1="30"  x2="500" y2="30"/>
+            <line x1="56" y1="76"  x2="500" y2="76"/>
+            <line x1="56" y1="122" x2="500" y2="122"/>
+            <line x1="56" y1="168" x2="500" y2="168"/>
+          </g>
+          <line x1="56" y1="214" x2="500" y2="214" stroke="#d7dee7" stroke-width="1.5"/>
+          <line x1="56" y1="20"  x2="56"  y2="214" stroke="#d7dee7" stroke-width="1.5"/>
+          <g font-family="Helvetica, Arial" font-size="12" fill="#7b8899" text-anchor="end">
+            <text x="46" y="35">12</text>
+            <text x="46" y="81">9</text>
+            <text x="46" y="127">6</text>
+            <text x="46" y="173">3</text>
+          </g>
+          <rect x="320" y="20" width="180" height="194" fill="#fbe6e3"/>
+          <polyline points="76,30 120,45 164,61 208,76 252,92 296,107 340,107 384,107 428,107 472,107"
+                    fill="none" stroke="#1a56c4" stroke-width="3"/>
+          <g fill="#1a56c4">
+            <circle cx="76" cy="30" r="4"/><circle cx="120" cy="45" r="4"/>
+            <circle cx="164" cy="61" r="4"/><circle cx="208" cy="76" r="4"/>
+            <circle cx="252" cy="92" r="4"/><circle cx="296" cy="107" r="4"/>
+          </g>
+          <g fill="#b32218">
+            <circle cx="340" cy="107" r="4"/><circle cx="384" cy="107" r="4"/>
+            <circle cx="428" cy="107" r="4"/><circle cx="472" cy="107" r="4"/>
+          </g>
+          <text x="410" y="140" text-anchor="middle" font-family="Helvetica, Arial"
+                font-size="14" fill="#b32218" font-weight="700">no progress</text>
+          <text x="278" y="240" text-anchor="middle" font-family="Helvetica, Arial"
+                font-size="13" fill="#7b8899">route distance to the waypoint, one point per timestep</text>
+        </svg>
+      </div>
+      <div>
+        <p style="font-size:20px">Progress means the route distance to the
+          waypoint <b>strictly decreased</b> this step. Not that the robot
+          moved &mdash; a robot shuffling sideways round an obstacle is not
+          making progress, and a robot that moves back and forth is making
+          none at all.</p>
+        <div class="cols" style="grid-template-columns:1fr 1fr;gap:18px;margin-top:6px">
+          <div class="card tight">
+            <h3>10 steps</h3>
+            <p>of no progress, or of being blocked, before the robot counts as
+              stalled at all.</p>
+          </div>
+          <div class="card tight">
+            <h3>Reset, not stalled</h3>
+            <p>Idle robots, and robots already standing on their waypoint, are
+              zeroed rather than counted.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    In dense lifelong traffic a robot waits several steps as a matter of course.
+    So no progress is a <b>precondition</b>, never a trigger &mdash; which is
+    the next slide, and the single largest effect in the sensitivity study.
+  </div>
+  <aside class="notes">
+    <p>The distinction between "did not move" and "did not get closer" is worth
+    a sentence. Blocked time counts the first; the no-progress counter counts
+    the second, and the second is the one that catches a robot being helpfully
+    pushed in the wrong direction over and over.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 30 -->
+<section class="slide" data-slug="corroboration" data-num="30">
+  <p class="eyebrow">When it goes wrong &middot; 2 of 3</p>
+  <h2 class="wide">A stall only counts when something corroborates it</h2>
+  <div class="body">
+    <div class="cols">
+      <div>
+        <svg viewBox="0 0 460 250" width="100%" height="234" role="img"
+             aria-label="Four robots in a wait-for cycle">
+          <defs>
+            <marker id="aC" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#b32218"/>
+            </marker>
+          </defs>
+          <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+            <rect x="140" y="40"  width="80" height="80"/>
+            <rect x="220" y="40"  width="80" height="80"/>
+            <rect x="140" y="120" width="80" height="80"/>
+            <rect x="220" y="120" width="80" height="80"/>
+          </g>
+          <circle cx="180" cy="80"  r="24" fill="#b32218"/>
+          <circle cx="260" cy="80"  r="24" fill="#b32218"/>
+          <circle cx="180" cy="160" r="24" fill="#b32218"/>
+          <circle cx="260" cy="160" r="24" fill="#b32218"/>
+          <g font-family="Helvetica, Arial" font-size="15" fill="#ffffff"
+             font-weight="700" text-anchor="middle">
+            <text x="180" y="86">R2</text><text x="260" y="86">R5</text>
+            <text x="180" y="166">R9</text><text x="260" y="166">R4</text>
+          </g>
+          <g stroke="#b32218" stroke-width="2.5" fill="none" marker-end="url(#aC)">
+            <path d="M206 70 H232"/>
+            <path d="M272 106 V134"/>
+            <path d="M234 170 H208"/>
+            <path d="M168 134 V106"/>
+          </g>
+          <text x="220" y="228" text-anchor="middle" font-family="Helvetica, Arial"
+                font-size="14" fill="#7b8899">each waiting for the next, all the way round</text>
+        </svg>
+        <h3 style="font-size:21px;margin:8px 0 6px">A wait-for cycle</h3>
+        <p class="dim" style="font-size:17px">Built from the edges the push
+          recursion recorded last step: <em>I asked this robot to move.</em> A
+          cycle in that graph is a real deadlock, and its members corroborate
+          each other.</p>
+      </div>
+      <div>
+        <svg viewBox="0 0 460 250" width="100%" height="234" role="img"
+             aria-label="A robot returning to the same four positions">
+          <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+            <rect x="90"  y="70" width="70" height="70"/>
+            <rect x="160" y="70" width="70" height="70"/>
+            <rect x="230" y="70" width="70" height="70"/>
+            <rect x="300" y="70" width="70" height="70"/>
+          </g>
+          <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899" text-anchor="middle">
+            <text x="125" y="60">t</text><text x="195" y="60">t+1</text>
+            <text x="265" y="60">t+2</text><text x="335" y="60">t+3</text>
+          </g>
+          <circle cx="125" cy="105" r="20" fill="#9a5b00"/>
+          <circle cx="195" cy="105" r="20" fill="#9a5b00"/>
+          <circle cx="265" cy="105" r="20" fill="#9a5b00"/>
+          <circle cx="335" cy="105" r="20" fill="#9a5b00"/>
+          <g font-family="Helvetica, Arial" font-size="13" fill="#ffffff"
+             font-weight="700" text-anchor="middle">
+            <text x="125" y="110">A</text><text x="195" y="110">B</text>
+            <text x="265" y="110">C</text><text x="335" y="110">D</text>
+          </g>
+          <g stroke="#ccd5df" fill="none" stroke-width="1.5">
+            <rect x="90"  y="160" width="70" height="70"/>
+            <rect x="160" y="160" width="70" height="70"/>
+            <rect x="230" y="160" width="70" height="70"/>
+            <rect x="300" y="160" width="70" height="70"/>
+          </g>
+          <g font-family="Helvetica, Arial" font-size="13" fill="#7b8899" text-anchor="middle">
+            <text x="125" y="152">t+4</text><text x="195" y="152">t+5</text>
+            <text x="265" y="152">t+6</text><text x="335" y="152">t+7</text>
+          </g>
+          <circle cx="125" cy="195" r="20" fill="#b32218"/>
+          <circle cx="195" cy="195" r="20" fill="#b32218"/>
+          <circle cx="265" cy="195" r="20" fill="#b32218"/>
+          <circle cx="335" cy="195" r="20" fill="#b32218"/>
+          <g font-family="Helvetica, Arial" font-size="13" fill="#ffffff"
+             font-weight="700" text-anchor="middle">
+            <text x="125" y="200">A</text><text x="195" y="200">B</text>
+            <text x="265" y="200">C</text><text x="335" y="200">D</text>
+          </g>
+          <text x="400" y="150" text-anchor="middle" font-family="Helvetica, Arial"
+                font-size="26" fill="#b32218" font-weight="700">=</text>
+        </svg>
+        <h3 style="font-size:21px;margin:8px 0 6px">A repeated configuration</h3>
+        <p class="dim" style="font-size:17px">The last four positions equal the
+          four before them. The robot is not stuck &mdash; it is busy, in a
+          loop, which is worse, because it looks like activity.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    Turning corroboration off &mdash; escalating on the precondition alone
+    &mdash; measures <b>&minus;54.1%</b> throughput
+    (<span class="mono">p &lt; 0.001</span>, 10 seeds, 4 maps). It is the second
+    largest effect of any parameter in the system, and it is a switch that only
+    decides <em>when to believe a stall</em>.
+  </div>
+  <aside class="notes">
+    <p>The reason this matters so much is that recovery is destructive. It
+    reroutes robots and sends them to escape vertices; doing that to a robot
+    that was merely queueing costs a delivery and makes the queue worse. Half
+    the throughput of this planner is in not panicking.</p>
+    <p>The wait-for graph is one step stale, because detection runs before
+    planning. That is deliberate and worth conceding if asked: a cycle that
+    existed last step and has already cleared is a false positive the
+    ten-step precondition filters out.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 31 -->
+<section class="slide" data-slug="recovery-ladder" data-num="31">
+  <p class="eyebrow">When it goes wrong &middot; 3 of 3</p>
+  <h2 class="wide">Four rungs, one per timestep &mdash; and two of them do nothing</h2>
+  <div class="body">
+    <div class="split calc">
+      <div>
+        <ol class="steps tight">
+          <li><h3>Recompute the routes from scratch</h3>
+              <p style="color:var(--good)">Works. Cheapest thing that can help,
+                so it goes first.</p></li>
+          <li><h3>Raise the blocked robots' priorities</h3>
+              <p style="color:var(--bad)">Inert. The next line of the timestep
+                recomputes priority from scratch and overwrites it.</p></li>
+          <li><h3>Allow temporary reverse movement</h3>
+              <p style="color:var(--bad)">Inert. Reversing was never
+                forbidden &mdash; the kinematics check returns false on every
+                branch.</p></li>
+          <li><h3>Send the group to escape vertices</h3>
+              <p style="color:var(--good)">Works. Nearest free bay, or a
+                junction with three ways out.</p></li>
+        </ol>
+      </div>
+      <div>
+        <div class="card bad">
+          <h3>Why this is on a slide rather than in a bug tracker</h3>
+          <p style="font-size:16px">Rungs 2 and 3 have been dead for the whole
+            measured history of this planner. Every number in this deck was
+            produced by a ladder that is really <b>two rungs and two
+            no-ops</b> &mdash; and it still recovers most groups, because rung 1
+            is doing the work.</p>
+        </div>
+        <div class="card warm" style="margin-top:20px">
+          <h3>The ladder used to have seven</h3>
+          <p style="font-size:16px">The last three released aisle permits,
+            dropped directional constraints, and hijacked waypoints. They went
+            with the layer they served. Truncating measured <b>+6%</b>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    One rung per timestep, not all four at once: in a synchronous loop you
+    cannot observe whether a remedy worked until the next step, so firing them
+    together would apply three of them <b>blind</b>.
+  </div>
+  <aside class="notes">
+    <p>Expect to be asked why the dead rungs are still there. The honest answer
+    is that removing them is a change to measured behaviour &mdash; rung 2 and
+    rung 3 each consume a timestep before the ladder reaches rung 4, so deleting
+    them makes recovery reach the escape-vertex remedy two steps sooner, and
+    that is a thing to measure, not to assume. It is the top item on the future
+    work slide.</p>
+    <p>The RECOVERY state is terminal, which is a second defect worth conceding
+    if it comes up: nothing takes a robot out of it, so a robot sent to an
+    escape vertex keeps its task and can never complete it.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 32 -->
+<section class="slide" data-slug="result-baselines" data-num="32">
+  <p class="eyebrow">Result 1 &middot; against the literature</p>
+  <h2 class="wide">On the corridor map it beats every planner we could run</h2>
+  <div class="body">
+    <!-- generated:featured -->
+<table class="calc"><caption>EVERY PLANNER ON THE SAME MAP, SEEDS AND JOB STREAM</caption><thead><tr><th class="">Planner</th><th class="n">Throughput (tasks / 1000 steps)</th><th class="n">95% interval</th></tr></thead><tbody><tr class="hi"><td class=" k"><b>Aisleflow</b></td><td class="n">147</td><td class="n">136–156</td></tr><tr class=""><td class=" k">RHCR (Li et al. 2021, PBS)</td><td class="n">100</td><td class="n">94–108</td></tr><tr class=""><td class=" k">Token Passing (Ma et al. 2017, Alg. 1)</td><td class="n">94</td><td class="n">90–98</td></tr><tr class=""><td class=" k">TP + task swaps (Ma et al. 2017, Alg. 2)</td><td class="n">50</td><td class="n">38–63</td></tr></tbody></table><p class="figcap" style="text-align:left;margin-top:16px"><span class="mono">warehouse_bottleneck</span>, 16 robots, 0.8 jobs per timestep. Tasks delivered per 1000 timesteps; higher is better. 5 seeds x 400 steps, identical job streams across planners. git <span class="mono">ef0910e</span>.</p>
+<!-- /generated:featured -->
+  </div>
+  <div class="foot">
+    Three baselines, each reimplemented from its own paper. The gap is the
+    picture on slide 18: every task has to cross one corridor, and a planner
+    that cannot resolve the queue it forms in there does not deliver.
+  </div>
+  <aside class="notes">
+    <p>Do not oversell this. It is one map, chosen because the case is clearest
+    on it, and the caveat slide says so. Token Passing and TPTS are also being
+    measured outside the well-formed MAPD envelope their papers assume, which
+    this floor does not provide at sixteen robots. RHCR shares no such
+    assumption and is the honest comparison of the three.</p>
+    <p>The animation in <span class="mono">docs/gifs/</span> is this exact
+    configuration &mdash; same map, robot count, arrival rate and seed &mdash;
+    so the picture and this number are the same run rather than two things that
+    resemble each other.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 33 -->
+<section class="slide" data-slug="result-ladder" data-num="33">
+  <p class="eyebrow">Result 2 &middot; against ourselves</p>
+  <h2 class="wide">And the full configuration is best on none of the four maps</h2>
+  <div class="body">
+    <!-- generated:ladder -->
+<table class="calc"><caption>EACH ROW ADDS ONE MECHANISM TO THE ROW ABOVE IT</caption><thead><tr><th class="">Configuration</th><th class="n">bottleneck</th><th class="n">corridors</th><th class="n">narrow</th><th class="n">medium</th></tr></thead><tbody><tr class=""><td class=" k">plain lifelong PIBT</td><td class="n">0.127</td><td class="n">0.131</td><td class="n"><b>0.354</b></td><td class="n"><b>0.502</b></td></tr><tr class=""><td class=" k">+ turning cost</td><td class="n">0.152</td><td class="n"><b>0.196</b></td><td class="n">0.269</td><td class="n">0.411</td></tr><tr class=""><td class=" k">+ stay-in-lane bonus</td><td class="n"><b>0.155</b></td><td class="n">0.181</td><td class="n">0.256</td><td class="n">0.424</td></tr><tr class=""><td class=" k">+ crowding</td><td class="n">0.147</td><td class="n">0.178</td><td class="n">0.309</td><td class="n">0.426</td></tr><tr class=""><td class=" k">+ deadlock recovery (full)</td><td class="n">0.147</td><td class="n">0.153</td><td class="n">0.291</td><td class="n">0.416</td></tr></tbody></table><p class="figcap" style="text-align:left;margin-top:16px">Tasks per timestep; <b>bold</b> is the best configuration for that map. 5 seeds x 400 steps, git <span class="mono">ef0910e</span>.</p>
+<!-- /generated:ladder -->
+  </div>
+  <div class="foot">
+    This is the finding the project exists to report. Turning cost alone
+    &mdash; the cheapest term in the score &mdash; is the single largest
+    improvement over plain PIBT, and on the two open floors <b>plain PIBT beats
+    everything we added to it</b>.
+  </div>
+  <aside class="notes">
+    <p>Say it plainly and do not soften it. Every row after the first is
+    something this project built, and on <span class="mono">narrow</span> and
+    <span class="mono">medium</span> the first row wins. The right reading is
+    not that the additions are worthless &mdash; they are decisive on
+    corridors &mdash; but that they are map-dependent, and nobody had measured
+    which maps until this pass.</p>
+    <p>If asked why the full configuration is shipped rather than the
+    turning-cost-only row: the recovery layer trades throughput for jams
+    resolved and tail service time, which the caveat slide covers. That is a
+    choice, and it is defensible; what is not defensible is claiming the trade
+    does not exist.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 34 -->
+<section class="slide" data-slug="deletions" data-num="34">
+  <p class="eyebrow">Result 3 &middot; what measuring cost us</p>
+  <h2 class="wide">Most of this project is now deleted</h2>
+  <div class="body">
+    <div class="cols4">
+      <div class="card bad">
+        <h3>The aisle-direction layer</h3>
+        <p>One-way aisles, a demand vote, a green/drain state machine,
+           hysteresis, direction-aware routing. About 450 lines.</p>
+        <p style="margin-top:12px;font-size:22px;font-family:var(--mono);color:var(--ink)">
+          &minus;0.3%<br><span style="font-size:14px;color:var(--ink-fade)">p = 0.95</span></p>
+      </div>
+      <div class="card bad">
+        <h3>Entry permits</h3>
+        <p>A robot needed a ticket to enter an aisle, and the ticket expired.
+           Removing the permit penalty alone:</p>
+        <p style="margin-top:12px;font-size:22px;font-family:var(--mono);color:var(--good)">
+          +33.6%<br><span style="font-size:14px;color:var(--ink-fade)">p &lt; 0.0001</span></p>
+      </div>
+      <div class="card bad">
+        <h3>Five of nine score terms</h3>
+        <p>Counterflow, bottleneck, wait, downstream crowding, direction. Each
+           measured worth less than a tie-break, which is worth nothing.</p>
+        <p style="margin-top:12px;font-size:22px;font-family:var(--mono);color:var(--ink)">
+          9 &rarr; 4</p>
+      </div>
+      <div class="card bad">
+        <h3>Three recovery rungs</h3>
+        <p>Release permits, drop directional constraints, hijack the waypoint.
+           They served a layer that no longer exists.</p>
+        <p style="margin-top:12px;font-size:22px;font-family:var(--mono);color:var(--good)">
+          +6%</p>
+      </div>
+    </div>
+    <p class="dim" style="font-size:19px;margin-top:26px">
+      Sixty parameters became thirty-seven. The one that hurt most to delete was
+      the one the whole project was named after &mdash; and the measurement that
+      killed it, <span class="mono">p = 0.95</span>, is about as close to "no
+      effect whatsoever" as a number gets.</p>
+  </div>
+  <div class="foot">
+    Every deletion here was preceded by a measurement, and every measurement is
+    in <span class="mono">docs/data/</span> with the git SHA of the code that
+    produced it. Nothing was removed because it looked untidy.
+  </div>
+  <aside class="notes">
+    <p>The entry-permit number is the one that should sting. A mechanism that
+    was costing a third of the planner's throughput sat in the system for the
+    whole of its measured history, because it was never ablated on its own
+    &mdash; it shared a flag with the direction layer, so the two were only ever
+    measured as a bundle.</p>
+    <p>The general lesson, if there is one: an ablation flag that controls more
+    than one mechanism is not an ablation. It is a bundle, and its effect size
+    cannot be attributed to anything.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 35 -->
+<section class="slide" data-slug="sensitivity" data-num="35">
+  <p class="eyebrow">Result 4 &middot; what is actually load-bearing</p>
+  <h2 class="wide">Neutralise one knob at a time, and see what falls over</h2>
+  <div class="body">
+    <!-- generated:sensitivity-top -->
+<table class="calc"><caption>THE SIX MOST LOAD-BEARING KNOBS, OF 24 MEASURED</caption><thead><tr><th class="">Family</th><th class="">Knob neutralised</th><th class="n">Pooled effect</th><th class="n">p</th><th class="">Worst map</th></tr></thead><tbody><tr class="hi"><td class=" k">score</td><td class=""><span class="mono">progress_reward</span></td><td class="n">-100.0%</td><td class="n">0.000</td><td class="">bottleneck (-100.0%)</td></tr><tr class="hi"><td class=" k">recovery</td><td class=""><span class="mono">require_deadlock_corroboration</span></td><td class="n">-54.1%</td><td class="n">0.000</td><td class="">corridors (-90.2%)</td></tr><tr class=""><td class=" k">priority</td><td class=""><span class="mono">priority_class_spread</span></td><td class="n">-38.7%</td><td class="n">0.000</td><td class="">bottleneck (-71.9%)</td></tr><tr class=""><td class=" k">score</td><td class=""><span class="mono">reverse_multiplier</span></td><td class="n">-17.2%</td><td class="n">0.000</td><td class="">narrow (-24.5%)</td></tr><tr class=""><td class=" k">score</td><td class=""><span class="mono">turn_penalty</span></td><td class="n">-15.1%</td><td class="n">0.004</td><td class="">corridors (-28.9%)</td></tr><tr class=""><td class=" k">priority</td><td class=""><span class="mono">waiting_weight</span></td><td class="n">-10.0%</td><td class="n">0.034</td><td class="">corridors (-23.8%)</td></tr></tbody></table><p class="figcap" style="text-align:left;margin-top:16px">24 variants, 10 seeds, 400 steps, 4 maps. Effect is the change in throughput from removing the knob, so a positive number means the planner is better without it. Paired sign-flip test; git <span class="mono">5f68d90</span>.</p>
+<!-- /generated:sensitivity-top -->
+  </div>
+  <div class="foot">
+    Only three things in this planner are worth more than 20%: <b>getting closer
+    to the goal</b>, <b>not believing a stall too readily</b>, and <b>knowing
+    which robot is carrying something</b>. Everything below that is a
+    tie-break, and the bottom half of the full table measures nothing at all.
+  </div>
+  <aside class="notes">
+    <p>The first row is a sanity check rather than a finding &mdash; remove the
+    progress reward and the robots stop going anywhere, which is what
+    &minus;100% means. Keep it in because a sensitivity study whose top row is
+    not obviously correct is a sensitivity study you should not trust.</p>
+    <p>The second row is the finding. A switch that only decides <em>when to
+    believe a stall</em> is worth more than half the planner's throughput,
+    which is not where anyone would have looked.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 36 -->
+<section class="slide" data-slug="caveats" data-num="36">
+  <p class="eyebrow">What these numbers do not say</p>
+  <h2 class="wide">Four caveats, stated rather than buried</h2>
+  <div class="body">
+    <div class="cols">
+      <div class="card warm">
+        <h3>Every scenario is saturated</h3>
+        <p><span class="mono">corridors</span> releases about 390 jobs in 400
+          steps and the best planner clears about 60. So throughput measures the
+          <em>capacity</em> of the floor, not responsiveness, and the queue
+          grows without bound behind every planner.</p>
+      </div>
+      <div class="card warm">
+        <h3>The baselines are outside their envelope</h3>
+        <p>Token Passing and TPTS assume a well-formed MAPD instance;
+          <span class="mono">warehouse_bottleneck</span> does not provide one at
+          sixteen robots. That is stated, not scored.</p>
+      </div>
+      <div class="card warm">
+        <h3>Four maps, and pooling hides disagreement</h3>
+        <p>A knob can help on one map, hurt on another, and pool to zero. The
+          full table carries a worst-map column for exactly that reason.</p>
+      </div>
+      <div class="card warm">
+        <h3>No multiple-comparison correction</h3>
+        <p>Twenty-three knobs at &alpha; = 0.05 means roughly one false positive
+          is expected. The load-bearing findings are far past that; the marginal
+          ones are suggestive only.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    And one more, on recovery: turning it off raises throughput <b>4.2%</b>, but
+    jams then go unresolved &mdash; 6.4 a run on corridors against 0.3 &mdash;
+    and p95 service time gets worse. It was kept. That is a trade-off, not a
+    free win, and it is on this slide rather than in a footnote.
+  </div>
+  <aside class="notes">
+    <p>Put this slide before the future-work slide, not after. An audience that
+    has heard the caveats from you does not have to go looking for them, and
+    every one of these is the first thing a careful reviewer would ask.</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 37 -->
+<section class="slide" data-slug="where-this-goes" data-num="37">
+  <p class="eyebrow">Where this goes</p>
+  <h2 class="wide">Next, in order of expected payoff</h2>
+  <div class="body">
+    <ol class="steps tight">
+      <li>
+        <h3>Delete the two dead recovery rungs, and measure it</h3>
+        <p>Rungs 2 and 3 each burn a timestep before the ladder reaches the one
+           remedy that works. Removing them is a change to measured behaviour,
+           so it needs a run, not an assumption.</p>
+      </li>
+      <li>
+        <h3>Give the RECOVERY state a way out</h3>
+        <p>Nothing transitions a robot out of it. A robot sent to an escape
+           vertex keeps its task and can never complete it, which is a leak on
+           every jam the ladder reaches rung 4 on.</p>
+      </li>
+      <li>
+        <h3>Work out why the additions lose on open grids</h3>
+        <p>They are decisive on corridors and a net loss on
+           <span class="mono">narrow</span> and <span class="mono">medium</span>.
+           A layer whose payoff depends on the map should be able to tell which
+           map it is on.</p>
+      </li>
+      <li>
+        <h3>Pair each baseline with the assignment policy from its own paper</h3>
+        <p>Assignment is currently held constant to isolate the movement layer.
+           That is the right experiment for our question and the wrong one for
+           "is RHCR good".</p>
+      </li>
+    </ol>
+  </div>
+  <aside class="notes">
+    <p>Item 4 is the one a reviewer will press on, and it should be conceded
+    early rather than defended: our baseline numbers answer "which movement
+    layer is better", not "which published system is better".</p>
+  </aside>
+</section>
+
+<!-- =================================================================== 38 -->
+<section class="slide" data-slug="closing" data-num="38">
+  <p class="eyebrow">In closing</p>
+  <h2 class="wide">Three things worth taking away</h2>
+  <div class="body">
+    <ol class="steps">
+      <li>
+        <h3>The core was the contribution all along</h3>
+        <p>Forty years of MAPF converged on a mechanism &mdash; push the robot
+           in your way, and unwind if it cannot move &mdash; that a hundred
+           lines of recursion capture. Plain lifelong PIBT still wins on the
+           open grids.</p>
+      </li>
+      <li>
+        <h3>A score may make a move expensive, never impossible</h3>
+        <p>Every collapse this project ever blamed on congestion turned out to
+           be a preference that had been allowed to delete a candidate. The
+           termination argument is "there is always somewhere to go" &mdash;
+           and every deleted move is a place there might not be.</p>
+      </li>
+      <li>
+        <h3>Measure the mechanism, not the bundle</h3>
+        <p>The layer this project was named after measured
+           <span class="mono">&minus;0.3%, p = 0.95</span>. It survived for
+           years because it was never ablated on its own.</p>
+      </li>
+    </ol>
+  </div>
+  <div class="foot" style="font-family:var(--mono); color:var(--ink)">
+    python3 main.py &mdash; no install, no runtime dependencies, zero collisions
+    in every run in <span style="font-family:var(--sans)">docs/data/</span>.
+  </div>
+  <aside class="notes">
+    <p>End on the third point if there is time for only one. The most
+    transferable lesson here is not about warehouses: it is that a mechanism
+    which has never been measured alone has never been measured.</p>
+  </aside>
+</section>
+
+</body>
+</html>

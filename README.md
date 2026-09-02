@@ -37,6 +37,7 @@ wins two floors and loses two — see
 | **[Parameters](docs/04-parameters.md)** | Every knob and the measured cost of removing it. |
 | **[Results](docs/05-results.md)** | Baseline comparison and the evidence behind every deletion. |
 | **[The maps](docs/06-the-maps.md)** | What the five warehouse floors are, and why each is a different problem. |
+| **[The slide deck](docs/deck/slides.html)** | The same material for an audience: 38 light-themed slides, with task assignment, the movement score and the priority ordering each worked through on a real floor. One file, no build step &mdash; open it in a browser. |
 
 ## The algorithm in a paragraph
 
@@ -228,13 +229,25 @@ experiments/     run_sensitivity.py (what each knob is worth) and run_all.py
 results/         JSON from the individual runners (git-ignored)
 tools/           make_docs_tables.py (the generated tables in docs/04, 05
                  and 06), make_figures.py (the figures, plus their README),
-                 make_gifs.py (the animation, plus its README -- both read
-                 their numbers from docs/data/ at render time)
+                 make_gifs.py (the animation, plus its README), and
+                 make_deck_figures.py (the deck's scenario grids and the
+                 arithmetic on them) -- all of which read their numbers from
+                 docs/data/, or from the planner itself, at render time
 docs/*.md        the six documents, in reading order
 docs/data/       the measured dataset every figure and table is generated from
 docs/figures/    the result figures, as SVG, embedded in docs/05 and 06
 docs/gifs/       the animation
+docs/deck/       slides.html -- the deck, for a browser
+presentation/    the build for Aisleflow-Research-Review.pptx at the repository
+                 root: the same study framed as a corporate research review
 ```
+
+Two decks, and they are not the same thing.
+[`docs/deck/slides.html`](docs/deck/slides.html) is the technical one: how the
+planner decides, worked through on a real floor, for an audience that wants to
+see the arithmetic. `Aisleflow-Research-Review.pptx`, built from
+[`presentation/`](presentation/README.md), is the commercial one: what the
+measurement is worth, and what a pilot would have to establish.
 
 ## Citation
 
