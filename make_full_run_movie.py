@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the whole lifelong pipeline of one seeded `full_lda_pibt` run.
+"""Render the whole lifelong pipeline of one seeded `full_caap` run.
 
 Everything the loop in `Simulator.step` does, on one frame:
 
@@ -54,10 +54,26 @@ from matplotlib.collections import LineCollection  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 import matplotlib.patheffects as pe  # noqa: E402
 
-from lda_pibt.experiments import build_run  # noqa: E402
-from lda_pibt.types import RobotState, Vertex  # noqa: E402
+from caap.experiments import build_run  # noqa: E402
+from caap.types import RobotState, Vertex  # noqa: E402
 
 Colour = Tuple[float, float, float]
+
+#: What to call a variant on the frame. The flag-bundle keys are how the
+#: experiment code names configurations; they are not what the planner is
+#: called, so the headline shows the planner's name instead.
+DISPLAY_NAMES = {
+    "full_caap": "CAAP",
+    "full_lda_pibt": "CAAP",
+    "pibt_baseline": "PIBT (one-shot baseline)",
+    "lifelong_pibt": "lifelong PIBT",
+    "token_passing": "Token Passing",
+    "rhcr": "RHCR",
+}
+
+
+def display_name(variant: str) -> str:
+    return DISPLAY_NAMES.get(variant, variant)
 
 # ---------------------------------------------------------------- palette
 BG = "#12141a"
@@ -250,12 +266,13 @@ def simulate(
 # ----------------------------------------------------------------- render
 class Renderer:
     def __init__(self, sim, frames: List[Frame], n_robots: int, timesteps: int,
-                 title: str, subtitle: str):
+                 title: str, subtitle: str, flow_arrows: bool = False):
         self.sim = sim
         self.frames = frames
         self.wh = sim.warehouse
         self.n = n_robots
         self.T = timesteps
+        self.flow_arrows = flow_arrows
         self.colours = robot_palette(n_robots)
 
         wh = self.wh
@@ -316,8 +333,8 @@ class Renderer:
         for v in wh.parking_vertices:
             self._cell_letter(v, "K", "#7a6428")
 
-        # ---------------- aisle flow arrows ----------------------------
-        self.arrow_aisles = [
+        # ---------------- aisle flow arrows (opt-in) -------------------
+        self.arrow_aisles = [] if not flow_arrows else [
             a for a in wh.aisles.values() if a.axis in ("row", "col") and a.length >= 3
         ]
         xs, ys = [], []
@@ -326,7 +343,7 @@ class Renderer:
             cols = [v[1] for v in aisle.vertices]
             ys.append(sum(rows) / len(rows))
             xs.append(sum(cols) / len(cols))
-        self.quiver = self.ax.quiver(
+        self.quiver = None if not flow_arrows else self.ax.quiver(
             xs or [0], ys or [0],
             np.zeros(max(1, len(xs))), np.zeros(max(1, len(xs))),
             angles="xy", scale_units="xy", scale=1.0,
@@ -389,9 +406,10 @@ class Renderer:
                      color=colour, alpha=0.85, zorder=2)
 
     def _build_hud(self) -> None:
-        heading = "AISLEFLOW  ·  full lifelong pipeline"
-        strap = ("task arrival → allocation → routing → PIBT "
-                 "→ aisle flow")
+        heading = "CAAP  ·  full lifelong pipeline"
+        strap = "task arrival → allocation → routing → PIBT"
+        if self.flow_arrows:
+            strap += " → aisle flow"
         if self.wide:
             self.fig.text(0.020, 0.378, heading, fontsize=13, color=INK,
                           fontweight="bold", va="top")
@@ -447,7 +465,8 @@ class Renderer:
         ax.set_xlim(0, 3)
         ax.set_ylim(0, 1)
         ax.set_title("robots · id → task · stage", fontsize=8.5, color=DIM, pad=4)
-        ncols = 3
+        # a small fleet in three columns leaves the panel mostly empty
+        ncols = 1 if self.n <= 6 else 2 if self.n <= 12 else 3
         rows = (self.n + ncols - 1) // ncols
         ax.set_xlim(0, ncols)
         self.roster_text: List = []
@@ -466,11 +485,18 @@ class Renderer:
             )
 
     def _build_legend(self) -> None:
+        parts = [
+            "circle = robot (id inside)",
+            "★ = its pickup goal",
+            "■ = its delivery goal",
+            "line = the route it is following (same colour)",
+            "red ring = stalled",
+            "red tint = crowded aisle",
+        ]
+        if self.flow_arrows:
+            parts.append("arrow = measured aisle flow")
         self.fig.text(
-            0.020, 0.394 if self.wide else 0.012,
-            "circle = robot (id inside)   ★ = its pickup goal   ■ = its delivery "
-            "goal   line = the route it is following (same colour)   red ring = "
-            "stalled   red tint = crowded aisle   arrow = measured aisle flow",
+            0.020, 0.394 if self.wide else 0.012, "   ".join(parts),
             fontsize=8.0, color=DIM, va="bottom",
         )
 
@@ -489,7 +515,7 @@ class Renderer:
 
         # aisle flow arrows
         U, V, C = [], [], []
-        for aisle in self.arrow_aisles:
+        for aisle in self.arrow_aisles if self.quiver is not None else ():
             flow, density = frame.aisle_flow.get(aisle.id, (0.0, 0.0))
             mag = min(1.0, abs(flow)) * min(1.0, density * 2.2)
             if mag < 0.12:
@@ -506,7 +532,7 @@ class Renderer:
                 U.append(sign * length)
                 V.append(0.0)
             C.append((0.10, 0.16, 0.30, 0.28 + 0.34 * mag))
-        if U:
+        if U and self.quiver is not None:
             self.quiver.set_UVC(np.array(U), np.array(V))
             self.quiver.set_color(np.array(C))
 
@@ -662,20 +688,26 @@ def write_gif(renderer: Renderer, path: Path, fps: int, stride: int,
 def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--map", default="warehouse_medium")
-    p.add_argument("--variant", default="full_lda_pibt")
+    p.add_argument("--variant", default="full_caap")
     p.add_argument("--robots", type=int, default=24)
     p.add_argument("--timesteps", type=int, default=1000)
     p.add_argument("--rate", type=float, default=0.35)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--flow-window", type=int, default=40)
     p.add_argument("--fps", type=int, default=20)
+    p.add_argument("--duration", type=float, default=None,
+                   help="total seconds for both outputs; overrides --fps and "
+                        "--gif-fps, which are then derived from the frame count")
+    p.add_argument("--flow-arrows", action="store_true",
+                   help="draw the measured per-aisle flow direction "
+                        "(off by default)")
     p.add_argument("--mp4-stride", type=int, default=1)
     p.add_argument("--gif-stride", type=int, default=5)
     p.add_argument("--gif-fps", type=int, default=12)
     p.add_argument("--gif-scale", type=float, default=0.45)
     p.add_argument("--gif-colors", type=int, default=128)
     p.add_argument("--out", default=str(ROOT / "docs" / "gifs"))
-    p.add_argument("--name", default="aisleflow-full-run")
+    p.add_argument("--name", default="caap-full-run")
     p.add_argument("--no-gif", action="store_true")
     p.add_argument("--no-mp4", action="store_true")
     args = p.parse_args(argv)
@@ -697,20 +729,32 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     renderer = Renderer(
         sim, frames, args.robots, args.timesteps,
-        title=f"{args.variant} · {args.map}",
+        title=f"{display_name(args.variant)} · {args.map}",
         subtitle=(f"{args.robots} robots · {args.rate} tasks/step · seed "
                   f"{args.seed} · lifelong MAPD"),
+        flow_arrows=args.flow_arrows,
     )
+
+    # a requested wall-clock duration fixes the frame rate, not the other way
+    # round: the frame count is already decided by the run and the stride
+    mp4_fps, gif_fps = args.fps, args.gif_fps
+    if args.duration:
+        n_mp4 = len(range(0, len(frames), args.mp4_stride))
+        n_gif = len(range(0, len(frames), args.gif_stride))
+        mp4_fps = max(1, round(n_mp4 / args.duration))
+        gif_fps = max(1, round(n_gif / args.duration))
+        print(f"  duration {args.duration:.0f}s -> mp4 {mp4_fps} fps "
+              f"({n_mp4} frames), gif {gif_fps} fps ({n_gif} frames)")
 
     written: List[Path] = []
     if not args.no_mp4:
         path = write_mp4(renderer, out_dir / f"{args.name}.mp4",
-                         args.fps, args.mp4_stride)
+                         mp4_fps, args.mp4_stride)
         print(f"  -> {path}  ({path.stat().st_size / 1e6:.2f} MB)")
         written.append(path)
     if not args.no_gif:
         path = write_gif(renderer, out_dir / f"{args.name}.gif",
-                         args.gif_fps, args.gif_stride, args.gif_scale,
+                         gif_fps, args.gif_stride, args.gif_scale,
                          args.gif_colors)
         print(f"  -> {path}  ({path.stat().st_size / 1e6:.2f} MB)")
         written.append(path)
