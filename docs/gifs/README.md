@@ -23,9 +23,9 @@ python3 tools/make_gifs.py            # needs pillow: pip install -e ".[viz]"
 
 ## How to read it
 
-It is built to be followed on a first watch, at two timesteps per frame,
-with a pause on the opening frame to read the setup and a longer one on
-the last to read the outcome.
+It is built to be followed on a first watch: 2 timesteps a frame
+at 5 frames a second, with a pause on the opening frame to read the
+setup and a longer one on the last to read the outcome.
 
 | On the frame | Means |
 | --- | --- |

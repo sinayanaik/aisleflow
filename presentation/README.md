@@ -1,4 +1,9 @@
-# The slide deck
+# The corporate-review deck
+
+Not to be confused with [`docs/deck/slides.html`](../docs/deck/slides.html),
+which is the technical deck -- how the planner decides, worked through on a
+real floor. This one is the commercial framing of the same study, and it is a
+PowerPoint file rather than a web page.
 
 `Aisleflow-Research-Review.pptx` at the repository root: 21 slides presenting
 the study as a corporate research review — the measurement first, then what it

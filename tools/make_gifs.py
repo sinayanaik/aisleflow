@@ -143,6 +143,11 @@ class Scenario:
     #: which quantity the shared chart plots -- "delivered", or "flips" where
     #: throughput is not what the scenario is arguing about
     chart_series: str = "delivered"
+    #: frames a second. Slower than a GIF usually runs, deliberately: the file
+    #: is not decoration, it is an argument, and a viewer has to be able to
+    #: follow sixteen robots through a six-cell corridor and see that the
+    #: corridor drains. At ten it was a blur.
+    fps: int = 5
     seed: int = 0
 
 
@@ -232,6 +237,7 @@ def render(scenario: Scenario, quick: bool = False) -> Path:
         title="",
         caption="",
         stride=stride,
+        fps=scenario.fps,
         chart_series=scenario.chart_series,
     )
     print(f"    -> {path.relative_to(ROOT)}  ({path.stat().st_size / 1e6:.2f} MB)")
@@ -244,6 +250,10 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
     The prose lives next to the run that produces it, so a GIF and its
     explanation cannot drift apart.
     """
+    # the pace is a property of the render, so read it off the scenario rather
+    # than writing it into the sentence, where it would be free to drift
+    stride = rendered[0].stride if rendered else 2
+    fps = rendered[0].fps if rendered else 5
     lines: List[str] = [
         "# Animation",
         "",
@@ -270,9 +280,9 @@ def write_readme(rendered: Sequence[Scenario]) -> Path:
         "",
         "## How to read it",
         "",
-        "It is built to be followed on a first watch, at two timesteps per frame,",
-        "with a pause on the opening frame to read the setup and a longer one on",
-        "the last to read the outcome.",
+        f"It is built to be followed on a first watch: {stride} timesteps a frame",
+        f"at {fps} frames a second, with a pause on the opening frame to read the",
+        "setup and a longer one on the last to read the outcome.",
         "",
         "| On the frame | Means |",
         "| --- | --- |",

@@ -25,6 +25,7 @@ because everything else was measured and deleted. Start with the first page.
 | **[04 — Parameters](04-parameters.md)** | Every knob, its default, and the measured cost of removing it. |
 | **[05 — Results](05-results.md)** | The comparison against the published planners, and the evidence behind every deletion. |
 | **[06 — The maps](06-the-maps.md)** | What the five warehouse floors are, and why each one is a different traffic problem. |
+| **[The deck](deck/slides.html)** | 38 slides: the same material for an audience, with the three computations worked through on a real floor. Open it in a browser. |
 
 ## The one-paragraph version
 
@@ -50,6 +51,7 @@ python3 experiments/run_all.py --seeds 5 --jobs 4    # --jobs: the baseline
 python3 tools/make_docs_tables.py
 python3 tools/make_figures.py
 python3 tools/make_gifs.py
+python3 tools/make_deck_figures.py     # the deck's arithmetic and grids
 ```
 
 The `baselines` and `density` suites run Token Passing, TPTS and RHCR, which
@@ -58,4 +60,7 @@ two orders of magnitude what a PIBT sweep of the same shape costs, which is
 why they take `--jobs`.
 
 The tables in pages 04 and 05 are generated between marker comments, and a test
-fails if they drift from the data.
+fails if they drift from the data. `deck/slides.html` works the same way: its
+scenario grids and every number on them come from `tools/make_deck_figures.py`,
+which calls the real assigner, the real scorer and the real priority function
+rather than restating what they do.
